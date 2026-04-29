@@ -1,0 +1,6 @@
+[package]
+name = "gkit-native"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]

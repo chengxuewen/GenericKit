@@ -1,0 +1,10 @@
+[package]
+name = "gkit-media"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+gkit-core.workspace = true
+
+[lib]
+crate-type = ["lib", "staticlib", "cdylib"]

@@ -1,0 +1,375 @@
+########################################################################################################################
+#
+# Library: GenericKit
+#
+# Copyright (C) 2026~Present ChengXueWen.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+########################################################################################################################
+
+#-----------------------------------------------------------------------------------------------------------------------
+# Get the generated cbindgen header directory for a C FFI crate.
+# Usage:
+#   gkit_cargo_cbindgen_dir(<out_var> <crate_manifest_path>)
+# The headers are expected to be at <crate_dir>/generated/ (produced by build.rs via cbindgen).
+#-----------------------------------------------------------------------------------------------------------------------
+function(gkit_cargo_cbindgen_dir out_var crate_manifest_path)
+	get_filename_component(crate_dir "${crate_manifest_path}" DIRECTORY)
+	set(generated_dir "${crate_dir}/generated")
+	set(${out_var} "${generated_dir}" PARENT_SCOPE)
+endfunction()
+
+
+#-----------------------------------------------------------------------------------------------------------------------
+# Get the generated cbindgen header file for a C FFI crate.
+# Usage:
+#   gkit_cargo_cbindgen_header(<out_var> <crate_manifest_path> <header_name>)
+#-----------------------------------------------------------------------------------------------------------------------
+function(gkit_cargo_cbindgen_header out_var crate_manifest_path header_name)
+	gkit_cargo_cbindgen_dir(gen_dir "${crate_manifest_path}")
+	set(header_path "${gen_dir}/${header_name}")
+	set(${out_var} "${header_path}" PARENT_SCOPE)
+endfunction()
+
+
+#-----------------------------------------------------------------------------------------------------------------------
+# Set FOLDER property for corrosion-generated build targets and library variants.
+# This organizes targets in IDE project views (VS, Xcode, Qt Creator).
+#
+# For a crate named "gkit-core-c", corrosion creates these target names:
+#   cargo-build_gkit_core_c, _cargo-build_gkit_core_c (build steps)
+#   gkit_core_c, gkit_core_c-static, gkit_core_c-shared  (library variants)
+#
+# Usage:
+#   gkit_cargo_set_folder(<crate_name> <folder>)
+#   gkit_cargo_set_folder("gkit-core"   "GKit/gkit_core")
+#   gkit_cargo_set_folder("gkit-core-c" "GKit/gkit_core/c")
+#-----------------------------------------------------------------------------------------------------------------------
+function(gkit_cargo_set_folder crate_name folder)
+	string(REPLACE "-" "_" crate_name_underscore "${crate_name}")
+
+	set(name_candidates)
+	if(NOT "${crate_name_underscore}" STREQUAL "${crate_name}")
+		list(APPEND name_candidates "${crate_name_underscore}" "${crate_name}")
+	else()
+		list(APPEND name_candidates "${crate_name}")
+	endif()
+
+	foreach(name ${name_candidates})
+		foreach(suffix "" "-static" "-shared")
+			set(target "${name}${suffix}")
+			if(TARGET "${target}")
+				set_target_properties("${target}" PROPERTIES FOLDER "${folder}")
+			endif()
+		endforeach()
+
+		foreach(build_target "cargo-build_${name}" "_cargo-build_${name}"
+				"cargo-clean_${name}" "cargo-prebuild_${name}")
+			if(TARGET "${build_target}")
+				set_target_properties("${build_target}" PROPERTIES FOLDER "${folder}")
+			endif()
+		endforeach()
+	endforeach()
+endfunction()
+
+
+#-----------------------------------------------------------------------------------------------------------------------
+# Set FOLDER property on a single target and its _static / _shared variants.
+# For wrapper targets not following corrosion naming conventions.
+#-----------------------------------------------------------------------------------------------------------------------
+function(_gkit_set_target_folder base_name folder)
+	foreach(suffix "" "_static" "_shared")
+		set(target "${base_name}${suffix}")
+		if(TARGET "${target}")
+			set_target_properties("${target}" PROPERTIES FOLDER "${folder}")
+		endif()
+	endforeach()
+endfunction()
+
+
+#-----------------------------------------------------------------------------------------------------------------------
+# Import a C FFI crate with both static and shared Rust library variants.
+# After calling this, the following CMake INTERFACE targets are available:
+#   ${base_name}         - aggregate target (shared variant by default)
+#   ${base_name}_static   - links the Rust static library
+#   ${base_name}_shared   - links the Rust shared library
+#
+# Usage:
+#   gkit_cargo_setup_ffi_target(<base_name>
+#       MANIFEST  <path/to/Cargo.toml>
+#       HEADER    <header_name.h>
+#       [CRATE_NAME <Rust-package-name>]
+#       [RUST_TARGET_STATIC <corrosion-static-target>]
+#       [RUST_TARGET_SHARED <corrosion-shared-target>]
+#       [FOLDER <IDE-folder-path>]
+#   )
+#
+# Example:
+#   gkit_cargo_setup_ffi_target(gkit_core_c
+#       MANIFEST "${CMAKE_CURRENT_SOURCE_DIR}/gkit-core/Cargo.toml"
+#       HEADER "gkit_core.h"
+#       CRATE_NAME "gkit-core-c"
+#       FOLDER "GKit/gkit_core/c")
+#-----------------------------------------------------------------------------------------------------------------------
+function(gkit_cargo_setup_ffi_target base_name)
+	gkit_parse_all_arguments(arg
+		"gkit_cargo_setup_ffi_target"
+		""
+		"MANIFEST;HEADER;CRATE_NAME;RUST_TARGET_STATIC;RUST_TARGET_SHARED;FOLDER"
+		"" ${ARGN})
+
+	if(NOT arg_MANIFEST)
+		message(FATAL_ERROR "gkit_cargo_setup_ffi_target: MANIFEST is required")
+	endif()
+
+	gkit_cargo_cbindgen_dir(gen_dir "${arg_MANIFEST}")
+
+	if(arg_CRATE_NAME)
+		set(crate_pkg_name "${arg_CRATE_NAME}")
+	else()
+		get_filename_component(crate_dir "${arg_MANIFEST}" DIRECTORY)
+		get_filename_component(crate_pkg_name ${crate_dir} NAME)
+	endif()
+
+	# Resolve rust target names (corrosion naming convention)
+	string(REPLACE "-" "_" crate_name_underscore "${crate_pkg_name}")
+
+	if(NOT arg_RUST_TARGET_STATIC)
+		set(rust_target_static "${crate_name_underscore}-static")
+	else()
+		set(rust_target_static "${arg_RUST_TARGET_STATIC}")
+	endif()
+
+	if(NOT arg_RUST_TARGET_SHARED)
+		if(TARGET "${crate_name_underscore}-shared")
+			set(rust_target_shared "${crate_name_underscore}-shared")
+		elseif(TARGET "${crate_name_underscore}")
+			set(rust_target_shared "${crate_name_underscore}")
+		elseif(TARGET "${crate_pkg_name}-shared")
+			set(rust_target_shared "${crate_pkg_name}-shared")
+		elseif(TARGET "${crate_pkg_name}")
+			set(rust_target_shared "${crate_pkg_name}")
+		else()
+			message(FATAL_ERROR "gkit_cargo_setup_ffi_target: cannot find corrosion shared target for ${crate_pkg_name}")
+		endif()
+	else()
+		set(rust_target_shared "${arg_RUST_TARGET_SHARED}")
+	endif()
+
+	# Direct FFI library output to CMake build directory.
+	# Corrosion reads output directory from the base target (without -static/-shared suffix).
+	set(corrosion_base_target "${crate_name_underscore}")
+	if(TARGET "${corrosion_base_target}")
+		set_target_properties("${corrosion_base_target}" PROPERTIES
+			ARCHIVE_OUTPUT_DIRECTORY "${GKIT_BUILD_DIR}/${GKIT_INSTALL_LIBDIR}")
+		if(WIN32)
+			set_target_properties("${corrosion_base_target}" PROPERTIES
+				RUNTIME_OUTPUT_DIRECTORY "${GKIT_BUILD_DIR}/${GKIT_INSTALL_BINDIR}")
+		else()
+			set_target_properties("${corrosion_base_target}" PROPERTIES
+				LIBRARY_OUTPUT_DIRECTORY "${GKIT_BUILD_DIR}/${GKIT_INSTALL_LIBDIR}")
+		endif()
+	endif()
+
+	# Static target (always create our own wrapper)
+	add_library(${base_name}_static INTERFACE)
+	target_sources(${base_name}_static INTERFACE "${arg_HEADER}")
+	target_include_directories(${base_name}_static INTERFACE "${gen_dir}")
+	target_link_libraries(${base_name}_static INTERFACE ${rust_target_static})
+
+	# Shared target: only if name doesn't collide with the corrosion base target
+	if(NOT "${rust_target_shared}" STREQUAL "${base_name}_shared")
+		add_library(${base_name}_shared INTERFACE)
+		target_include_directories(${base_name}_shared INTERFACE "${gen_dir}")
+		target_link_libraries(${base_name}_shared INTERFACE ${rust_target_shared})
+	endif()
+
+	# Aggregate target (defaults to shared).
+	# If corrosion already created ${base_name}, augment it instead of recreating.
+	if(NOT TARGET ${base_name})
+		add_library(${base_name} INTERFACE)
+		target_include_directories(${base_name} INTERFACE "${gen_dir}")
+		target_link_libraries(${base_name} INTERFACE ${rust_target_shared})
+	else()
+		target_include_directories(${base_name} INTERFACE "${gen_dir}")
+	endif()
+
+	# Set IDE FOLDER on all wrapper targets + the cargo build targets
+	if(arg_FOLDER)
+		_gkit_set_target_folder("${base_name}" "${arg_FOLDER}")
+		# Also organize corrosion build targets into the same folder
+		gkit_cargo_set_folder("${crate_pkg_name}" "${arg_FOLDER}")
+	endif()
+
+	# Install rules
+	if(arg_HEADER)
+		gkit_install(FILES "${gen_dir}/${arg_HEADER}"
+			DESTINATION "${GKIT_INSTALL_INCLUDEDIR}"
+			COMPONENT Devel)
+	endif()
+	gkit_install(FILES $<TARGET_FILE:${rust_target_static}>
+		DESTINATION "${GKIT_INSTALL_LIBDIR}"
+		COMPONENT Devel)
+	if(WIN32)
+		gkit_install(FILES $<TARGET_FILE:${rust_target_shared}>
+			DESTINATION "${GKIT_INSTALL_DLLDIR}"
+			COMPONENT Runtime)
+		gkit_install(FILES $<TARGET_LINKER_FILE:${rust_target_shared}>
+			DESTINATION "${GKIT_INSTALL_LIBDIR}"
+			COMPONENT Devel)
+	else()
+		gkit_install(FILES $<TARGET_FILE:${rust_target_shared}>
+			DESTINATION "${GKIT_INSTALL_LIBDIR}"
+			COMPONENT Runtime)
+	endif()
+endfunction()
+
+
+#-----------------------------------------------------------------------------------------------------------------------
+# Set up C++ binding targets that wrap the corresponding C FFI targets.
+# Creates both static and shared variants.
+#
+# After calling this, the following CMake INTERFACE targets are available:
+#   ${base_name}         - aggregate C++ target (shared variant by default)
+#   ${base_name}_static   - links the corresponding C FFI static target
+#   ${base_name}_shared   - links the corresponding C FFI shared target
+#
+# Usage:
+#   gkit_cargo_setup_ffi_cpp_target(<base_name>
+#       HEADER_DIR <path/to/cpp/headers>
+#       FFI_BASE_NAME <corresponding-c-ffi-base-name>
+#       [FOLDER <IDE-folder-path>]
+#   )
+#
+# Example:
+#   gkit_cargo_setup_ffi_cpp_target(gkit_core_cpp
+#       HEADER_DIR "${CMAKE_CURRENT_SOURCE_DIR}"
+#       FFI_BASE_NAME "gkit_core_c"
+#       FOLDER "GKit/gkit_core/cpp")
+#-----------------------------------------------------------------------------------------------------------------------
+function(gkit_cargo_setup_ffi_cpp_target base_name)
+	gkit_parse_all_arguments(arg
+		"gkit_cargo_setup_ffi_cpp_target"
+		""
+		"HEADER_DIR;FFI_BASE_NAME;FOLDER"
+		"INSTALL_HEADERS" ${ARGN})
+
+	if(NOT arg_HEADER_DIR)
+		message(FATAL_ERROR "gkit_cargo_setup_ffi_cpp_target: HEADER_DIR is required")
+	endif()
+	if(NOT arg_FFI_BASE_NAME)
+		message(FATAL_ERROR "gkit_cargo_setup_ffi_cpp_target: FFI_BASE_NAME is required")
+	endif()
+
+	add_library(${base_name}_static INTERFACE)
+	target_include_directories(${base_name}_static INTERFACE "${arg_HEADER_DIR}")
+	target_link_libraries(${base_name}_static INTERFACE ${arg_FFI_BASE_NAME}_static)
+
+	add_library(${base_name}_shared INTERFACE)
+	target_include_directories(${base_name}_shared INTERFACE "${arg_HEADER_DIR}")
+	target_link_libraries(${base_name}_shared INTERFACE ${arg_FFI_BASE_NAME}_shared)
+
+	if(NOT TARGET ${base_name})
+		add_library(${base_name} INTERFACE)
+	endif()
+	target_include_directories(${base_name} INTERFACE "${arg_HEADER_DIR}")
+	target_link_libraries(${base_name} INTERFACE ${arg_FFI_BASE_NAME})
+
+	if(arg_FOLDER)
+		_gkit_set_target_folder("${base_name}" "${arg_FOLDER}")
+	endif()
+
+	# Install rules
+	foreach(header ${arg_INSTALL_HEADERS})
+		gkit_install(FILES "${arg_HEADER_DIR}/${header}"
+			DESTINATION "${GKIT_INSTALL_INCLUDEDIR}"
+			COMPONENT Devel)
+	endforeach()
+endfunction()
+
+
+#-----------------------------------------------------------------------------------------------------------------------
+# Install CMake config and pkgconfig files for a C or C++ FFI target.
+# After calling this, find_package(<base_name>) and pkg-config <base_name> will work.
+#
+# Usage:
+#   gkit_cargo_install_config(<base_name>
+#       DESCRIPTION <description>
+#       LIB_NAME_STATIC  <static-lib-filename-without-extension>
+#       LIB_NAME_SHARED  <shared-lib-filename-without-prefix-suffix>
+#       [INCLUDEDIR <include-subdir>]
+#   )
+#
+# Example:
+#   gkit_cargo_install_config(gkit_core_c
+#       DESCRIPTION "GenericKit Core C FFI bindings"
+#       LIB_NAME_STATIC "gkit_core_c"
+#       LIB_NAME_SHARED "gkit_core_c")
+#-----------------------------------------------------------------------------------------------------------------------
+function(gkit_cargo_install_config base_name)
+	gkit_parse_all_arguments(arg
+		"gkit_cargo_install_config"
+		""
+		"DESCRIPTION;LIB_NAME_STATIC;LIB_NAME_SHARED;INCLUDEDIR;FFI_BASE_NAME"
+		"" ${ARGN})
+
+	include(CMakePackageConfigHelpers)
+
+	set(GKIT_LIBDIR "${GKIT_INSTALL_LIBDIR}")
+	set(GKIT_INCLUDEDIR "${GKIT_INSTALL_INCLUDEDIR}")
+
+	# Generate CMake config file
+	set(config_dir "${GKIT_CONFIG_BUILD_DIR}/${base_name}")
+	file(MAKE_DIRECTORY "${config_dir}")
+
+	if(arg_FFI_BASE_NAME)
+		# C++ binding: depends on the C FFI target
+		set(FFI_BASE_NAME "${arg_FFI_BASE_NAME}")
+		configure_package_config_file(
+			"${GKIT_CMAKE_DIR}/GKitCargoCppConfig.cmake.in"
+			"${config_dir}/${base_name}Config.cmake"
+			INSTALL_DESTINATION "${GKIT_CONFIG_INSTALL_DIR}/${base_name}"
+			PATH_VARS GKIT_INCLUDEDIR
+			NO_SET_AND_CHECK_MACRO)
+	else()
+		# C FFI: self-contained with library lookup
+		configure_package_config_file(
+			"${GKIT_CMAKE_DIR}/GKitCargoConfig.cmake.in"
+			"${config_dir}/${base_name}Config.cmake"
+			INSTALL_DESTINATION "${GKIT_CONFIG_INSTALL_DIR}/${base_name}"
+			PATH_VARS GKIT_LIBDIR GKIT_INCLUDEDIR
+			NO_SET_AND_CHECK_MACRO)
+	endif()
+
+	write_basic_package_version_file(
+		"${config_dir}/${base_name}ConfigVersion.cmake"
+		VERSION ${GKIT_VERSION}
+		COMPATIBILITY SameMajorVersion)
+
+	gkit_install(FILES
+		"${config_dir}/${base_name}Config.cmake"
+		"${config_dir}/${base_name}ConfigVersion.cmake"
+		DESTINATION "${GKIT_CONFIG_INSTALL_DIR}/${base_name}"
+		COMPONENT Devel)
+
+	# Generate pkgconfig file
+	set(TARGET_DESC "${arg_DESCRIPTION}")
+	configure_file(
+		"${GKIT_CMAKE_DIR}/GKitTarget.pc.in"
+		"${config_dir}/${base_name}.pc"
+		@ONLY)
+	gkit_install(FILES "${config_dir}/${base_name}.pc"
+		DESTINATION "${GKIT_INSTALL_LIBDIR}/pkgconfig"
+		COMPONENT Devel)
+endfunction()

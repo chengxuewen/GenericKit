@@ -70,11 +70,23 @@ Thumbs.db
 *.exe
 *.so*
 
+# Generated cbindgen headers
+# --------
+**/apis/c/**/generated/
+
+# Generated csbindgen C# files
+# --------
+**/apis/csharp/**/*.g.cs
+build/csharp/
+
+# Generated flutter_rust_bridge files
+# --------
+**/apis/flutter/**/src/frb_generated.rs
+
 # IDE files
 # --------
 .idea
 .cache
-.vscode
 
 # CMake files
 # --------
@@ -85,6 +97,7 @@ CMakeLists.txt.user
 cmake-build*
 build*
 vcpkg*
+target*
 
 # Temp dirs
 # --------
@@ -94,4 +107,3 @@ stash
 
 # Don't ignore files
 # --------
-.vscode/settings.json

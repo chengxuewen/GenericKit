@@ -1,0 +1,10 @@
+[package]
+name = "gkit-core"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+
+
+[lib]
+crate-type = ["lib", "staticlib", "cdylib"]

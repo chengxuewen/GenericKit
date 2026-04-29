@@ -1,0 +1,10 @@
+[package]
+name = "gkit-core-csharp-codegen"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[build-dependencies]
+csbindgen = { workspace = true }

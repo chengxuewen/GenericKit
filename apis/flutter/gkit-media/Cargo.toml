@@ -1,0 +1,11 @@
+[package]
+name = "gkit-media-flutter"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+gkit-media.workspace = true
+flutter_rust_bridge.workspace = true

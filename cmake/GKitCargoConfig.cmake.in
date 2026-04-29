@@ -1,0 +1,54 @@
+@PACKAGE_INIT@
+
+set(_gkit_prefix "${CMAKE_CURRENT_LIST_DIR}/../../..")
+
+# Locate the shared library
+find_library(@BASE_NAME@_SHARED_LIBRARY
+    NAMES @LIB_NAME_SHARED@
+    PATHS "${_gkit_prefix}/@GKIT_LIBDIR@"
+    NO_DEFAULT_PATH)
+
+# Locate the static library
+find_library(@BASE_NAME@_STATIC_LIBRARY
+    NAMES @LIB_NAME_STATIC@
+    PATHS "${_gkit_prefix}/@GKIT_LIBDIR@"
+    NO_DEFAULT_PATH)
+
+# Determine library file for the default target
+if(@BASE_NAME@_SHARED_LIBRARY)
+    set(_gkit_lib_file "${@BASE_NAME@_SHARED_LIBRARY}")
+else()
+    set(_gkit_lib_file "${@BASE_NAME@_STATIC_LIBRARY}")
+endif()
+
+if(NOT _gkit_lib_file)
+    message(FATAL_ERROR "@BASE_NAME@: neither shared nor static library found")
+endif()
+
+# Imported library target
+add_library(@BASE_NAME@_raw UNKNOWN IMPORTED)
+set_target_properties(@BASE_NAME@_raw PROPERTIES
+    IMPORTED_LOCATION "${_gkit_lib_file}")
+
+# INTERFACE target with headers
+add_library(@BASE_NAME@ INTERFACE)
+target_include_directories(@BASE_NAME@ INTERFACE "${_gkit_prefix}/@GKIT_INCLUDEDIR@")
+target_link_libraries(@BASE_NAME@ INTERFACE @BASE_NAME@_raw)
+
+# Static variant
+if(@BASE_NAME@_STATIC_LIBRARY)
+    add_library(@BASE_NAME@_static UNKNOWN IMPORTED)
+    set_target_properties(@BASE_NAME@_static PROPERTIES
+        IMPORTED_LOCATION "${@BASE_NAME@_STATIC_LIBRARY}"
+        INTERFACE_INCLUDE_DIRECTORIES "${_gkit_prefix}/@GKIT_INCLUDEDIR@")
+endif()
+
+# Shared variant
+if(@BASE_NAME@_SHARED_LIBRARY)
+    add_library(@BASE_NAME@_shared UNKNOWN IMPORTED)
+    set_target_properties(@BASE_NAME@_shared PROPERTIES
+        IMPORTED_LOCATION "${@BASE_NAME@_SHARED_LIBRARY}"
+        INTERFACE_INCLUDE_DIRECTORIES "${_gkit_prefix}/@GKIT_INCLUDEDIR@")
+endif()
+
+check_required_components(@BASE_NAME@)

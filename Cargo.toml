@@ -1,0 +1,33 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/*",
+    "apis/c/*",
+    "apis/python/*",
+    "apis/wasm/*",
+    "apis/node/*",
+    "apis/flutter/*",
+    "apis/csharp/*"
+]
+default-members = [
+    "crates/*",
+    "apis/c/*"
+]
+
+[workspace.package]
+version = "0.1.2"
+edition = "2024"
+
+[workspace.dependencies]
+gkit-core = { path = "crates/gkit-core" }
+gkit-media = { path = "crates/gkit-media" }
+
+cbindgen = { version = "0.29", default-features = false }
+bindgen = { version = "0.72.1" }
+csbindgen = "1"
+pyo3 = { version = "0.24" }
+wasm-bindgen = { version = "0.2" }
+napi = { version = "2", features = ["napi4"] }
+napi-derive = { version = "2" }
+napi-build = { version = "2" }
+flutter_rust_bridge = "2"

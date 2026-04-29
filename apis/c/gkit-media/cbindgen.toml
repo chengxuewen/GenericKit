@@ -1,0 +1,4 @@
+language = "C"
+
+[export]
+include = ["gkit_media_hello"]

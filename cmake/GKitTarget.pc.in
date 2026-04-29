@@ -1,0 +1,12 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+exec_prefix=${prefix}
+libdir=${exec_prefix}/@GKIT_LIBDIR@
+includedir=${prefix}/@GKIT_INCLUDEDIR@
+
+Name: @BASE_NAME@
+Description: @TARGET_DESC@
+Version: @GKIT_VERSION@
+Requires:
+Libs: -L${libdir} -l@LIB_NAME_STATIC@
+Libs.private: -L${libdir} -l@LIB_NAME_SHARED@
+Cflags: -I${includedir}

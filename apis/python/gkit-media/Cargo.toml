@@ -1,0 +1,15 @@
+[package]
+name = "gkit-media-py"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[features]
+default = []
+extension-module = ["pyo3/extension-module"]
+
+[dependencies]
+gkit-media.workspace = true
+pyo3.workspace = true
