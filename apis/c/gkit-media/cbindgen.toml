@@ -1,4 +1,22 @@
 language = "C"
+header = "#include \"gkit_media_api.h\""
+
+[fn]
+prefix = "GKIT_MEDIA_API "
 
 [export]
-include = ["gkit_media_hello"]
+include = [
+    "gkit_media_hello",
+    "gkit_media_rtc_",
+    "gkit_media_video_frame_",
+    "RtcSctpSettings",
+]
+
+[export.rename]
+"RtcSctpSettings" = "gkit_media_rtc_sctp_settings_t"
+"PcStateCallback" = "gkit_media_rtc_state_callback_t"
+"PcDescriptionCallback" = "gkit_media_rtc_description_callback_t"
+"PcCandidateCallback" = "gkit_media_rtc_candidate_callback_t"
+"PcDataChannelCallback" = "gkit_media_rtc_data_channel_callback_t"
+"VoidCallback" = "gkit_media_rtc_void_callback_t"
+"DcMessageCallback" = "gkit_media_rtc_message_callback_t"

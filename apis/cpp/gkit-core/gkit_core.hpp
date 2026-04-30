@@ -1,6 +1,8 @@
 #pragma once
 
+extern "C" {
 #include "gkit_core.h" // cbindgen-generated C header
+}
 
 #include <cstdint>
 

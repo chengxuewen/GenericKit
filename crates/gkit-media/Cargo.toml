@@ -3,8 +3,32 @@ name = "gkit-media"
 version.workspace = true
 edition.workspace = true
 
+[features]
+default = ["backend-native"]
+backend-native = []
+backend-native-webrtc-rs = ["backend-native"]
+backend-native-google = ["backend-native"]
+backend-wasm = []
+
 [dependencies]
 gkit-core.workspace = true
+webrtc = { workspace = true, optional = true }
+
+[build-dependencies]
+ureq = { version = "2", features = ["tls"] }
+zip = "0.6"
+
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.build-dependencies]
+cc = "1.0"
+
+[target.'cfg(target_os = "linux")'.build-dependencies]
+cc = "1.0"
+pkg-config = "0.3"
 
 [lib]
 crate-type = ["lib", "staticlib", "cdylib"]
+
+[dev-dependencies]
+eframe = "0.30"
+egui = "0.30"
+image = { version = "0.25", default-features = false, features = ["bmp"] }

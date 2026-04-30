@@ -28,7 +28,21 @@ gkit_cargo_setup_ffi_target(gkit_media_c
 	MANIFEST "${CMAKE_CURRENT_SOURCE_DIR}/gkit-media/Cargo.toml"
 	HEADER "gkit_media.h"
 	CRATE_NAME "gkit-media-c"
-	FOLDER "gkit_media/c")
+	FOLDER "gkit_media/apis/c")
+
+# Add manual header directory to include path
+target_include_directories(gkit_media_c INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/gkit-core")
+target_include_directories(gkit_media_c INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/gkit-media")
+
+# API visibility macros (shared by all modules)
+gkit_install(FILES gkit-core/gkit_core_api.h
+	DESTINATION "${GKIT_INSTALL_INCLUDEDIR}"
+	COMPONENT Devel)
+
+# Media-specific headers
+gkit_install(FILES gkit-media/gkit_media_api.h
+	DESTINATION "${GKIT_INSTALL_INCLUDEDIR}"
+	COMPONENT Devel)
 
 gkit_cargo_install_config(gkit_core_c
 	DESCRIPTION "GenericKit Core C FFI bindings"
@@ -39,3 +53,12 @@ gkit_cargo_install_config(gkit_media_c
 	DESCRIPTION "GenericKit Media C FFI bindings"
 	LIB_NAME_STATIC "gkit_media_c"
 	LIB_NAME_SHARED "gkit_media_c")
+
+if(GKIT_BUILD_TESTS)
+	add_subdirectory(gkit-media/tests)
+endif()
+
+# TODO: re-enable after FindWrapCImGui backend compilation fixed
+# if(GKIT_BUILD_EXAMPLES)
+# 	add_subdirectory(gkit-media/examples)
+# endif()

@@ -321,6 +321,7 @@ include(GKitCargoHelpers)
 include(GKitOptionHelpers)
 include(GKitInstallHelpers)
 include(GKitPlatformHelpers)
+include(GKitFindPackageHelpers)
 
 
 #-----------------------------------------------------------------------------------------------------------------------
@@ -359,6 +360,23 @@ gkit_option(GKIT_BUILD_API_CSHARP "Enable this to include C# bindings (csbindgen
 	OR_CONDITION GKIT_BUILD_ALL)
 gkit_option(GKIT_BUILD_API_FLUTTER "Enable this to build Flutter bindings (requires flutter_rust_bridge_codegen)" OFF
 	OR_CONDITION GKIT_BUILD_ALL)
+
+# WebRTC backend selection
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "wasm32" OR EMSCRIPTEN)
+	set(_gkit_feature_media_webrtc_backend_default "wasm")
+else()
+	set(_gkit_feature_media_webrtc_backend_default "webrtc-rs")
+endif()
+set(GKIT_FEATURE_MEDIA_WEBRTC_BACKEND "${_gkit_feature_media_webrtc_backend_default}" CACHE STRING "WebRTC backend: webrtc-rs, google, or wasm")
+set_property(CACHE GKIT_FEATURE_MEDIA_WEBRTC_BACKEND PROPERTY STRINGS "webrtc-rs" "google" "wasm")
+if(NOT GKIT_FEATURE_MEDIA_WEBRTC_BACKEND MATCHES "^(webrtc-rs|google|wasm)$")
+	message(FATAL_ERROR "GKIT_FEATURE_MEDIA_WEBRTC_BACKEND must be one of: webrtc-rs, google, wasm (got: ${GKIT_FEATURE_MEDIA_WEBRTC_BACKEND})")
+endif()
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "wasm32" OR EMSCRIPTEN)
+	if(NOT GKIT_FEATURE_MEDIA_WEBRTC_BACKEND STREQUAL "wasm")
+		message(FATAL_ERROR "GKIT_FEATURE_MEDIA_WEBRTC_BACKEND=wasm is required for wasm32 targets")
+	endif()
+endif()
 
 
 #-----------------------------------------------------------------------------------------------------------------------
@@ -599,6 +617,7 @@ set(GKIT_INTERNAL_ADD_EXECUTABLE_MULTI_ARGS
 #include(InstallPython)
 #include(InstallPkgconf)
 include(InstallCorrosion)
+include(InstallVcpkg)
 include(InstallRequiredSystemLibraries)
 
 if(GKIT_BUILD_DOCS)
@@ -607,8 +626,17 @@ endif()
 if(GKIT_BUILD_TESTS)
 	include(CTest)
 	enable_testing()
-#	gkit_find_package(WrapGTest PROVIDED_TARGETS GenericKitWrapGTest::WrapGTest)
-#	gkit_find_package(WrapBenchmark PROVIDED_TARGETS GenericKitWrapBenchmark::WrapBenchmark)
+	gkit_find_package(WrapUnity PROVIDED_TARGETS GKitWrapUnity::WrapUnity)
+	gkit_find_package(WrapGTest PROVIDED_TARGETS GKitWrapGTest::WrapGTest)
+	gkit_find_package(WrapBenchmark PROVIDED_TARGETS GKitWrapBenchmark::WrapBenchmark)
+
+	find_program(GKIT_CARGO_EXECUTABLE cargo REQUIRED)
+	add_test(NAME gkit_media_tests_native
+		COMMAND "${GKIT_CARGO_EXECUTABLE}" test -p gkit-media --features backend-native
+		WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+	add_test(NAME gkit_media_tests_google
+		COMMAND ${CMAKE_COMMAND} -E env GKIT_SKIP_WEBRTC_DOWNLOAD=true "${GKIT_CARGO_EXECUTABLE}" test -p gkit-media --features backend-native-google
+		WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 endif()
 
 
@@ -632,6 +660,15 @@ if(GKIT_BUILD_API_FLUTTER)
 	list(APPEND _gkit_corrosion_crates gkit-core-flutter gkit-media-flutter)
 endif()
 corrosion_import_crate(MANIFEST_PATH Cargo.toml CRATES ${_gkit_corrosion_crates})
+
+# Set WebRTC backend features on gkit_media
+if(GKIT_FEATURE_MEDIA_WEBRTC_BACKEND STREQUAL "webrtc-rs")
+	set_target_properties(gkit_media PROPERTIES CORROSION_FEATURES "backend-native-webrtc-rs")
+elseif(GKIT_FEATURE_MEDIA_WEBRTC_BACKEND STREQUAL "google")
+	set_target_properties(gkit_media PROPERTIES CORROSION_FEATURES "backend-native-google")
+elseif(GKIT_FEATURE_MEDIA_WEBRTC_BACKEND STREQUAL "wasm")
+	set_target_properties(gkit_media PROPERTIES CORROSION_FEATURES "backend-wasm")
+endif()
 
 # Direct internal/Python/Wasm/Node/Flutter crate output to a cargo subdir to avoid cluttering build/
 set(_gkit_redirect_crates gkit_core gkit_media gkit_native gkit_crash gkit_network gkit_service)
@@ -670,7 +707,7 @@ gkit_cargo_set_folder("gkit-network" "gkit_network")
 gkit_cargo_set_folder("gkit-service" "gkit_service")
 if(GKIT_BUILD_API_C)
 	gkit_cargo_set_folder("gkit-core-c"  "gkit_core/c")
-	gkit_cargo_set_folder("gkit-media-c" "gkit_media/c")
+	gkit_cargo_set_folder("gkit-media-c" "gkit_media/apis/c")
 endif()
 if(GKIT_BUILD_API_PYTHON)
 	gkit_cargo_set_folder("gkit-core-py"  "gkit_core/python")
@@ -713,3 +750,11 @@ if(GKIT_BUILD_API_FLUTTER)
 endif()
 #add_subdirectory(src/tools)
 #add_subdirectory(src/libs)
+
+# Rust examples
+if(GKIT_BUILD_EXAMPLES)
+	add_subdirectory(crates/gkit-media/examples/gkit-media-viewer)
+endif()
+
+# Rust tools
+add_subdirectory(tools/gkit-vcpkg)

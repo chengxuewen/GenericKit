@@ -1,6 +1,8 @@
 #pragma once
 
-#include "gkit_media.h" // cbindgen-generated C header
+extern "C" {
+#include "gkit_media.h"
+}
 
 #include <cstdint>
 

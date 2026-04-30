@@ -7,7 +7,8 @@ members = [
     "apis/wasm/*",
     "apis/node/*",
     "apis/flutter/*",
-    "apis/csharp/*"
+    "apis/csharp/*",
+    "tools/gkit-vcpkg"
 ]
 default-members = [
     "crates/*",
@@ -31,3 +32,4 @@ napi = { version = "2", features = ["napi4"] }
 napi-derive = { version = "2" }
 napi-build = { version = "2" }
 flutter_rust_bridge = "2"
+webrtc = "0.11"
