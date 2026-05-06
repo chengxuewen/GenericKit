@@ -17,7 +17,13 @@ crates/     # Rust crates (gkit-core, gkit-media, gkit-network, ...)
 apis/       # FFI bindings (c/cpp/python/wasm/node/csharp/flutter)
 cmake/      # CMake modules
 tools/      # CLI tools
+3rdparty/   # Third-party dependencies + submodules
 ```
+
+## 3rdparty
+
+- `GenericKit-Agent-Memory/` — git submodule for AI agent memory (opencode-mem0 storage). Configured in `.opencode/opencode.json` via `mem0.storage_dir`.
+- `.tar.gz` archives — local tarballs extracted at configure time (GTest, Benchmark, etc.)
 
 ## Key Rules
 

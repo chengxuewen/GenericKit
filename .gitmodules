@@ -1,0 +1,3 @@
+[submodule "3rdparty/GenericKit-Agent-Memory"]
+	path = 3rdparty/GenericKit-Agent-Memory
+	url = https://gitee.com/chengxuewen/GenericKit-Agent-Memory.git

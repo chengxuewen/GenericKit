@@ -3,5 +3,8 @@
   "plugin": [
     "superpowers@git+https://github.com/obra/superpowers.git",
     "opencode-mem0"
-  ]
+  ],
+  "mem0": {
+    "storage_dir": "3rdparty/GenericKit-Agent-Memory"
+  }
 }
