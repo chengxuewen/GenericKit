@@ -98,40 +98,84 @@ fn draw_rect(plane: &mut [u8], stride: u32, x: u32, y: u32, w: u32, h: u32, colo
     }
 }
 
-// ── 5×7 bitmapped font for timestamp overlay ──
+// ── 6×10 bitmapped font (derived from OpenCTK digitBitmaps) ──
 
-type Glyph = [u8; 7];
+const GLYPH_W: u32 = 6;
+const GLYPH_H: u32 = 10;
+const GLYPH_BYTES: usize = 60; // 10 rows × 6 cols
 
-const FONT: &[u8] = &[
-    // Upper 5 bits of each byte encode the glyph row (MSB = leftmost pixel).
+#[rustfmt::skip]
+const GLYPH_DATA: &[u8] = &[
     // 0
-    0x70, 0x88, 0x88, 0x88, 0x88, 0x88, 0x70,
+    0,0,0,0,0,0, 0,0,0,0,0,0,
+    0,255,255,255,255,0, 0,255,0,0,255,0, 0,255,0,0,255,0,
+    0,255,0,0,255,0, 0,255,0,0,255,0, 0,255,0,0,255,0,
+    0,255,255,255,255,0, 0,0,0,0,0,0,
     // 1
-    0x20, 0x60, 0x20, 0x20, 0x20, 0x20, 0x70,
+    0,0,0,0,0,0, 0,0,0,0,0,0,
+    0,255,255,0,0,0, 0,0,255,0,0,0, 0,0,255,0,0,0,
+    0,0,255,0,0,0, 0,0,255,0,0,0, 0,0,255,0,0,0,
+    0,255,255,255,255,0, 0,0,0,0,0,0,
     // 2
-    0x70, 0x88, 0x08, 0x10, 0x20, 0x40, 0xF8,
+    0,0,0,0,0,0, 0,0,0,0,0,0,
+    0,255,255,255,255,0, 0,0,0,0,255,0, 0,0,0,0,255,0,
+    0,255,255,255,255,0, 0,255,0,0,0,0, 0,255,0,0,0,0,
+    0,255,255,255,255,0, 0,0,0,0,0,0,
     // 3
-    0x70, 0x88, 0x08, 0x30, 0x08, 0x88, 0x70,
+    0,0,0,0,0,0, 0,0,0,0,0,0,
+    0,255,255,255,255,0, 0,0,0,0,255,0, 0,0,0,0,255,0,
+    0,255,255,255,255,0, 0,0,0,0,255,0, 0,0,0,0,255,0,
+    0,255,255,255,255,0, 0,0,0,0,0,0,
     // 4
-    0x10, 0x30, 0x50, 0x90, 0xF8, 0x10, 0x10,
+    0,0,0,0,0,0, 0,0,0,0,0,0,
+    0,255,0,0,255,0, 0,255,0,0,255,0, 0,255,0,0,255,0,
+    0,255,255,255,255,0, 0,0,0,0,255,0, 0,0,0,0,255,0,
+    0,0,0,0,255,0, 0,0,0,0,0,0,
     // 5
-    0xF8, 0x80, 0xF0, 0x08, 0x08, 0x88, 0x70,
+    0,0,0,0,0,0, 0,0,0,0,0,0,
+    0,255,255,255,255,0, 0,255,0,0,0,0, 0,255,0,0,0,0,
+    0,255,255,255,255,0, 0,0,0,0,255,0, 0,0,0,0,255,0,
+    0,255,255,255,255,0, 0,0,0,0,0,0,
     // 6
-    0x70, 0x80, 0xF0, 0x88, 0x88, 0x88, 0x70,
+    0,0,0,0,0,0, 0,0,0,0,0,0,
+    0,255,255,255,255,0, 0,255,0,0,0,0, 0,255,0,0,0,0,
+    0,255,255,255,255,0, 0,255,0,0,255,0, 0,255,0,0,255,0,
+    0,255,255,255,255,0, 0,0,0,0,0,0,
     // 7
-    0xF8, 0x08, 0x10, 0x20, 0x40, 0x40, 0x40,
+    0,0,0,0,0,0, 0,0,0,0,0,0,
+    0,255,255,255,255,0, 0,0,0,0,255,0, 0,0,0,0,255,0,
+    0,0,0,0,255,0, 0,0,0,0,255,0, 0,0,0,0,255,0,
+    0,0,0,0,255,0, 0,0,0,0,0,0,
     // 8
-    0x70, 0x88, 0x88, 0x70, 0x88, 0x88, 0x70,
+    0,0,0,0,0,0, 0,0,0,0,0,0,
+    0,255,255,255,255,0, 0,255,0,0,255,0, 0,255,0,0,255,0,
+    0,255,255,255,255,0, 0,255,0,0,255,0, 0,255,0,0,255,0,
+    0,255,255,255,255,0, 0,0,0,0,0,0,
     // 9
-    0x70, 0x88, 0x88, 0x78, 0x08, 0x08, 0x70,
-    // :
-    0x00, 0x00, 0x30, 0x30, 0x00, 0x30, 0x30,
-    // .
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x30, 0x30,
-    // -
-    0x00, 0x00, 0x00, 0xF8, 0x00, 0x00, 0x00,
-    // ' '
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0,0,0,0,0,0, 0,0,0,0,0,0,
+    0,255,255,255,255,0, 0,255,0,0,255,0, 0,255,0,0,255,0,
+    0,255,255,255,255,0, 0,0,0,0,255,0, 0,0,0,0,255,0,
+    0,255,255,255,255,0, 0,0,0,0,0,0,
+    // 10: ':'  (colon)
+    0,0,0,0,0,0, 0,0,0,0,0,0,
+    0,0,0,0,0,0, 0,0,255,0,0,0, 0,0,0,0,0,0,
+    0,0,0,0,0,0, 0,0,0,0,0,0, 0,0,255,0,0,0,
+    0,0,0,0,0,0, 0,0,0,0,0,0,
+    // 11: '.'  (period)
+    0,0,0,0,0,0, 0,0,0,0,0,0,
+    0,0,0,0,0,0, 0,0,0,0,0,0, 0,0,0,0,0,0,
+    0,0,0,0,0,0, 0,0,255,0,0,0, 0,0,0,0,0,0,
+    0,0,0,0,0,0, 0,0,0,0,0,0,
+    // 12: '-'  (dash)
+    0,0,0,0,0,0, 0,0,0,0,0,0,
+    0,0,0,0,0,0, 0,0,0,0,0,0, 0,0,0,0,0,0,
+    0,255,255,255,255,0, 0,0,0,0,0,0, 0,0,0,0,0,0,
+    0,0,0,0,0,0, 0,0,0,0,0,0,
+    // 13: ' '  (space)
+    0,0,0,0,0,0, 0,0,0,0,0,0,
+    0,0,0,0,0,0, 0,0,0,0,0,0, 0,0,0,0,0,0,
+    0,0,0,0,0,0, 0,0,0,0,0,0, 0,0,0,0,0,0,
+    0,0,0,0,0,0, 0,0,0,0,0,0,
 ];
 
 fn glyph_index(ch: u8) -> usize {
@@ -140,23 +184,23 @@ fn glyph_index(ch: u8) -> usize {
         b':' => 10,
         b'.' => 11,
         b'-' => 12,
-        _ => 13, // space / unknown
+        _ => 13,
     }
 }
 
-fn draw_glyph(plane: &mut [u8], stride_y: u32, x: u32, y: u32, glyph: &Glyph, scale: u32) {
-    for row in 0..7u32 {
-        let bits = glyph[row as usize];
-        for col in 0..5u32 {
-            if bits & (1u8 << (4 - col)) != 0 {
-                for sy in 0..scale {
-                    for sx in 0..scale {
-                        let px = x + col * scale + sx;
-                        let py = y + row * scale + sy;
-                        let idx = (py * stride_y + px) as usize;
-                        if idx < plane.len() {
-                            plane[idx] = 255; // white
-                        }
+fn draw_glyph_610(plane: &mut [u8], stride: u32, gx: u32, gy: u32, gi: usize, scale: u32) {
+    let base = gi * GLYPH_BYTES;
+    for row in 0..GLYPH_H {
+        for col in 0..GLYPH_W {
+            let val = GLYPH_DATA[base + (row * GLYPH_W + col) as usize];
+            if val == 0 { continue; }
+            for sy in 0..scale {
+                for sx in 0..scale {
+                    let px = gx + col * scale + sx;
+                    let py = gy + row * scale + sy;
+                    let idx = (py * stride + px) as usize;
+                    if idx < plane.len() {
+                        plane[idx] = 255;
                     }
                 }
             }
@@ -179,25 +223,23 @@ fn draw_timestamp(y: &mut [u8], stride_y: u32, u: &mut [u8], stride_u: u32, x: u
 
     let time_str = format!("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:03}", year, month, day, h, m, s, millis);
 
-    let char_w = 6 * scale;
-    let char_h = 7 * scale;
+    let char_w = 7 * scale;
+    let char_h = GLYPH_H * scale;
     let pad = 6;
+
     let text_w = time_str.len() as u32 * char_w;
     let text_h = char_h;
 
-    // Semi-transparent black background: dark Y, neutral UV
-    let bg_y = 16u8;
-    let bg_u = 128u8;
-    draw_rect(y, stride_y, x - pad, y_pos - pad, text_w + pad * 2, text_h + pad * 2, bg_y);
+    // Semi-transparent black background
+    draw_rect(y, stride_y, x - pad, y_pos - pad, text_w + pad * 2, text_h + pad * 2, 16);
     draw_rect(u, stride_u, (x - pad) / 2, (y_pos - pad) / 2,
-        (text_w + pad * 2) / 2, (text_h + pad * 2) / 2, bg_u);
+        (text_w + pad * 2) / 2, (text_h + pad * 2) / 2, 128);
 
     let mut cx = x;
     for ch in time_str.bytes() {
         let gi = glyph_index(ch);
-        let glyph: &Glyph = &FONT[gi * 7..(gi + 1) * 7].try_into().unwrap();
-        draw_glyph(y, stride_y, cx, y_pos, glyph, scale);
-        cx += char_w;
+        draw_glyph_610(y, stride_y, cx, y_pos, gi, scale);
+        cx += 7 * scale; // 6px glyph + 1px gap
     }
 }
 
