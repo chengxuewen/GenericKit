@@ -82,6 +82,8 @@ impl FramePattern for SquarePattern {
             sq.x = (sq.x + fast_rand_u32() % 4) % width;
             sq.y = (sq.y + fast_rand_u32() % 4) % height;
         }
+
+        draw_timestamp(y, stride_y, 4, 6, 1);
     }
 }
 
@@ -93,6 +95,94 @@ fn draw_rect(plane: &mut [u8], stride: u32, x: u32, y: u32, w: u32, h: u32, colo
         if start < plane.len() {
             plane[start..end].fill(color);
         }
+    }
+}
+
+// ── 5×7 bitmapped font for timestamp overlay ──
+
+type Glyph = [u8; 7];
+
+const FONT: &[u8] = &[
+    // Each glyph: 7 bytes of 5 bits (row-major, top-to-bottom)
+    // 0: 0x1C,0x22,0x22,0x22,0x22,0x22,0x1C
+    0x1C, 0x22, 0x22, 0x22, 0x22, 0x22, 0x1C,
+    // 1: 0x08,0x18,0x08,0x08,0x08,0x08,0x1C
+    0x08, 0x18, 0x08, 0x08, 0x08, 0x08, 0x1C,
+    // 2: 0x1C,0x22,0x02,0x04,0x08,0x10,0x3E
+    0x1C, 0x22, 0x02, 0x04, 0x08, 0x10, 0x3E,
+    // 3: 0x1C,0x22,0x02,0x0C,0x02,0x22,0x1C
+    0x1C, 0x22, 0x02, 0x0C, 0x02, 0x22, 0x1C,
+    // 4: 0x04,0x0C,0x14,0x24,0x3E,0x04,0x04
+    0x04, 0x0C, 0x14, 0x24, 0x3E, 0x04, 0x04,
+    // 5: 0x3E,0x20,0x3C,0x02,0x02,0x22,0x1C
+    0x3E, 0x20, 0x3C, 0x02, 0x02, 0x22, 0x1C,
+    // 6: 0x1C,0x20,0x3C,0x22,0x22,0x22,0x1C
+    0x1C, 0x20, 0x3C, 0x22, 0x22, 0x22, 0x1C,
+    // 7: 0x3E,0x02,0x04,0x08,0x10,0x20,0x20
+    0x3E, 0x02, 0x04, 0x08, 0x10, 0x20, 0x20,
+    // 8: 0x1C,0x22,0x22,0x1C,0x22,0x22,0x1C
+    0x1C, 0x22, 0x22, 0x1C, 0x22, 0x22, 0x1C,
+    // 9: 0x1C,0x22,0x22,0x1E,0x02,0x02,0x1C
+    0x1C, 0x22, 0x22, 0x1E, 0x02, 0x02, 0x1C,
+    // 10: ':' (colon)
+    0x00, 0x08, 0x08, 0x00, 0x08, 0x08, 0x00,
+    // 11: '.' (period)
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x08,
+    // 12: '-' (dash)
+    0x00, 0x00, 0x00, 0x3E, 0x00, 0x00, 0x00,
+    // 13: ' ' (space)
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+
+fn glyph_index(ch: u8) -> usize {
+    match ch {
+        b'0'..=b'9' => (ch - b'0') as usize,
+        b':' => 10,
+        b'.' => 11,
+        b'-' => 12,
+        _ => 13, // space / unknown
+    }
+}
+
+fn draw_glyph(plane: &mut [u8], stride_y: u32, x: u32, y: u32, glyph: &Glyph, scale: u32) {
+    for row in 0..7u32 {
+        let bits = glyph[row as usize];
+        for col in 0..5u32 {
+            if bits & (1u8 << (4 - col)) != 0 {
+                for sy in 0..scale {
+                    for sx in 0..scale {
+                        let px = x + col * scale + sx;
+                        let py = y + row * scale + sy;
+                        let idx = (py * stride_y + px) as usize;
+                        if idx < plane.len() {
+                            plane[idx] = 255; // white
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn draw_timestamp(y: &mut [u8], stride_y: u32, x: u32, y_pos: u32, scale: u32) {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap();
+    let total_secs = now.as_secs();
+    let millis = now.subsec_millis();
+
+    // HH:MM:SS.mmm
+    let h = (total_secs / 3600) % 24;
+    let m = (total_secs / 60) % 60;
+    let s = total_secs % 60;
+    let time_str = format!("{:02}:{:02}:{:02}.{:03}", h, m, s, millis);
+
+    let mut cx = x;
+    for ch in time_str.bytes() {
+        let gi = glyph_index(ch);
+        let glyph: &Glyph = &FONT[gi * 7..(gi + 1) * 7].try_into().unwrap();
+        draw_glyph(y, stride_y, cx, y_pos, glyph, scale);
+        cx += 6 * scale; // char width + 1px gap
     }
 }
 

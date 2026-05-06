@@ -250,8 +250,8 @@ As in OpenCTK:
 - Gray I420 background (Y=127, U=127, V=127)
 - N randomly-sized, randomly-colored rectangles
 - Each frame, squares move toward lower-right by small random offset (0-4 pixels)
-- Timestamp overlay via embedded 6×10 bitmap font at position (10, 30), scale 2×
-- No libyuv dependency — direct pixel writes to I420 planes
+- **Timestamp overlay**: embedded 5×7 pixel bitmap font at position (4, 6), scale 1×. Format `HH:MM:SS.mmm` drawn in white (Y=255) on Y-plane. No libyuv dependency — direct pixel writes.
+- Font includes digits 0-9, colon, period, dash (14 glyphs × 7 bytes = 98 bytes)
 
 ### 5.3 VideoFrameGenerator Struct
 
