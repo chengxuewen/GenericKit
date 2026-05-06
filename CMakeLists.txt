@@ -755,6 +755,7 @@ endif()
 if(GKIT_BUILD_EXAMPLES)
 	add_subdirectory(crates/gkit-media/examples/gkit-media-viewer)
 	add_subdirectory(crates/gkit-media/examples/gkit-media-square-gen)
+	add_subdirectory(crates/gkit-media/examples/gkit-media-webrtc-loopback)
 endif()
 
 # Rust tools

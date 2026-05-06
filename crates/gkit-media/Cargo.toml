@@ -6,13 +6,14 @@ edition.workspace = true
 [features]
 default = ["backend-native"]
 backend-native = []
-backend-native-webrtc-rs = ["backend-native"]
+backend-native-webrtc-rs = ["backend-native", "dep:webrtc", "dep:tokio"]
 backend-native-google = ["backend-native"]
 backend-wasm = []
 
 [dependencies]
 gkit-core.workspace = true
 webrtc = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true }
 
 [build-dependencies]
 ureq = { version = "2", features = ["tls"] }
