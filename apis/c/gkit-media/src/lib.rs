@@ -970,3 +970,95 @@ pub unsafe extern "C" fn gkit_media_video_frame_nv21_to_i420(
         Box::into_raw(Box::new(VideoFrameHandle { frame: new_frame })) as *mut std::ffi::c_void
     }
 }
+
+// ============================================================================
+// VideoFrameGenerator C FFI
+// ============================================================================
+
+use gkit_media::capture::generator::VideoFrameGenerator;
+use gkit_media::video::source_sink::{VideoSink, VideoSinkWants, VideoSource};
+use std::sync::Mutex;
+
+struct GeneratorHandle {
+    generator: Mutex<VideoFrameGenerator>,
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn gkit_media_video_source_create_generator(
+    width: u32, height: u32, fps: u32,
+) -> *mut std::ffi::c_void {
+    let generator = VideoFrameGenerator::new(width, height, fps);
+    Box::into_raw(Box::new(GeneratorHandle { generator: Mutex::new(generator) })) as *mut std::ffi::c_void
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn gkit_media_video_source_destroy(handle: *mut std::ffi::c_void) { unsafe {
+    if handle.is_null() { return; }
+    let _ = Box::from_raw(handle as *mut GeneratorHandle);
+}}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn gkit_media_video_source_start(handle: *mut std::ffi::c_void) -> i32 {
+    if handle.is_null() { return -1; }
+    unsafe {
+        let h = &*(handle as *mut GeneratorHandle);
+        h.generator.lock().unwrap().start();
+        0
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn gkit_media_video_source_stop(handle: *mut std::ffi::c_void) {
+    if handle.is_null() { return; }
+    unsafe {
+        let h = &*(handle as *mut GeneratorHandle);
+        h.generator.lock().unwrap().stop();
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn gkit_media_video_source_is_running(handle: *mut std::ffi::c_void) -> i32 {
+    if handle.is_null() { return 0; }
+    unsafe {
+        let h = &*(handle as *mut GeneratorHandle);
+        h.generator.lock().unwrap().is_running() as i32
+    }
+}
+
+pub type VideoFrameCallback = unsafe extern "C" fn(frame_handle: *mut std::ffi::c_void, user_data: *mut std::ffi::c_void);
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn gkit_media_video_source_set_frame_callback(
+    handle: *mut std::ffi::c_void,
+    cb: VideoFrameCallback,
+    user_data: *mut std::ffi::c_void,
+) -> i32 {
+    if handle.is_null() { return -1; }
+    unsafe {
+        let h = &*(handle as *mut GeneratorHandle);
+        let mut g = h.generator.lock().unwrap();
+        let user = user_data as usize;
+        struct CbSink {
+            cb: VideoFrameCallback,
+            user_data: usize,
+        }
+        unsafe impl Send for CbSink {}
+        impl gkit_media::video::source_sink::VideoSink<gkit_media::video::frame::BoxVideoFrame> for CbSink {
+            fn on_frame(&self, _frame: &gkit_media::video::frame::BoxVideoFrame) {
+                let i420 = _frame.buffer.to_i420().ok();
+                let handle = match i420 {
+                    Some(buf) => Box::into_raw(Box::new(VideoFrameHandle {
+                        frame: gkit_media::video::frame::BoxVideoFrame::new(Box::new(buf)),
+                    })) as *mut std::ffi::c_void,
+                    None => std::ptr::null_mut(),
+                };
+                unsafe { (self.cb)(handle, self.user_data as *mut std::ffi::c_void); }
+            }
+        }
+        g.add_or_update_sink(
+            Box::new(CbSink { cb, user_data: user }),
+            gkit_media::video::source_sink::VideoSinkWants { is_active: true, ..Default::default() },
+        );
+        0
+    }
+}
