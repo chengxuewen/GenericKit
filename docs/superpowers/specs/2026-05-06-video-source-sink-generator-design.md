@@ -439,7 +439,159 @@ Referencing libwebrtc `video_broadcaster_unittest.cc`, `video_adapter_unittests.
 
 ---
 
-## 10. File Manifest
+## 10. Rust Example: egui SquareGenerator Viewer
+
+Reference: `OpenCTK/src/libs/media/examples/capture/exp_square_generator.cpp`
+
+The OpenCTK example creates a `SquareGenerator` → wraps in `FrameGeneratorCapturerVideoTrackSource` → connects to a `VideoRenderer` (SDL3-based `VideoSinkInterface<VideoFrame>`) → runs a render loop.
+
+### 10.1 GenericKit Equivalent
+
+Since GenericKit has an existing egui example (`crates/gkit-media/examples/gkit-media-viewer/main.rs`), the new example uses the same egui framework pattern but replaces static BMP loading with a live `VideoFrameGenerator`:
+
+```
+VideoFrameGenerator (SquarePattern, 640x480, 30fps)
+    │
+    ├── add_or_update_sink(egui_sink)
+    │
+    └── Internal thread: draw → broadcast.on_frame()
+            │
+            └── egui_sink.on_frame() → clone rgba → push to queue
+                                            │
+                                            └── egui loop: pop rgba → upload texture → display
+```
+
+### 10.2 Key Differences from OpenCTK
+
+| OpenCTK | GenericKit (egui) |
+|---------|-------------------|
+| C++ `VideoRenderer` with SDL3 window | egui native window via `eframe` |
+| `VideoSinkInterface<VideoFrame>` | `VideoSink<VideoFrame>` trait impl |
+| Dedicated render thread with SDL events | Single-threaded egui frame loop |
+| `capturer->addOrUpdateSink(renderer)` | `generator.add_or_update_sink(Box::new(sink))` |
+| SDL texture upload (YUV→RGB in renderer) | egui texture from RGBA bytes |
+
+### 10.3 Demo Layout
+
+The egui window shows:
+
+```
+┌──────────────────────────────────────────────────┐
+│  gkit-media SquareGenerator Demo                 │
+├──────────────────────────────────────────────────┤
+│  [▶ Start] [■ Stop]  640×480  30fps  Frame: 127 │
+│                                                  │
+│  ┌──────────────────────────────────┐            │
+│  │                                  │            │
+│  │      Live video frame            │            │
+│  │      (colored squares moving     │            │
+│  │       + timestamp overlay)       │            │
+│  │                                  │            │
+│  └──────────────────────────────────┘            │
+│                                                  │
+│  Pattern: ▸ SquareGenerator (default)            │
+│  Output: I420 → RGBA → egui texture              │
+└──────────────────────────────────────────────────┘
+```
+
+### 10.4 Implementation Details
+
+```rust
+// In main loop: receive frame from VideoFrameGenerator via shared queue
+struct GeneratorSink {
+    frames: Mutex<VecDeque<Vec<u8>>>,  // queued RGBA frame data
+    width: u32,
+    height: u32,
+}
+
+impl VideoSink<VideoFrame> for GeneratorSink {
+    fn on_frame(&self, frame: &VideoFrame) {
+        // Convert I420 → RGBA using existing i420_to_argb
+        let mut rgba = vec![0u8; (self.width * self.height * 4) as usize];
+        i420_to_argb(&frame_i420, &mut rgba, self.width * 4, VideoFormatType::Rgba);
+        let mut queue = self.frames.lock().unwrap();
+        if queue.len() > 2 { queue.pop_front(); }  // only keep latest
+        queue.push_back(rgba);
+    }
+}
+
+// egui App
+struct SquareDemoApp {
+    generator: VideoFrameGenerator,
+    sink: Arc<GeneratorSink>,
+    running: bool,
+    frame_count: u64,
+    texture: Option<egui::TextureHandle>,
+}
+
+impl eframe::App for SquareDemoApp {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // Top bar: start/stop button, stats
+        egui::TopBottomPanel::top("controls").show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                if self.running {
+                    if ui.button("Stop").clicked() {
+                        self.generator.stop();
+                        self.running = false;
+                    }
+                } else {
+                    if ui.button("Start").clicked() {
+                        self.generator.start();
+                        self.running = true;
+                    }
+                }
+                ui.label(format!("640×480  30fps  Frame: {}", self.frame_count));
+            });
+        });
+
+        // Central area: video frame
+        egui::CentralPanel::default().show(ctx, |ui| {
+            // Poll latest frame from sink queue
+            if let Ok(mut queue) = self.sink.frames.lock() {
+                if let Some(rgba) = queue.pop_back() {
+                    queue.clear(); // discard older frames
+                    drop(queue);
+                    // Upload to egui texture
+                    let size = [640.0, 480.0];
+                    let color_image = egui::ColorImage::from_rgba_unmultiplied(
+                        [640, 480], &rgba
+                    );
+                    let tex = ctx.load_texture("frame", color_image,
+                        egui::TextureOptions::LINEAR);
+                    self.texture = Some(tex);
+                    self.frame_count += 1;
+                }
+            }
+            if let Some(tex) = &self.texture {
+                let available = ui.available_size();
+                let scale = (available.x / 640.0).min(available.y / 480.0);
+                ui.image(egui::load::SizedTexture::new(tex.id(),
+                    [640.0 * scale, 480.0 * scale]));
+            }
+            ctx.request_repaint(); // keep egui rendering at display fps
+        });
+    }
+}
+```
+
+### 10.5 File & Build
+
+- **File**: `crates/gkit-media/examples/gkit-media-square-gen/main.rs` (~150 lines)
+- **Build**: `cargo run -p gkit-media --example gkit-media-square-gen`
+- **CMake**: Add `add_custom_target` for building + running, FOLDER `gkit_media/examples`
+- **Dependencies**: `gkit-media` (local crate) + `eframe` + `egui` (already in `Cargo.toml` dev-dependencies)
+
+### 10.6 Verification
+
+- Run example → window shows "Start"/"Stop" button
+- Click Start → colored squares appear and move + timestamp updates
+- Frame counter increments at ~30fps
+- Click Stop → animation pauses, frame counter stops
+- Resize window → frame scales proportionally
+
+---
+
+## 11. Updated File Manifest
 
 | # | File | Status | Lines (est.) |
 |---|------|--------|-------------|
@@ -455,19 +607,23 @@ Referencing libwebrtc `video_broadcaster_unittest.cc`, `video_adapter_unittests.
 | 10 | `apis/cpp/gkit-media/tests/test_source_sink.cpp` | NEW | ~100 |
 | 11 | `apis/cpp/gkit-media/tests/CMakeLists.txt` | MODIFY | +10 lines |
 | 12 | `crates/gkit-media/tests/test_source_sink.rs` | NEW | ~250 |
+| 13 | `crates/gkit-media/examples/gkit-media-square-gen/main.rs` | NEW | ~150 |
+| 14 | `crates/gkit-media/examples/gkit-media-square-gen/CMakeLists.txt` | NEW | ~30 |
+| 15 | `crates/gkit-media/Cargo.toml` | MODIFY | +example entry |
 
 ---
 
-## 11. Dependencies
+## 12. Dependencies
 
-- `std::thread`, `std::sync::Mutex`, `std::sync::Arc`, `std::sync::atomic::AtomicBool` — Rust std, no external crates
-- Reuses existing `I420Buffer`, `VideoFrame` from `crates/gkit-media/src/video/`
+- `std::thread`, `std::sync::Mutex`, `std::sync::Arc`, `std::sync::atomic::AtomicBool` — Rust std, no external crates (core module)
+- Reuses existing `I420Buffer`, `VideoFrame`, `i420_to_argb` from `crates/gkit-media/src/video/`
 - No libyuv, no tokio, no feature gate — always compiled
 - `VideoFrameGenerator` pattern uses embedded 6×10 pixel bitmap font (no external file)
+- egui example: `eframe` + `egui` (already in workspace `Cargo.toml` dev-dependencies)
 
 ---
 
-## 12. Non-Goals
+## 13. Non-Goals
 
 - Camera capture (no real device integration)
 - Encoded video frames (only raw I420)
