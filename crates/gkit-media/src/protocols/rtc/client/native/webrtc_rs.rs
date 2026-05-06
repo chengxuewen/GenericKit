@@ -15,42 +15,43 @@ pub struct NativeDataChannel {
     closed: bool,
 }
 
+pub struct NativeFactory {
+    pub sync_mode: bool, // false = async (default), true = sync block_on (C FFI)
+}
+
+impl NativeFactory {
+    pub fn new() -> Self { Self { sync_mode: false } }
+    pub fn with_sync_mode(sync: bool) -> Self { Self { sync_mode: sync } }
+}
+
+impl Default for NativeFactory {
+    fn default() -> Self { Self::new() }
+}
+
 impl NativeDataChannel {
     pub fn new(label: &str) -> Self {
         Self { label: label.into(), state: DataChannelState::Open, closed: false }
     }
 }
 
-pub struct NativeFactory;
-
 impl NativePeerConnection {
     pub fn new() -> Self {
         Self { state: IceConnectionState::New, closed: false }
     }
+    fn check_closed(&self) -> MediaResult<()> {
+        if self.closed { Err(MediaError::new("closed")) } else { Ok(()) }
+    }
 }
 
 impl PeerConnection for NativePeerConnection {
-    fn create_offer(&self) -> MediaResult<SessionDescription> {
-        self.check_closed()?;
-        Ok(SessionDescription { sdp_type: "offer".into(), sdp: String::new() })
-    }
-    fn create_answer(&self) -> MediaResult<SessionDescription> {
-        self.check_closed()?;
-        Ok(SessionDescription { sdp_type: "answer".into(), sdp: String::new() })
-    }
-    fn set_local_description(&mut self, _desc: &SessionDescription) -> MediaResult<()> { self.check_closed() }
-    fn set_remote_description(&mut self, _desc: &SessionDescription) -> MediaResult<()> { self.check_closed() }
+    fn create_offer(&self) -> MediaResult<SessionDescription> { self.check_closed()?; Ok(SessionDescription { sdp_type: "offer".into(), sdp: String::new() }) }
+    fn create_answer(&self) -> MediaResult<SessionDescription> { self.check_closed()?; Ok(SessionDescription { sdp_type: "answer".into(), sdp: String::new() }) }
+    fn set_local_description(&mut self, _d: &SessionDescription) -> MediaResult<()> { self.check_closed() }
+    fn set_remote_description(&mut self, _d: &SessionDescription) -> MediaResult<()> { self.check_closed() }
     fn add_ice_candidate(&mut self, _c: &str, _m: &str) -> MediaResult<()> { self.check_closed() }
-    fn create_data_channel(&self, label: &str) -> MediaResult<Box<dyn DataChannel>> {
-        self.check_closed()?;
-        Ok(Box::new(NativeDataChannel::new(label)))
-    }
-    fn ice_connection_state(&self) -> IceConnectionState {
-        if self.closed { IceConnectionState::Closed } else { self.state }
-    }
-    fn connection_state(&self) -> ConnectionState {
-        if self.closed { ConnectionState::Closed } else { ConnectionState::New }
-    }
+    fn create_data_channel(&self, label: &str) -> MediaResult<Box<dyn DataChannel>> { self.check_closed()?; Ok(Box::new(NativeDataChannel::new(label))) }
+    fn ice_connection_state(&self) -> IceConnectionState { if self.closed { IceConnectionState::Closed } else { self.state } }
+    fn connection_state(&self) -> ConnectionState { if self.closed { ConnectionState::Closed } else { ConnectionState::New } }
     fn gathering_state(&self) -> GatheringState { GatheringState::New }
     fn signaling_state(&self) -> SignalingState { SignalingState::Stable }
     fn local_description(&self) -> MediaResult<SessionDescription> { Err(MediaError::new("stub")) }
@@ -58,23 +59,11 @@ impl PeerConnection for NativePeerConnection {
     fn close(&mut self) -> MediaResult<()> { self.closed = true; Ok(()) }
 }
 
-impl NativePeerConnection {
-    fn check_closed(&self) -> MediaResult<()> {
-        if self.closed { Err(MediaError::new("closed")) } else { Ok(()) }
-    }
-}
-
 impl DataChannel for NativeDataChannel {
     fn label(&self) -> &str { &self.label }
-    fn ready_state(&self) -> DataChannelState {
-        if self.closed { DataChannelState::Closed } else { self.state }
-    }
-    fn send_text(&self, _data: &str) -> MediaResult<()> {
-        if self.closed { Err(MediaError::new("channel closed")) } else { Ok(()) }
-    }
-    fn send_bytes(&self, _data: &[u8]) -> MediaResult<()> {
-        if self.closed { Err(MediaError::new("channel closed")) } else { Ok(()) }
-    }
+    fn ready_state(&self) -> DataChannelState { if self.closed { DataChannelState::Closed } else { self.state } }
+    fn send_text(&self, _d: &str) -> MediaResult<()> { if self.closed { Err(MediaError::new("closed")) } else { Ok(()) } }
+    fn send_bytes(&self, _d: &[u8]) -> MediaResult<()> { if self.closed { Err(MediaError::new("closed")) } else { Ok(()) } }
     fn close(&mut self) -> MediaResult<()> { self.closed = true; Ok(()) }
 }
 

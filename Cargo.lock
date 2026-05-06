@@ -2050,6 +2050,7 @@ version = "0.1.2"
 name = "gkit-media"
 version = "0.1.2"
 dependencies = [
+ "bytes",
  "cc",
  "eframe",
  "egui",
