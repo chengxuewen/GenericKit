@@ -1,7 +1,9 @@
 # WebRTC Backend Implementation Design
 
 **Date**: 2026-05-06
-**Scope**: Fill webrtc-rs backend (default), activate google_lk backend (feature-gated), extend C++ wrappers and callback system
+**Scope**: Fill webrtc-rs backend (default, W3C-compatible API), activate google_lk backend (feature-gated), extend C++ wrappers, P2P loopback demo
+**API reference**: [W3C WebRTC 1.0](https://www.w3.org/TR/webrtc/) — `RTCPeerConnection`, `RTCDataChannel`, `RTCSessionDescription`, `RTCIceCandidate`
+**Default backend**: `webrtc-rs` (rust native, no external binary). Alternative: `google_lk` (libwebrtc C++ prebuilt, for Jetson/special platforms).
 **Constraint**: All code in single crate `gkit-media`; no new workspace members
 
 > **P0 Prerequisite**: [VideoSource/VideoSink/VideoFrameGenerator/AudioSource](2026-05-06-video-source-sink-generator-design.md) must be implemented first. This spec references its traits (VideoSource, VideoSink) for backend integration.
@@ -407,3 +409,60 @@ Error states:
 | 2 | google_lk backend activation | P2 | P1 |
 | 3 | C++ wrappers — PeerConnection, DataChannel RAII | P1 | P1 |
 | 4 | Callback system — backend → C FFI forwarding | P1 | P1 |
+
+---
+
+## 11. P2P Loopback Demo (W3C WebRTC API)
+
+### 11.1 Requirements
+
+- Two `RTCPeerConnection` instances, connected via real SDP offer/answer + ICE candidate exchange
+- **No simulation** — real `webrtc-rs` APIs for media negotiation
+- PC1 (sender): `VideoFrameGenerator` → I420 → `TrackLocalStaticSample::write_sample()` → RTP
+- PC2 (receiver): `on_track()` → read RTP packets → decode → RGBA
+- egui displays side-by-side: PC1 generated frame (left) | PC2 received frame (right)
+- 1280×720 30fps (or lower for real RTP pipeline)
+
+### 11.2 Architecture
+
+```
+tokio runtime (background thread)
+├── PC1 (sender)
+│   ├── create_offer() → set_local_description(offer)
+│   ├── set_remote_description(answer from PC2)
+│   ├── add_ice_candidate(from PC2)
+│   └── video_track ← VideoFrameGenerator writes I420 samples
+│
+├── PC2 (receiver)
+│   ├── set_remote_description(offer from PC1)
+│   ├── create_answer() → set_local_description(answer)
+│   ├── add_ice_candidate(from PC1)
+│   └── on_track() → read RTP → store frame for egui
+
+egui main thread
+├── Upload sender frame → GL texture → display (left panel)
+└── Upload receiver frame → GL texture → display (right panel)
+```
+
+### 11.3 Implementation Details
+
+- Uses `webrtc-rs` directly (bypasses gkit `PeerConnection` trait for full async control)
+- Uses `gkit_media::capture::generator::VideoFrameGenerator` for test video source
+- ICE candidates collected via `on_ice_candidate()` callback, exchanged through `tokio::sync::mpsc` channels
+- SDP types mapped: `RTCSdpType::Offer/Answer`, `RTCSessionDescription`
+- Video codec: VP8 (`MIME_TYPE_VP8`)
+- Frame delivery: `Sample { data: Bytes, duration }` → `write_sample()`
+
+### 11.4 Dependencies (dev only)
+
+```toml
+[dev-dependencies]
+webrtc = "0.11"
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "macros"] }
+```
+
+### 11.5 Build
+
+```bash
+cargo run -p gkit-media --example gkit-media-webrtc-loopback --features backend-native-webrtc-rs
+```
