@@ -41,7 +41,12 @@ The `.agents/` directory contains AI development resources:
 
 ```text
 .agents/
-├── GenericKit-Agent-Memory/  # Git submodule — AI agent memory (opencode-mem0)
+├── GenericKit-Agent-Memory/  # Git submodule — AI agent memory (mem0 MCP)
+│   │                          # Stores session summaries and project knowledge
+│   │                          # Cross-platform: MCP server for any AI agent
+│   ├── README.md
+│   ├── SESSION-YYYY-MM-DD.md
+│   └── memory.json
 ├── rules/        # Coding standards for AI assistants
 │   ├── common/   # Language-agnostic principles
 │   └── ...       # Language-specific rules (rust, cpp, python, ...)

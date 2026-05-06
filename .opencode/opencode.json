@@ -1,9 +1,17 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "plugin": [
-    "superpowers@git+https://github.com/obra/superpowers.git",
-    "opencode-mem0"
+    "superpowers@git+https://github.com/obra/superpowers.git"
   ],
+  "mcp": {
+    "mem0": {
+      "command": "npx",
+      "args": ["-y", "@mem0/mcp"],
+      "env": {
+        "MEM0_DIR": ".agents/GenericKit-Agent-Memory"
+      }
+    }
+  },
   "mem0": {
     "storage_dir": ".agents/GenericKit-Agent-Memory"
   }
