@@ -69,7 +69,7 @@ struct App {
 
 impl App {
     fn new() -> Self {
-        let mut generator = VideoFrameGenerator::new(WIDTH, HEIGHT, FPS);
+        let generator = VideoFrameGenerator::new(WIDTH, HEIGHT, FPS);
         let queue = Arc::new(FrameQueue::new());
         generator.add_or_update_sink(
             Box::new(GeneratorSink { queue: queue.clone() }),

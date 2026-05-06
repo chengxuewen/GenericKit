@@ -129,8 +129,8 @@ impl<F: Send + 'static> VideoSource<F> for VideoBroadcaster<F> {
         let mut pairs = self.pairs.lock().unwrap();
         pairs.retain(|(s, _)| {
             !std::ptr::eq(
-                s.as_ref() as *const (dyn VideoSink<F>) as *const (),
-                sink as *const (dyn VideoSink<F>) as *const (),
+                s.as_ref() as *const dyn VideoSink<F> as *const (),
+                sink as *const dyn VideoSink<F> as *const (),
             )
         });
     }
@@ -200,8 +200,8 @@ impl AudioSource for DefaultAudioSource {
     fn remove_sink(&self, sink: &dyn AudioSink) {
         self.sinks.lock().unwrap().retain(|s| {
             !std::ptr::eq(
-                s.as_ref() as *const (dyn AudioSink) as *const (),
-                sink as *const (dyn AudioSink) as *const (),
+                s.as_ref() as *const dyn AudioSink as *const (),
+                sink as *const dyn AudioSink as *const (),
             )
         });
     }
