@@ -598,10 +598,9 @@ impl eframe::App for SquareDemoApp {
 
 ### 10.5 File & Build
 
-- **File**: `crates/gkit-media/examples/gkit-media-square-gen/main.rs` (~150 lines)
-- **Build**: `cargo run -p gkit-media --example gkit-media-square-gen`
-- **CMake**: Add `add_custom_target` for building + running, FOLDER `gkit_media/examples`
-- **Dependencies**: `gkit-media` (local crate) + `eframe` + `egui` (already in `Cargo.toml` dev-dependencies)
+- **File**: `crates/gkit-media/examples/gkit-media-square-gen/main.rs` (~145 lines) — **DONE**
+- **Build**: `cargo run -p gkit-media --example gkit-media-square-gen` — **VERIFIED**
+- **Dependencies**: `gkit-media` (local crate) + `eframe` + `egui` (already in dev-dependencies)
 
 ### 10.6 Verification
 
