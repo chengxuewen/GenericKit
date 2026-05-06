@@ -135,3 +135,88 @@ impl<F: Send + 'static> VideoSource<F> for VideoBroadcaster<F> {
         });
     }
 }
+
+/// Default silence audio source.
+pub struct DefaultAudioSource {
+    sample_rate: u32,
+    channels: u32,
+    sinks: Mutex<Vec<Box<dyn AudioSink>>>,
+    running: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    thread_handle: Option<std::thread::JoinHandle<()>>,
+}
+
+impl DefaultAudioSource {
+    pub fn new(sample_rate: u32, channels: u32) -> Self {
+        Self {
+            sample_rate,
+            channels,
+            sinks: Mutex::new(Vec::new()),
+            running: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            thread_handle: None,
+        }
+    }
+
+    pub fn start(&mut self) {
+        self.running.store(true, std::sync::atomic::Ordering::Relaxed);
+        let sr = self.sample_rate;
+        let ch = self.channels;
+        let running = self.running.clone();
+        let mut sinks = Mutex::new(Vec::new());
+        // Move existing sinks
+        std::mem::swap(&mut sinks, &mut self.sinks);
+
+        let handle = std::thread::spawn(move || {
+            let frame_samples = (sr / 50) as usize; // 20ms frames
+            let silence = vec![0i16; frame_samples * ch as usize];
+            while running.load(std::sync::atomic::Ordering::Relaxed) {
+                let sinks = sinks.lock().unwrap();
+                for sink in sinks.iter() {
+                    sink.on_data(&silence, sr, ch);
+                }
+                drop(sinks);
+                std::thread::sleep(std::time::Duration::from_millis(20));
+            }
+        });
+        self.thread_handle = Some(handle);
+    }
+
+    pub fn stop(&mut self) {
+        self.running.store(false, std::sync::atomic::Ordering::Relaxed);
+        if let Some(handle) = self.thread_handle.take() {
+            let _ = handle.join();
+        }
+    }
+
+    pub fn is_running(&self) -> bool {
+        self.running.load(std::sync::atomic::Ordering::Relaxed)
+    }
+}
+
+impl AudioSource for DefaultAudioSource {
+    fn add_sink(&mut self, sink: Box<dyn AudioSink>) {
+        self.sinks.lock().unwrap().push(sink);
+    }
+
+    fn remove_sink(&mut self, sink: &dyn AudioSink) {
+        self.sinks.lock().unwrap().retain(|s| {
+            !std::ptr::eq(
+                s.as_ref() as *const (dyn AudioSink) as *const (),
+                sink as *const (dyn AudioSink) as *const (),
+            )
+        });
+    }
+
+    fn sample_rate(&self) -> u32 {
+        self.sample_rate
+    }
+
+    fn channels(&self) -> u32 {
+        self.channels
+    }
+}
+
+impl Drop for DefaultAudioSource {
+    fn drop(&mut self) {
+        self.stop();
+    }
+}

@@ -5,8 +5,9 @@ pub fn media_hello() {
     println!("media_hello!");
 }
 
-pub mod video;
+pub mod capture;
 pub mod protocols;
+pub mod video;
 
 // build-sys: LiveKit webrtc-sys FFI (requires libwebrtc C++ binary)
 // #[cfg(feature = "backend-native-google")]

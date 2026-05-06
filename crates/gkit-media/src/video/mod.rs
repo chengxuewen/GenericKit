@@ -6,6 +6,8 @@
 ///   convert.rs     — YUV format conversion (to_i420, to_nv12, to_argb)
 ///   transform.rs   — Scale, crop, rotate operations
 ///   source_sink.rs — VideoSource, VideoSink, AudioSource, VideoBroadcaster traits
+///   adapter.rs     — VideoAdapter (crop/scale/rate-limit)
+pub mod adapter;
 pub mod buffer;
 pub mod convert;
 pub mod frame;
