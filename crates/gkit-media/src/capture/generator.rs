@@ -83,7 +83,7 @@ impl FramePattern for SquarePattern {
             sq.y = (sq.y + fast_rand_u32() % 4) % height;
         }
 
-        draw_timestamp(y, stride_y, u, stride_u, 8, 8, 2);
+        draw_timestamp(y, stride_y, u, stride_u, 8, 8, 3);
     }
 }
 
@@ -181,7 +181,7 @@ fn draw_timestamp(y: &mut [u8], stride_y: u32, u: &mut [u8], stride_u: u32, x: u
 
     let char_w = 6 * scale;
     let char_h = 7 * scale;
-    let pad = 4; // padding around text
+    let pad = 6;
     let text_w = time_str.len() as u32 * char_w;
     let text_h = char_h;
 
