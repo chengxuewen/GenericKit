@@ -31,8 +31,8 @@ function(gkit_vcpkg_install)
     endif()
 
     set(GKIT_VCPKG_NAME "vcpkg")
-    set(GKIT_VCPKG_ROOT_DIR "${CMAKE_SOURCE_DIR}/vcpkg" CACHE INTERNAL "" FORCE)
-    set(GKIT_VCPKG_TOOLS_ROOT_DIR "${CMAKE_SOURCE_DIR}/vcpkg-tools" CACHE INTERNAL "" FORCE)
+    set(GKIT_VCPKG_ROOT_DIR "${PROJECT_SOURCE_DIR}/vcpkg" CACHE INTERNAL "" FORCE)
+    set(GKIT_VCPKG_TOOLS_ROOT_DIR "${PROJECT_SOURCE_DIR}/vcpkg-tools" CACHE INTERNAL "" FORCE)
     find_package(Git REQUIRED)
 
     if(WIN32)
@@ -48,16 +48,16 @@ function(gkit_vcpkg_install)
         if(EXISTS "${GKIT_VCPKG_ROOT_DIR}")
             execute_process(
                 COMMAND ${CMAKE_COMMAND} -E remove_directory "${GKIT_VCPKG_ROOT_DIR}"
-                WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+                WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
                 RESULT_VARIABLE _rmdir_rc)
             if(NOT _rmdir_rc EQUAL 0)
                 message(FATAL_ERROR "Failed to remove stale vcpkg directory")
             endif()
         endif()
-        message(STATUS "Cloning vcpkg into ${CMAKE_SOURCE_DIR} ...")
+        message(STATUS "Cloning vcpkg into ${PROJECT_SOURCE_DIR} ...")
         execute_process(
             COMMAND "${GIT_EXECUTABLE}" clone https://github.com/microsoft/vcpkg.git --depth 1
-            WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+            WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
             RESULT_VARIABLE _clone_rc)
         if(NOT _clone_rc EQUAL 0)
             message(FATAL_ERROR "vcpkg clone failed")
@@ -83,7 +83,7 @@ function(gkit_vcpkg_install)
     if(NOT EXISTS "${GKIT_VCPKG_TOOLS_ROOT_DIR}/.git")
         execute_process(
             COMMAND ${CMAKE_COMMAND} -E copy_directory "${GKIT_VCPKG_ROOT_DIR}" "${GKIT_VCPKG_TOOLS_ROOT_DIR}"
-            WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+            WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
             RESULT_VARIABLE _copy_rc)
         if(NOT _copy_rc EQUAL 0)
             message(FATAL_ERROR "Failed to create vcpkg-tools copy")

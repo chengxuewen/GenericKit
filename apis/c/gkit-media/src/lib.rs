@@ -2,7 +2,7 @@ use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 
 use gkit_media;
-use gkit_media::webrtc::client::core::{
+use gkit_media::protocols::rtc::client::core::{
     DataChannel as DcTrait, PeerConnection as PcTrait, SessionDescription,
 };
 
@@ -271,7 +271,7 @@ pub unsafe extern "C" fn gkit_media_rtc_peer_connection_create_data_channel(
 pub unsafe extern "C" fn gkit_media_rtc_peer_connection_ice_state(
     handle: *mut std::ffi::c_void,
 ) -> i32 {
-    use gkit_media::webrtc::client::core::IceConnectionState;
+    use gkit_media::protocols::rtc::client::core::IceConnectionState;
     let Some(pc) = pc_ptr_to_inner(handle) else { return -1 };
     match pc.ice_connection_state() {
         IceConnectionState::New => 0,
@@ -290,7 +290,7 @@ pub unsafe extern "C" fn gkit_media_rtc_peer_connection_ice_state(
 pub unsafe extern "C" fn gkit_media_rtc_peer_connection_connection_state(
     handle: *mut std::ffi::c_void,
 ) -> i32 {
-    use gkit_media::webrtc::client::core::ConnectionState;
+    use gkit_media::protocols::rtc::client::core::ConnectionState;
     let Some(pc) = pc_ptr_to_inner(handle) else { return -1 };
     match pc.connection_state() {
         ConnectionState::New => 0,
@@ -307,7 +307,7 @@ pub unsafe extern "C" fn gkit_media_rtc_peer_connection_connection_state(
 pub unsafe extern "C" fn gkit_media_rtc_peer_connection_gathering_state(
     handle: *mut std::ffi::c_void,
 ) -> i32 {
-    use gkit_media::webrtc::client::core::GatheringState;
+    use gkit_media::protocols::rtc::client::core::GatheringState;
     let Some(pc) = pc_ptr_to_inner(handle) else { return -1 };
     match pc.gathering_state() {
         GatheringState::New => 0,
@@ -322,7 +322,7 @@ pub unsafe extern "C" fn gkit_media_rtc_peer_connection_gathering_state(
 pub unsafe extern "C" fn gkit_media_rtc_peer_connection_signaling_state(
     handle: *mut std::ffi::c_void,
 ) -> i32 {
-    use gkit_media::webrtc::client::core::SignalingState;
+    use gkit_media::protocols::rtc::client::core::SignalingState;
     let Some(pc) = pc_ptr_to_inner(handle) else { return -1 };
     match pc.signaling_state() {
         SignalingState::Stable => 0,
@@ -438,7 +438,7 @@ pub unsafe extern "C" fn gkit_media_rtc_data_channel_send_bytes(
 pub unsafe extern "C" fn gkit_media_rtc_data_channel_ready_state(
     handle: *mut std::ffi::c_void,
 ) -> i32 {
-    use gkit_media::webrtc::client::core::DataChannelState;
+    use gkit_media::protocols::rtc::client::core::DataChannelState;
     let Some(dc) = dc_ptr_to_inner(handle) else { return -1 };
     match dc.ready_state() {
         DataChannelState::Connecting => 0,

@@ -1,25 +1,25 @@
-use crate::webrtc::client::core::{
-    ConnectionState, DataChannel, DataChannelState, GatheringState, IceConnectionState, IceServer,
+use crate::protocols::rtc::client::core::{
+    ConnectionState, DataChannel, DataChannelState, GatheringState, IceConnectionState,
     MediaError, MediaResult, PeerConnection, PeerConnectionFactory, RtcConfiguration,
     SessionDescription, SignalingState,
 };
 
-pub struct WasmPeerConnection {
+pub struct NativePeerConnection {
     state: IceConnectionState,
     closed: bool,
 }
 
-pub struct WasmDataChannel {
+pub struct NativeDataChannel {
     label: String,
     state: DataChannelState,
     closed: bool,
 }
 
-pub struct WasmFactory;
+pub struct NativeFactory;
 
-// --- WasmPeerConnection ---
+// --- NativePeerConnection ---
 
-impl WasmPeerConnection {
+impl NativePeerConnection {
     pub fn new() -> Self {
         Self {
             state: IceConnectionState::New,
@@ -28,10 +28,10 @@ impl WasmPeerConnection {
     }
 }
 
-impl PeerConnection for WasmPeerConnection {
+impl PeerConnection for NativePeerConnection {
     fn create_offer(&self) -> MediaResult<SessionDescription> {
         self.check_closed()?;
-        // TODO: call browser RTCPeerConnection.createOffer() via web-sys
+        // TODO: real SDP via webrtc-rs
         Ok(SessionDescription {
             sdp_type: "offer".into(),
             sdp: String::new(),
@@ -63,7 +63,7 @@ impl PeerConnection for WasmPeerConnection {
 
     fn create_data_channel(&self, label: &str) -> MediaResult<Box<dyn DataChannel>> {
         self.check_closed()?;
-        Ok(Box::new(WasmDataChannel::new(label)))
+        Ok(Box::new(NativeDataChannel::new(label)))
     }
 
     fn ice_connection_state(&self) -> IceConnectionState {
@@ -99,7 +99,7 @@ impl PeerConnection for WasmPeerConnection {
     }
 }
 
-impl WasmPeerConnection {
+impl NativePeerConnection {
     fn check_closed(&self) -> MediaResult<()> {
         if self.closed {
             Err(MediaError::new("PeerConnection is closed"))
@@ -109,9 +109,9 @@ impl WasmPeerConnection {
     }
 }
 
-// --- WasmDataChannel ---
+// --- NativeDataChannel ---
 
-impl WasmDataChannel {
+impl NativeDataChannel {
     pub fn new(label: &str) -> Self {
         Self {
             label: label.into(),
@@ -121,7 +121,7 @@ impl WasmDataChannel {
     }
 }
 
-impl DataChannel for WasmDataChannel {
+impl DataChannel for NativeDataChannel {
     fn label(&self) -> &str {
         &self.label
     }
@@ -134,6 +134,7 @@ impl DataChannel for WasmDataChannel {
         if self.closed {
             return Err(MediaError::new("DataChannel is closed"));
         }
+        // TODO: real send via webrtc-rs
         Ok(())
     }
 
@@ -151,27 +152,27 @@ impl DataChannel for WasmDataChannel {
     }
 }
 
-// --- WasmFactory ---
+// --- NativeFactory ---
 
-impl WasmFactory {
+impl NativeFactory {
     pub fn new() -> Self {
         Self
     }
 }
 
-impl PeerConnectionFactory for WasmFactory {
-    type PC = WasmPeerConnection;
+impl PeerConnectionFactory for NativeFactory {
+    type PC = NativePeerConnection;
 
     fn create_peer_connection(&self) -> MediaResult<Self::PC> {
-        Ok(WasmPeerConnection::new())
+        Ok(NativePeerConnection::new())
     }
 
     fn create_peer_connection_with_config(&self, _config: &RtcConfiguration) -> MediaResult<Self::PC> {
-        Ok(WasmPeerConnection::new())
+        Ok(NativePeerConnection::new())
     }
 }
 
-impl Default for WasmFactory {
+impl Default for NativeFactory {
     fn default() -> Self {
         Self::new()
     }

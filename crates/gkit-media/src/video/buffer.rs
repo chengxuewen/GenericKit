@@ -34,10 +34,10 @@ pub trait VideoBuffer: fmt::Debug + Send + Sync {
     fn as_i010(&self) -> Option<&I010Buffer> { None }
 
     /// Scale this buffer to a new resolution.
-    fn scale(&self, scaled_width: u32, scaled_height: u32) -> Result<I420Buffer, crate::webrtc::client::core::MediaError>;
+    fn scale(&self, scaled_width: u32, scaled_height: u32) -> Result<I420Buffer, crate::protocols::rtc::client::core::MediaError>;
 
     /// Convert to I420 format.
-    fn to_i420(&self) -> Result<I420Buffer, crate::webrtc::client::core::MediaError>;
+    fn to_i420(&self) -> Result<I420Buffer, crate::protocols::rtc::client::core::MediaError>;
 }
 
 // ============================================================================
@@ -82,7 +82,7 @@ impl VideoBuffer for I420Buffer {
     fn buffer_type(&self) -> VideoBufferType { VideoBufferType::I420 }
     fn as_i420(&self) -> Option<&I420Buffer> { Some(self) }
 
-    fn scale(&self, scaled_width: u32, scaled_height: u32) -> Result<I420Buffer, crate::webrtc::client::core::MediaError> {
+    fn scale(&self, scaled_width: u32, scaled_height: u32) -> Result<I420Buffer, crate::protocols::rtc::client::core::MediaError> {
         let mut out = I420Buffer::new(scaled_width, scaled_height);
         let x_ratio = self.width as f64 / scaled_width as f64;
         let y_ratio = self.height as f64 / scaled_height as f64;
@@ -115,7 +115,7 @@ impl VideoBuffer for I420Buffer {
         Ok(out)
     }
 
-    fn to_i420(&self) -> Result<I420Buffer, crate::webrtc::client::core::MediaError> {
+    fn to_i420(&self) -> Result<I420Buffer, crate::protocols::rtc::client::core::MediaError> {
         Ok(self.clone())
     }
 }
@@ -156,11 +156,11 @@ impl VideoBuffer for I422Buffer {
     fn buffer_type(&self) -> VideoBufferType { VideoBufferType::I422 }
     fn as_i422(&self) -> Option<&I422Buffer> { Some(self) }
 
-    fn scale(&self, w: u32, h: u32) -> Result<I420Buffer, crate::webrtc::client::core::MediaError> {
+    fn scale(&self, w: u32, h: u32) -> Result<I420Buffer, crate::protocols::rtc::client::core::MediaError> {
         self.to_i420()?.scale(w, h)
     }
 
-    fn to_i420(&self) -> Result<I420Buffer, crate::webrtc::client::core::MediaError> {
+    fn to_i420(&self) -> Result<I420Buffer, crate::protocols::rtc::client::core::MediaError> {
         // Stub: vertical chroma subsample (4:2:2 → 4:2:0)
         let mut out = I420Buffer::new(self.width, self.height);
         out.data_y.copy_from_slice(&self.data_y);
@@ -217,11 +217,11 @@ impl VideoBuffer for I444Buffer {
     fn buffer_type(&self) -> VideoBufferType { VideoBufferType::I444 }
     fn as_i444(&self) -> Option<&I444Buffer> { Some(self) }
 
-    fn scale(&self, w: u32, h: u32) -> Result<I420Buffer, crate::webrtc::client::core::MediaError> {
+    fn scale(&self, w: u32, h: u32) -> Result<I420Buffer, crate::protocols::rtc::client::core::MediaError> {
         self.to_i420()?.scale(w, h)
     }
 
-    fn to_i420(&self) -> Result<I420Buffer, crate::webrtc::client::core::MediaError> {
+    fn to_i420(&self) -> Result<I420Buffer, crate::protocols::rtc::client::core::MediaError> {
         // Stub: 4:4:4 → 4:2:0 (subsample chroma both directions)
         let mut out = I420Buffer::new(self.width, self.height);
         out.data_y.copy_from_slice(&self.data_y);
@@ -289,11 +289,11 @@ impl VideoBuffer for NV12Buffer {
     fn buffer_type(&self) -> VideoBufferType { VideoBufferType::NV12 }
     fn as_nv12(&self) -> Option<&NV12Buffer> { Some(self) }
 
-    fn scale(&self, w: u32, h: u32) -> Result<I420Buffer, crate::webrtc::client::core::MediaError> {
+    fn scale(&self, w: u32, h: u32) -> Result<I420Buffer, crate::protocols::rtc::client::core::MediaError> {
         self.to_i420()?.scale(w, h)
     }
 
-    fn to_i420(&self) -> Result<I420Buffer, crate::webrtc::client::core::MediaError> {
+    fn to_i420(&self) -> Result<I420Buffer, crate::protocols::rtc::client::core::MediaError> {
         let mut out = I420Buffer::new(self.width, self.height);
         out.data_y.copy_from_slice(&self.data_y);
         for y in 0..out.chroma_height() {
@@ -344,11 +344,11 @@ impl VideoBuffer for I010Buffer {
     fn buffer_type(&self) -> VideoBufferType { VideoBufferType::I010 }
     fn as_i010(&self) -> Option<&I010Buffer> { Some(self) }
 
-    fn scale(&self, w: u32, h: u32) -> Result<I420Buffer, crate::webrtc::client::core::MediaError> {
+    fn scale(&self, w: u32, h: u32) -> Result<I420Buffer, crate::protocols::rtc::client::core::MediaError> {
         self.to_i420()?.scale(w, h)
     }
 
-    fn to_i420(&self) -> Result<I420Buffer, crate::webrtc::client::core::MediaError> {
+    fn to_i420(&self) -> Result<I420Buffer, crate::protocols::rtc::client::core::MediaError> {
         // 10-bit → 8-bit truncation + I420 layout
         let mut out = I420Buffer::new(self.width, self.height);
         for (i, v) in self.data_y.iter().enumerate() {

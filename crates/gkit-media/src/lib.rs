@@ -5,8 +5,8 @@ pub fn media_hello() {
     println!("media_hello!");
 }
 
-pub mod webrtc;
 pub mod video;
+pub mod protocols;
 
 // build-sys: LiveKit webrtc-sys FFI (requires libwebrtc C++ binary)
 // #[cfg(feature = "backend-native-google")]
@@ -15,24 +15,24 @@ pub mod video;
 
 // --- backend-agnostic factory functions (used by C FFI) ---
 
-use webrtc::client::core::{DataChannel, PeerConnection};
+use protocols::rtc::client::core::{DataChannel, PeerConnection};
 
 #[cfg(all(feature = "backend-native", not(feature = "backend-native-google")))]
 pub fn make_peer_connection() -> Box<dyn PeerConnection> {
-    Box::new(webrtc::client::native::NativePeerConnection::new())
+    Box::new(protocols::rtc::client::native::NativePeerConnection::new())
 }
 
 #[cfg(feature = "backend-native-google")]
 pub fn make_peer_connection() -> Box<dyn PeerConnection> {
-    Box::new(webrtc::client::native::GooglePeerConnection::new())
+    Box::new(protocols::rtc::client::native::GooglePeerConnection::new())
 }
 
 #[cfg(all(feature = "backend-native", not(feature = "backend-native-google")))]
 pub fn make_data_channel(label: &str) -> Box<dyn DataChannel> {
-    Box::new(webrtc::client::native::NativeDataChannel::new(label))
+    Box::new(protocols::rtc::client::native::NativeDataChannel::new(label))
 }
 
 #[cfg(feature = "backend-native-google")]
 pub fn make_data_channel(label: &str) -> Box<dyn DataChannel> {
-    Box::new(webrtc::client::native::GoogleDataChannel::new(label))
+    Box::new(protocols::rtc::client::native::GoogleDataChannel::new(label))
 }

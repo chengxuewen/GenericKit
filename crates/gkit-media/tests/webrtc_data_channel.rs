@@ -1,7 +1,7 @@
 // W3C DataChannel tests.
 // Backend-agnostic: uses factory functions.
 
-use gkit_media::webrtc::client::core::{DataChannel, PeerConnection};
+use gkit_media::protocols::rtc::client::core::{DataChannel, PeerConnection};
 
 #[test]
 fn create_data_channel() {

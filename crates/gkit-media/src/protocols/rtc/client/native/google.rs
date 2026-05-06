@@ -1,4 +1,4 @@
-use crate::webrtc::client::core::{
+use crate::protocols::rtc::client::core::{
     ConnectionState, DataChannel, DataChannelState, GatheringState, IceConnectionState, IceServer,
     MediaError, MediaResult, PeerConnection, PeerConnectionFactory, RtcConfiguration,
     SessionDescription, SignalingState,

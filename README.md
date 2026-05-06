@@ -14,6 +14,27 @@ applications while avoiding the need to reinvent common solutions.
 - **Scripting Languages**: Support for multiple scripting languages
 - **Practical Frameworks**: Ready-to-use development frameworks
 
+## AI-Assisted Development
+
+[AGENTS.md](AGENTS.md) is the entry point for AI coding assistants. It provides build commands, architecture overview,
+and key conventions.
+
+The `.agents/` directory contains AI development resources, including coding rules and task prompts:
+
+```text
+.agents/
+├── rules/        # Coding standards (common + language-specific)
+└── prompts/      # Task plans and system prompts
+```
+
+### Rules
+
+The `rules/` subdirectory provides a layered rule system for AI coding assistants (e.g., Claude Code, Cursor).
+It defines standards, conventions, and checklists to ensure consistent, high-quality code generation.
+Language-specific rules take precedence over common rules (specific overrides general).
+
+The rules are project-local and read directly by the AI assistant — no external installation needed.
+
 ## Getting Started
 
 *(Add installation and usage instructions here)*

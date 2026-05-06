@@ -1,7 +1,7 @@
 // W3C state machine transition tests.
 // Backend-agnostic: uses factory functions and core types.
 
-use gkit_media::webrtc::client::core::{DataChannel, IceConnectionState, PeerConnection, PeerConnectionFactory};
+use gkit_media::protocols::rtc::client::core::{DataChannel, IceConnectionState, PeerConnection, PeerConnectionFactory};
 
 #[test]
 fn ice_state_initial() {
@@ -18,7 +18,7 @@ fn ice_state_after_close() {
 
 #[test]
 fn data_channel_ready_state_after_close() {
-    use gkit_media::webrtc::client::core::DataChannelState;
+    use gkit_media::protocols::rtc::client::core::DataChannelState;
     let pc = gkit_media::make_peer_connection();
     let mut dc = pc.create_data_channel("dc").expect("create_data_channel");
     assert_eq!(dc.ready_state(), DataChannelState::Open);

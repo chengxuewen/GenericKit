@@ -16,14 +16,21 @@ crates/gkit-media/src/
 ├── build-sys/
 │   ├── mod.rs                           # #[path = "webrtc-sys/lib.rs"] pub mod webrtc_sys;
 │   └── webrtc-sys/                      # cxx.rs bridge (24 .rs, 28 .cpp, 30 .h)
-├── webrtc/
-│   └── client/
-│       ├── core.rs                      # trait PeerConnection, DataChannel, PeerConnectionFactory
-│       ├── native/
-│       │   ├── webrtc_rs.rs             # [FILL] webrtc 0.11 backend
-│       │   ├── google.rs                # [REPLACE] → google_lk adapter
-│       │   └── google_lk/               # LiveKit port (23 public .rs, 27 native .rs)
-│       └── wasm.rs                      # web-sys stub (unchanged)
+├── protocols/
+│   └── rtc/                             # was webrtc/
+│       └── client/
+│           ├── core.rs                  # trait PeerConnection, DataChannel, PeerConnectionFactory
+│           ├── native/
+│           │   ├── webrtc_rs.rs         # [FILL] webrtc 0.11 backend
+│           │   ├── google.rs            # [REPLACE] → google_lk adapter
+│           │   └── google_lk/           # LiveKit port (23 public .rs, 27 native .rs)
+│           └── wasm.rs                  # web-sys stub (unchanged)
+├── video/                               # protocol-agnostic media pipeline
+│   ├── source_sink.rs                   # VideoSource, VideoSink, VideoBroadcaster traits
+│   ├── buffer.rs / frame.rs / ...       # existing video modules
+│   └── adapter.rs                       # [planned] VideoAdapter
+└── capture/                             # [planned] capture sources
+    └── generator.rs                     # VideoFrameGenerator
 ```
 
 **Invariants**:

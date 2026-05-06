@@ -2,7 +2,7 @@
 
 **Date**: 2026-05-06
 **Priority**: P0 (highest precedence over other WebRTC phases)
-**Scope**: Define pipeline traits (VideoSource, VideoSink, AudioSource, AudioSink), implement VideoBroadcaster, VideoAdapter, AdaptedVideoSource, VideoFrameGenerator (SquarePattern), DefaultAudioSource, C/C++ FFI bindings, and comprehensive unit tests
+**Scope**: Define pipeline traits (VideoSource, VideoSink, VideoSinkWants, VideoBroadcaster, VideoAdapter, AudioSource, AudioSink), implement VideoFrameGenerator (SquarePattern), DefaultAudioSource, C/C++ FFI bindings, comprehensive unit tests, and an egui demo example. All video traits live in `video/source_sink.rs` (not WebRTC-specific); generator in `capture/generator.rs`.
 **Constraint**: All code in single crate `gkit-media`; no new workspace members
 
 ---
@@ -25,6 +25,28 @@ Derived from three reference implementations (libwebrtc `api/video/`, OpenCTK `l
 
 ## 2. Architecture
 
+```
+crates/gkit-media/src/
+├── protocols/rtc/                    # WebRTC protocol (was webrtc/)
+│   └── client/core.rs                # (existing) PeerConnection, DataChannel traits
+├── video/
+│   ├── mod.rs                        # + pub mod source_sink; pub mod adapter;
+│   ├── source_sink.rs                # [DONE] VideoSource<F>, VideoSink<F>, VideoSinkWants,
+│   │                                 #        VideoBroadcaster, AudioSource, AudioSink
+│   ├── adapter.rs                    # [NEW] VideoAdapter, AdaptedVideoSource
+│   ├── buffer.rs                     # (existing) I420Buffer, VideoBuffer trait
+│   ├── frame.rs                      # (existing) VideoFrame, BoxVideoFrame
+│   ├── convert.rs                    # (existing) i420_to_argb, argb_to_i420
+│   └── transform.rs                  # (existing) i420_scale, i420_crop, i420_rotate
+├── capture/
+│   └── generator.rs                  # [NEW] FramePattern, SquarePattern, VideoFrameGenerator
+
+apis/
+├── c/gkit-media/src/lib.rs           # +14 new C FFI functions
+├── c/gkit-media/tests/test_source_sink.c     # [NEW] 5 C Unity tests
+├── cpp/gkit-media/gkit_media_source_sink.hpp # [NEW] C++ RAII wrappers
+├── cpp/gkit-media/tests/test_source_sink.cpp # [NEW] 7 GTest tests
+crates/gkit-media/tests/test_source_sink.rs   # [DONE] 8 Rust tests (partial)
 ```
 crates/gkit-media/src/
 ├── webrtc/
@@ -57,7 +79,7 @@ VideoFrameGenerator → VideoBroadcaster → VideoSink (callback)
 
 ---
 
-## 3. Core Trait Definitions (`source_sink.rs`)
+## 3. Core Trait Definitions (`video/source_sink.rs`)
 
 ### 3.1 VideoSinkWants
 
@@ -156,7 +178,7 @@ pub trait AudioSource: Send {
 
 ---
 
-## 4. VideoAdapter (`adapter.rs`)
+## 4. VideoAdapter (`video/adapter.rs`)
 
 ```rust
 pub struct VideoAdapter {
@@ -211,7 +233,7 @@ impl VideoSource<VideoFrame> for AdaptedVideoSource {
 
 ---
 
-## 5. VideoFrameGenerator (`video/generator.rs`)
+## 5. VideoFrameGenerator (`capture/generator.rs`)
 
 ### 5.1 FramePattern Trait
 

@@ -31,7 +31,7 @@ include(.cmake.conf)
 # Set project name and version
 #-----------------------------------------------------------------------------------------------------------------------
 # Read version from single source of truth
-file(STRINGS "${CMAKE_SOURCE_DIR}/VERSION.txt" _gkit_version_raw LIMIT_COUNT 1 LENGTH_MINIMUM 1)
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION.txt" _gkit_version_raw LIMIT_COUNT 1 LENGTH_MINIMUM 1)
 string(STRIP "${_gkit_version_raw}" _gkit_version_raw)
 if(NOT _gkit_version_raw MATCHES "^([0-9]+)\\.([0-9]+)\\.([0-9]+)(\\.([0-9]+))?$")
 	message(FATAL_ERROR "Failed to parse VERSION.txt. Expected format: MAJOR.MINOR.PATCH[.TWEAK], got: '${_gkit_version_raw}'")
@@ -56,11 +56,11 @@ math(EXPR GKIT_VERSION_CALC "${GKIT_VERSION_MAJOR}*1000 + ${GKIT_VERSION_MINOR}*
 message(STATUS "Project version: ${GKIT_VERSION} (from VERSION.txt)")
 
 # Sync VERSION.txt → Cargo.toml [workspace.package].version
-file(READ "${CMAKE_SOURCE_DIR}/Cargo.toml" _gkit_cargo_toml)
+file(READ "${PROJECT_SOURCE_DIR}/Cargo.toml" _gkit_cargo_toml)
 string(REGEX REPLACE "(\\[workspace\\.package\\]\nversion[ \t]*=[ \t]*\")[^\"]*"
 	"\\1${GKIT_VERSION_STR}" _gkit_cargo_toml_new "${_gkit_cargo_toml}")
 if(NOT "${_gkit_cargo_toml_new}" STREQUAL "${_gkit_cargo_toml}")
-	file(WRITE "${CMAKE_SOURCE_DIR}/Cargo.toml" "${_gkit_cargo_toml_new}")
+	file(WRITE "${PROJECT_SOURCE_DIR}/Cargo.toml" "${_gkit_cargo_toml_new}")
 	message(STATUS "Updated Cargo.toml workspace version to ${GKIT_VERSION_STR}")
 endif()
 message(STATUS "Project copyright: ${GKIT_COPYRIGHT}")
@@ -123,7 +123,7 @@ endif()
 #-----------------------------------------------------------------------------------------------------------------------
 # build directory check
 #-----------------------------------------------------------------------------------------------------------------------
-if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
+if(${PROJECT_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
 	message(FATAL_ERROR "In-source builds not allowed. Please make a new directory (called a build directory) and run "
 		"CMake from there. You may need to remove CMakeCache.txt.")
 endif()
@@ -132,7 +132,7 @@ endif()
 #-----------------------------------------------------------------------------------------------------------------------
 # top project check
 #-----------------------------------------------------------------------------------------------------------------------
-if("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}")
+if("${PROJECT_SOURCE_DIR}" STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}")
 	set(GKIT_PROJECT_IS_TOP_LEVEL ON)
 else()
 	set(GKIT_PROJECT_IS_TOP_LEVEL OFF)
@@ -633,10 +633,10 @@ if(GKIT_BUILD_TESTS)
 	find_program(GKIT_CARGO_EXECUTABLE cargo REQUIRED)
 	add_test(NAME gkit_media_tests_native
 		COMMAND "${GKIT_CARGO_EXECUTABLE}" test -p gkit-media --features backend-native
-		WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+		WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}")
 	add_test(NAME gkit_media_tests_google
 		COMMAND ${CMAKE_COMMAND} -E env GKIT_SKIP_WEBRTC_DOWNLOAD=true "${GKIT_CARGO_EXECUTABLE}" test -p gkit-media --features backend-native-google
-		WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+		WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}")
 endif()
 
 
