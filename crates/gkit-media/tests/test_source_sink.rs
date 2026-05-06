@@ -69,7 +69,7 @@ impl<T: Clone + Send + 'static> VideoSink<T> for TestSink<T> {
 
 #[test]
 fn broadcaster_add_remove_sink() {
-    let mut bc = VideoBroadcaster::<u32>::new();
+    let bc = VideoBroadcaster::<u32>::new();
     let sink: Box<dyn VideoSink<u32>> = Box::new(TestSink::<u32>::new());
     bc.add_or_update_sink(sink, VideoSinkWants::default());
     assert_eq!(bc.sink_count(), 1);
@@ -77,7 +77,7 @@ fn broadcaster_add_remove_sink() {
 
 #[test]
 fn broadcaster_fan_out_to_multiple_sinks() {
-    let mut bc = VideoBroadcaster::<u32>::new();
+    let bc = VideoBroadcaster::<u32>::new();
     bc.add_or_update_sink(Box::new(TestSink::<u32>::new()), VideoSinkWants::default());
     bc.add_or_update_sink(Box::new(TestSink::<u32>::new()), VideoSinkWants::default());
     assert_eq!(bc.sink_count(), 2);
@@ -85,7 +85,7 @@ fn broadcaster_fan_out_to_multiple_sinks() {
 
 #[test]
 fn broadcaster_wants_aggregation() {
-    let mut bc = VideoBroadcaster::<u32>::new();
+    let bc = VideoBroadcaster::<u32>::new();
     let w1 = VideoSinkWants { rotation_applied: true, max_pixel_count: 1920 * 1080, ..Default::default() };
     let w2 = VideoSinkWants { rotation_applied: false, max_pixel_count: 640 * 480, ..Default::default() };
     bc.add_or_update_sink(Box::new(TestSink::<u32>::new()), w1);

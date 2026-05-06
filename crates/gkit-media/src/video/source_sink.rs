@@ -28,8 +28,8 @@ pub trait VideoSink<F>: Send {
 }
 
 pub trait VideoSource<F>: Send {
-    fn add_or_update_sink(&mut self, sink: Box<dyn VideoSink<F>>, wants: VideoSinkWants);
-    fn remove_sink(&mut self, sink: &dyn VideoSink<F>);
+    fn add_or_update_sink(&self, sink: Box<dyn VideoSink<F>>, wants: VideoSinkWants);
+    fn remove_sink(&self, sink: &dyn VideoSink<F>);
 }
 
 pub trait AudioSink: Send {
@@ -37,8 +37,8 @@ pub trait AudioSink: Send {
 }
 
 pub trait AudioSource: Send {
-    fn add_sink(&mut self, sink: Box<dyn AudioSink>);
-    fn remove_sink(&mut self, sink: &dyn AudioSink);
+    fn add_sink(&self, sink: Box<dyn AudioSink>);
+    fn remove_sink(&self, sink: &dyn AudioSink);
     fn sample_rate(&self) -> u32;
     fn channels(&self) -> u32;
 }
@@ -120,12 +120,12 @@ impl<F: Send + 'static> VideoSink<F> for VideoBroadcaster<F> {
 }
 
 impl<F: Send + 'static> VideoSource<F> for VideoBroadcaster<F> {
-    fn add_or_update_sink(&mut self, sink: Box<dyn VideoSink<F>>, wants: VideoSinkWants) {
+    fn add_or_update_sink(&self, sink: Box<dyn VideoSink<F>>, wants: VideoSinkWants) {
         let mut pairs = self.pairs.lock().unwrap();
         pairs.push((sink, wants));
     }
 
-    fn remove_sink(&mut self, sink: &dyn VideoSink<F>) {
+    fn remove_sink(&self, sink: &dyn VideoSink<F>) {
         let mut pairs = self.pairs.lock().unwrap();
         pairs.retain(|(s, _)| {
             !std::ptr::eq(
@@ -193,11 +193,11 @@ impl DefaultAudioSource {
 }
 
 impl AudioSource for DefaultAudioSource {
-    fn add_sink(&mut self, sink: Box<dyn AudioSink>) {
+    fn add_sink(&self, sink: Box<dyn AudioSink>) {
         self.sinks.lock().unwrap().push(sink);
     }
 
-    fn remove_sink(&mut self, sink: &dyn AudioSink) {
+    fn remove_sink(&self, sink: &dyn AudioSink) {
         self.sinks.lock().unwrap().retain(|s| {
             !std::ptr::eq(
                 s.as_ref() as *const (dyn AudioSink) as *const (),

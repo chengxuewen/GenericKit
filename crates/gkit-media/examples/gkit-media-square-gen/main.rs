@@ -76,6 +76,7 @@ impl App {
             VideoSinkWants { is_active: true, ..Default::default() },
         );
         Self { generator, queue, running: false, frame_count: 0, texture: None }
+
     }
 }
 

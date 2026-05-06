@@ -157,14 +157,12 @@ impl VideoFrameGenerator {
 }
 
 impl VideoSource<VideoFrame<Box<dyn VideoBuffer>>> for VideoFrameGenerator {
-    fn add_or_update_sink(&mut self, sink: Box<dyn VideoSink<VideoFrame<Box<dyn VideoBuffer>>>>, wants: VideoSinkWants) {
-        let bc = Arc::get_mut(&mut self.broadcaster).unwrap();
-        bc.add_or_update_sink(sink, wants);
+    fn add_or_update_sink(&self, sink: Box<dyn VideoSink<VideoFrame<Box<dyn VideoBuffer>>>>, wants: VideoSinkWants) {
+        self.broadcaster.add_or_update_sink(sink, wants);
     }
 
-    fn remove_sink(&mut self, sink: &dyn VideoSink<VideoFrame<Box<dyn VideoBuffer>>>) {
-        let bc = Arc::get_mut(&mut self.broadcaster).unwrap();
-        bc.remove_sink(sink);
+    fn remove_sink(&self, sink: &dyn VideoSink<VideoFrame<Box<dyn VideoBuffer>>>) {
+        self.broadcaster.remove_sink(sink);
     }
 }
 
