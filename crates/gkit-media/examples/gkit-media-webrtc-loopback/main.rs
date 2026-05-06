@@ -14,13 +14,13 @@
 use std::sync::{Arc, Mutex};
 
 use eframe::egui;
-use gkit_media::video::buffer::{VideoBuffer, VideoFormatType};
+use gkit_media::video::buffer::VideoFormatType;
 use gkit_media::video::convert::i420_to_argb;
 use gkit_media::video::source_sink::{VideoSink, VideoSinkWants, VideoSource};
 use gkit_media::capture::generator::VideoFrameGenerator;
 
-const W: u32 = 320;
-const H: u32 = 240;
+const W: u32 = 1280;
+const H: u32 = 720;
 const FPS: u32 = 30;
 
 struct Pipeline {
@@ -67,7 +67,7 @@ fn main() -> Result<(), eframe::Error> {
     eframe::run_native(
         "gkit-media WebRTC Loopback Demo (simulated)",
         eframe::NativeOptions {
-            viewport: egui::ViewportBuilder::default().with_inner_size([900.0, 380.0]),
+            viewport: egui::ViewportBuilder::default().with_inner_size([1400.0, 500.0]),
             ..Default::default()
         },
         Box::new(move |_cc| {

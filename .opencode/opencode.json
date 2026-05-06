@@ -5,6 +5,6 @@
     "opencode-mem0"
   ],
   "mem0": {
-    "storage_dir": "3rdparty/GenericKit-Agent-Memory"
+    "storage_dir": ".agents/GenericKit-Agent-Memory"
   }
 }

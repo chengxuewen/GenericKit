@@ -22,8 +22,11 @@ tools/      # CLI tools
 
 ## 3rdparty
 
-- `GenericKit-Agent-Memory/` — git submodule for AI agent memory (opencode-mem0 storage). Configured in `.opencode/opencode.json` via `mem0.storage_dir`.
-- `.tar.gz` archives — local tarballs extracted at configure time (GTest, Benchmark, etc.)
+- `.tar.gz` archives — local tarballs extracted at configure time (GTest, Benchmark, Unity, ImGui, Nuklear, etc.)
+
+## .agents
+
+The `.agents/` directory contains AI development resources:
 
 ## Key Rules
 
@@ -38,6 +41,7 @@ The `.agents/` directory contains AI development resources:
 
 ```text
 .agents/
+├── GenericKit-Agent-Memory/  # Git submodule — AI agent memory (opencode-mem0)
 ├── rules/        # Coding standards for AI assistants
 │   ├── common/   # Language-agnostic principles
 │   └── ...       # Language-specific rules (rust, cpp, python, ...)
