@@ -83,7 +83,7 @@ impl FramePattern for SquarePattern {
             sq.y = (sq.y + fast_rand_u32() % 4) % height;
         }
 
-        draw_timestamp(y, stride_y, 4, 6, 1);
+        draw_timestamp(y, stride_y, u, stride_u, 8, 8, 2);
     }
 }
 
@@ -164,26 +164,69 @@ fn draw_glyph(plane: &mut [u8], stride_y: u32, x: u32, y: u32, glyph: &Glyph, sc
     }
 }
 
-fn draw_timestamp(y: &mut [u8], stride_y: u32, x: u32, y_pos: u32, scale: u32) {
+fn draw_timestamp(y: &mut [u8], stride_y: u32, u: &mut [u8], stride_u: u32, x: u32, y_pos: u32, scale: u32) {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap();
     let total_secs = now.as_secs();
     let millis = now.subsec_millis();
 
-    // HH:MM:SS.mmm
-    let h = (total_secs / 3600) % 24;
-    let m = (total_secs / 60) % 60;
-    let s = total_secs % 60;
-    let time_str = format!("{:02}:{:02}:{:02}.{:03}", h, m, s, millis);
+    let (year, month, day) = unix_to_date(total_secs);
+    let sod = total_secs % 86400;
+    let h = sod / 3600;
+    let m = (sod % 3600) / 60;
+    let s = sod % 60;
+
+    let time_str = format!("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:03}", year, month, day, h, m, s, millis);
+
+    let char_w = 6 * scale;
+    let char_h = 7 * scale;
+    let pad = 4; // padding around text
+    let text_w = time_str.len() as u32 * char_w;
+    let text_h = char_h;
+
+    // Semi-transparent black background: dark Y, neutral UV
+    let bg_y = 16u8;
+    let bg_u = 128u8;
+    draw_rect(y, stride_y, x - pad, y_pos - pad, text_w + pad * 2, text_h + pad * 2, bg_y);
+    draw_rect(u, stride_u, (x - pad) / 2, (y_pos - pad) / 2,
+        (text_w + pad * 2) / 2, (text_h + pad * 2) / 2, bg_u);
 
     let mut cx = x;
     for ch in time_str.bytes() {
         let gi = glyph_index(ch);
         let glyph: &Glyph = &FONT[gi * 7..(gi + 1) * 7].try_into().unwrap();
         draw_glyph(y, stride_y, cx, y_pos, glyph, scale);
-        cx += 6 * scale; // char width + 1px gap
+        cx += char_w;
     }
+}
+
+fn unix_to_date(unix_secs: u64) -> (u64, u64, u64) {
+    let mut days = unix_secs / 86400;
+    let mut year = 1970u64;
+    loop {
+        let days_in_year = if is_leap(year) { 366 } else { 365 };
+        if days < days_in_year { break; }
+        days -= days_in_year;
+        year += 1;
+    }
+    let month_days = if is_leap(year) {
+        [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    } else {
+        [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    };
+    let mut month = 1u64;
+    for &md in month_days.iter() {
+        if days < md { break; }
+        days -= md;
+        month += 1;
+    }
+    let day = days + 1;
+    (year, month, day)
+}
+
+fn is_leap(year: u64) -> bool {
+    (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
 }
 
 pub struct VideoFrameGenerator {
