@@ -100,6 +100,8 @@ pub struct VideoFrameGenerator {
     broadcaster: Arc<VideoBroadcaster<VideoFrame<Box<dyn VideoBuffer>>>>,
     running: Arc<AtomicBool>,
     thread_handle: Option<thread::JoinHandle<()>>,
+    // Lazy-start parameters (consumed on first start)
+    start_config: Option<(u32, u32, u32, Option<Box<dyn FramePattern>>)>,
 }
 
 impl VideoFrameGenerator {
@@ -111,12 +113,24 @@ impl VideoFrameGenerator {
     pub fn new_with_pattern(width: u32, height: u32, fps: u32, pattern: Box<dyn FramePattern>) -> Self {
         let broadcaster = Arc::new(VideoBroadcaster::new());
         let running = Arc::new(AtomicBool::new(false));
-        let rt = running.clone();
-        let frame_interval = Duration::from_micros((1_000_000 / fps as u64).max(1));
-        let bc = broadcaster.clone();
+        Self {
+            broadcaster,
+            running,
+            thread_handle: None,
+            start_config: Some((width, height, fps, Some(pattern))),
+        }
+    }
 
-        let thread_handle = thread::spawn(move || {
-            let mut pattern = pattern;
+    pub fn start(&mut self) {
+        if self.thread_handle.is_some() { return; }
+        let Some((width, height, fps, pattern_opt)) = self.start_config.take() else { return; };
+        let mut pattern = pattern_opt.unwrap_or_else(|| Box::new(SquarePattern::new(width, height, 10)));
+        let rt = self.running.clone();
+        let bc = self.broadcaster.clone();
+        let frame_interval = Duration::from_micros((1_000_000 / fps as u64).max(1));
+        rt.store(true, Ordering::Relaxed);
+
+        let handle = thread::spawn(move || {
             while rt.load(Ordering::Relaxed) {
                 let start = std::time::Instant::now();
                 let mut buf = I420Buffer::new(width, height);
@@ -132,12 +146,7 @@ impl VideoFrameGenerator {
                 }
             }
         });
-
-        Self { broadcaster, running, thread_handle: Some(thread_handle) }
-    }
-
-    pub fn start(&mut self) {
-        self.running.store(true, Ordering::Relaxed);
+        self.thread_handle = Some(handle);
     }
 
     pub fn stop(&mut self) {
