@@ -8,7 +8,7 @@
 use std::sync::{Arc, Mutex};
 use eframe::egui;
 use gkit_media::capture::generator::VideoFrameGenerator;
-use gkit_media::protocols::rtc::client::core::{PeerConnection, PeerConnectionFactory};
+use gkit_media::protocols::rtc::client::core::{PeerConnection, PeerConnectionFactory, IceCandidate};
 use gkit_media::protocols::rtc::client::native::NativeFactory;
 use gkit_media::video::buffer::VideoFormatType;
 use gkit_media::video::convert::i420_to_argb;
@@ -54,9 +54,13 @@ fn main() -> Result<(), eframe::Error> {
         let mut pc1 = factory.create_peer_connection().expect("create pc1");
         let mut pc2 = factory.create_peer_connection().expect("create pc2");
 
-        *p.status.lock().unwrap() = "SDP negotiation...".into();
+        *p.status.lock().unwrap() = "ICE gathering...".into();
 
-        // SDP offer/answer via gkit API
+        let (tx1, rx1) = std::sync::mpsc::channel::<IceCandidate>();
+        let (tx2, rx2) = std::sync::mpsc::channel::<IceCandidate>();
+        pc1.set_on_ice_candidate(Box::new(move |c| { let _ = tx2.send(c); }));
+        pc2.set_on_ice_candidate(Box::new(move |c| { let _ = tx1.send(c); }));
+
         let offer = pc1.create_offer().expect("offer");
         pc1.set_local_description(&offer).expect("set local");
         pc2.set_remote_description(&offer).expect("set remote");
@@ -65,12 +69,19 @@ fn main() -> Result<(), eframe::Error> {
         pc2.set_local_description(&answer).expect("set local");
         pc1.set_remote_description(&answer).expect("set remote");
 
+        pc1.gather_complete().expect("gather1");
+        pc2.gather_complete().expect("gather2");
+
+        for c in rx2.try_iter() { pc1.add_ice_candidate(&c.candidate, c.sdp_mid.as_deref().unwrap_or("")).ok(); }
+        for c in rx1.try_iter() { pc2.add_ice_candidate(&c.candidate, c.sdp_mid.as_deref().unwrap_or("")).ok(); }
+
         *p.status.lock().unwrap() = format!("gkit P2P negotiated — {}x{} {}fps", W, H, FPS);
 
-        // Poll PC states for UI
         loop {
             *p.pc1_ice.lock().unwrap() = format!("{:?}", pc1.ice_connection_state());
             *p.pc2_ice.lock().unwrap() = format!("{:?}", pc2.ice_connection_state());
+            for c in rx2.try_iter() { pc1.add_ice_candidate(&c.candidate, c.sdp_mid.as_deref().unwrap_or("")).ok(); }
+            for c in rx1.try_iter() { pc2.add_ice_candidate(&c.candidate, c.sdp_mid.as_deref().unwrap_or("")).ok(); }
             std::thread::sleep(std::time::Duration::from_secs(1));
         }
     });

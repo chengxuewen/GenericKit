@@ -97,6 +97,12 @@ pub struct RtcConfiguration {
     pub ice_candidate_pool_size: Option<u32>,
 }
 
+pub struct IceCandidate {
+    pub candidate: String,
+    pub sdp_mid: Option<String>,
+    pub sdp_mline_index: Option<u16>,
+}
+
 /// W3C RTCPeerConnection trait.
 pub trait PeerConnection: Send {
     fn create_offer(&self) -> MediaResult<SessionDescription>;
@@ -116,6 +122,14 @@ pub trait PeerConnection: Send {
     fn max_data_channel_stream(&self) -> MediaResult<u32> { Ok(0) }
     fn remote_max_message_size(&self) -> MediaResult<usize> { Ok(65536) }
     fn close(&mut self) -> MediaResult<()>;
+
+    /// Register callback for local ICE candidates. Called with candidate and sdp_mid.
+    fn set_on_ice_candidate(&mut self, _cb: Box<dyn Fn(IceCandidate) + Send>) {}
+    /// Register callback for ICE connection state changes.
+    fn set_on_ice_connection_state_change(&mut self, _cb: Box<dyn Fn(IceConnectionState) + Send>) {}
+    /// Wait until ICE gathering is complete. Returns immediately if already complete.
+    /// Blocks the calling thread.
+    fn gather_complete(&self) -> MediaResult<()> { Ok(()) }
 }
 
 /// W3C RTCDataChannel trait.

@@ -3,9 +3,9 @@ use std::sync::{Arc, OnceLock};
 
 #[cfg(feature = "backend-native-webrtc-rs")]
 use crate::protocols::rtc::client::core::{
-    ConnectionState, DataChannel, DataChannelState, GatheringState, IceConnectionState,
-    MediaError, MediaResult, PeerConnection, PeerConnectionFactory, RtcConfiguration,
-    SessionDescription, SignalingState,
+    ConnectionState, DataChannel, DataChannelState, GatheringState, IceCandidate,
+    IceConnectionState, MediaError, MediaResult, PeerConnection, PeerConnectionFactory,
+    RtcConfiguration, SessionDescription, SignalingState,
 };
 
 #[cfg(feature = "backend-native-webrtc-rs")]
@@ -28,6 +28,7 @@ fn rt() -> &'static tokio::runtime::Runtime {
 #[cfg(feature = "backend-native-webrtc-rs")]
 pub struct NativePeerConnection {
     pc: Arc<RTCPeerConnection>,
+    gather_done: Arc<std::sync::atomic::AtomicBool>,
 }
 
 #[cfg(feature = "backend-native-webrtc-rs")]
@@ -56,9 +57,14 @@ impl NativePeerConnection {
     pub fn new() -> MediaResult<Self> {
         rt().block_on(async {
             let api = APIBuilder::new().build();
-            let pc = api.new_peer_connection(WrtcConfig::default()).await
-                .map_err(|e| MediaError::new(format!("{e}")))?;
-            Ok(Self { pc: Arc::new(pc) })
+            let pc = api.new_peer_connection(WrtcConfig {
+                ice_servers: vec![webrtc::ice_transport::ice_server::RTCIceServer {
+                    urls: vec!["stun:stun.l.google.com:19302".to_string()],
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }).await.map_err(|e| MediaError::new(format!("{e}")))?;
+            Ok(Self { pc: Arc::new(pc), gather_done: Arc::new(std::sync::atomic::AtomicBool::new(false)) })
         })
     }
     fn check_closed(&self) -> MediaResult<()> {
@@ -165,6 +171,49 @@ impl PeerConnection for NativePeerConnection {
     }
     fn close(&mut self) -> MediaResult<()> {
         rt().block_on(async { self.pc.close().await.map_err(|e| MediaError::new(format!("{e}"))) })
+    }
+
+    fn set_on_ice_candidate(&mut self, cb: Box<dyn Fn(IceCandidate) + Send>) {
+        let cb = Arc::new(std::sync::Mutex::new(Some(cb)));
+        let c = cb.clone();
+        self.pc.on_ice_candidate(Box::new(move |candidate: Option<webrtc::ice_transport::ice_candidate::RTCIceCandidate>| {
+            if let Some(cand) = candidate {
+                if let Ok(lock) = c.lock() {
+                    if let Some(ref f) = *lock {
+                        f(IceCandidate { candidate: cand.to_json().unwrap().candidate, sdp_mid: None, sdp_mline_index: None });
+                    }
+                }
+            }
+            Box::pin(async {})
+        }));
+    }
+
+    fn set_on_ice_connection_state_change(&mut self, cb: Box<dyn Fn(IceConnectionState) + Send>) {
+        let cb = Arc::new(std::sync::Mutex::new(Some(cb)));
+        self.pc.on_ice_connection_state_change(Box::new(move |s: webrtc::ice_transport::ice_connection_state::RTCIceConnectionState| {
+            let mapped = match s {
+                webrtc::ice_transport::ice_connection_state::RTCIceConnectionState::New => IceConnectionState::New,
+                webrtc::ice_transport::ice_connection_state::RTCIceConnectionState::Checking => IceConnectionState::Checking,
+                webrtc::ice_transport::ice_connection_state::RTCIceConnectionState::Connected => IceConnectionState::Connected,
+                webrtc::ice_transport::ice_connection_state::RTCIceConnectionState::Completed => IceConnectionState::Completed,
+                webrtc::ice_transport::ice_connection_state::RTCIceConnectionState::Failed => IceConnectionState::Failed,
+                webrtc::ice_transport::ice_connection_state::RTCIceConnectionState::Disconnected => IceConnectionState::Disconnected,
+                webrtc::ice_transport::ice_connection_state::RTCIceConnectionState::Closed => IceConnectionState::Closed,
+                _ => IceConnectionState::New,
+            };
+            if let Ok(lock) = cb.lock() { if let Some(ref f) = *lock { f(mapped); } }
+            Box::pin(async {})
+        }));
+    }
+
+    fn gather_complete(&self) -> MediaResult<()> {
+        let done = self.gather_done.clone();
+        rt().block_on(async {
+            let mut rx = self.pc.gathering_complete_promise().await;
+            let _ = rx.recv().await;
+            done.store(true, std::sync::atomic::Ordering::Relaxed);
+            Ok(())
+        })
     }
 }
 
