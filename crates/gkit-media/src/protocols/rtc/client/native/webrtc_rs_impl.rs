@@ -184,6 +184,8 @@ impl PeerConnection for NativePeerConnection {
         use crate::video::source_sink::VideoSinkWants;
         use std::sync::Mutex as StdMutex;
 
+        eprintln!("[gkit] create_video_track: creating H.264 encoder + TLS");
+
         let tls = Arc::new(TrackLocalStaticSample::new(
             webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability {
                 mime_type: webrtc::api::media_engine::MIME_TYPE_H264.to_string(), ..Default::default()
@@ -195,15 +197,22 @@ impl PeerConnection for NativePeerConnection {
 
         let tls_w = tls.clone();
         let enc_w = encoder.clone();
-        source.add_or_update_sink(Box::new(EncoderSink { tls: tls_w, encoder: enc_w }),
+        let frame_count = Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let fc = frame_count.clone();
+        source.add_or_update_sink(Box::new(EncoderSink { tls: tls_w, encoder: enc_w, count: fc }),
             VideoSinkWants { is_active: true, ..Default::default() });
 
+        eprintln!("[gkit] create_video_track: EncoderSink registered, adding track to PC");
+
         struct EncoderSink {
-            tls: Arc<TrackLocalStaticSample>,
+            tls: Arc<webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample>,
             encoder: Arc<StdMutex<openh264::encoder::Encoder>>,
+            count: Arc<std::sync::atomic::AtomicU64>,
         }
         impl crate::video::source_sink::VideoSink<crate::video::frame::BoxVideoFrame> for EncoderSink {
             fn on_frame(&self, frame: &crate::video::frame::BoxVideoFrame) {
+                let n = self.count.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+                if n % 30 == 1 { eprintln!("[gkit] EncoderSink frame #{}", n); }
                 if let Ok(i420) = frame.buffer.to_i420() {
                     let src = I420Wrap(i420);
                     let nal_data = {
@@ -211,9 +220,9 @@ impl PeerConnection for NativePeerConnection {
                         enc.encode(&src).ok().map(|bs| bs.to_vec())
                     };
                     if let Some(data) = nal_data {
-                        let data = bytes::Bytes::from(data);
                         let _ = rt().block_on(self.tls.write_sample(&webrtc::media::Sample {
-                            data, duration: std::time::Duration::from_micros(66_666),
+                            data: bytes::Bytes::from(data),
+                            duration: std::time::Duration::from_micros(66_666),
                             timestamp: std::time::SystemTime::now(),
                             ..Default::default()
                         }));
@@ -258,6 +267,7 @@ impl PeerConnection for NativePeerConnection {
         use openh264::formats::YUVSource;
         let cb = Arc::new(std::sync::Mutex::new(Some(cb)));
         self.pc.on_track(Box::new(move |track, _receiver, _transceiver| {
+            eprintln!("[gkit] on_track fired! track={}", track.id());
             let decoder = Arc::new(std::sync::Mutex::new(
                 openh264::decoder::Decoder::new().unwrap()));
             let sinks: Arc<std::sync::Mutex<Vec<Box<dyn crate::video::source_sink::VideoSink<crate::video::frame::BoxVideoFrame>>>>> = Arc::new(std::sync::Mutex::new(Vec::new()));
@@ -270,19 +280,28 @@ impl PeerConnection for NativePeerConnection {
             let dec = decoder.clone();
             let dec_sinks = sinks.clone();
             tokio::spawn(async move {
-                while let Ok((pkt, _)) = track.read_rtp().await {
-                    let mut d = dec.lock().unwrap();
-                    if let Ok(Some(yuv)) = d.decode(&pkt.payload) {
-                        let w = yuv.dimensions().0 as u32;
-                        let h = yuv.dimensions().1 as u32;
-                        let mut i420 = I420Buffer::new(w, h);
-                        i420.data_y.copy_from_slice(yuv.y());
-                        i420.data_u.copy_from_slice(yuv.u());
-                        i420.data_v.copy_from_slice(yuv.v());
-                        let frame = crate::video::frame::BoxVideoFrame::new(Box::new(i420));
-                        for sink in dec_sinks.lock().unwrap().iter() { sink.on_frame(&frame); }
+                let mut pkt_count = 0u64;
+                loop {
+                    match track.read_rtp().await {
+                        Ok((pkt, _)) => {
+                            pkt_count += 1;
+                            if pkt_count % 30 == 1 { eprintln!("[gkit] decoder RTP pkt #{}", pkt_count); }
+                            let mut d = dec.lock().unwrap();
+                            if let Ok(Some(yuv)) = d.decode(&pkt.payload) {
+                                let w = yuv.dimensions().0 as u32;
+                                let h = yuv.dimensions().1 as u32;
+                                let mut i420 = I420Buffer::new(w, h);
+                                i420.data_y.copy_from_slice(yuv.y());
+                                i420.data_u.copy_from_slice(yuv.u());
+                                i420.data_v.copy_from_slice(yuv.v());
+                                let frame = crate::video::frame::BoxVideoFrame::new(Box::new(i420));
+                                for sink in dec_sinks.lock().unwrap().iter() { sink.on_frame(&frame); }
+                            }
+                        }
+                        Err(e) => { eprintln!("[gkit] decoder read_rtp err: {e}"); break; }
                     }
                 }
+                eprintln!("[gkit] decoder loop ended after {} pkts", pkt_count);
             });
             Box::pin(async {})
         }));

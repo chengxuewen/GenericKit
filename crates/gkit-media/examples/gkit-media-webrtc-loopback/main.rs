@@ -80,6 +80,7 @@ fn main() -> Result<(), eframe::Error> {
         // video track on PC1 — start generator before passing to create_video_track
         let mut gen2 = VideoFrameGenerator::new(W, H, FPS);
         gen2.start();
+        eprintln!("[loopback] gen2 started, calling create_video_track");
         if let Err(e) = pc1.create_video_track(Box::new(gen2)) {
             let mut log = p.pc1_log.lock().unwrap(); log.push(format!("track err: {e}"));
         }
@@ -87,9 +88,11 @@ fn main() -> Result<(), eframe::Error> {
         let rp = p.clone();
         pc2.set_on_track(Box::new(move |track: Box<dyn VideoTrack>| {
             let dp = rp.clone();
-            struct P2PSink { p: Arc<Pipeline> }
+            struct P2PSink { p: Arc<Pipeline>, count: std::sync::atomic::AtomicU64 }
             impl VideoSink<BoxVideoFrame> for P2PSink {
                 fn on_frame(&self, frame: &BoxVideoFrame) {
+                    let n = self.count.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+                    eprintln!("[loopback] P2PSink frame #{}", n);
                     if let Ok(i420) = frame.buffer.to_i420() {
                         let mut rgba = vec![0u8; (W * H * 4) as usize];
                         i420_to_argb(&i420, &mut rgba, W * 4, VideoFormatType::RGBA);
@@ -98,7 +101,7 @@ fn main() -> Result<(), eframe::Error> {
                     }
                 }
             }
-            track.add_sink(Box::new(P2PSink { p: dp }));
+            track.add_sink(Box::new(P2PSink { p: dp, count: std::sync::atomic::AtomicU64::new(0) }));
         }));
 
         // SDP exchange (don't block too long)
