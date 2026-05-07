@@ -20,7 +20,7 @@ use protocols::rtc::client::core::{DataChannel, PeerConnection};
 
 #[cfg(all(feature = "backend-native", not(feature = "backend-native-google")))]
 pub fn make_peer_connection() -> Box<dyn PeerConnection> {
-    Box::new(protocols::rtc::client::native::NativePeerConnection::new())
+    Box::new(protocols::rtc::client::native::NativePeerConnection::new().expect("Failed to create PeerConnection"))
 }
 
 #[cfg(feature = "backend-native-google")]
