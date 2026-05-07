@@ -55,20 +55,27 @@ fn p2p_vnet() {
         track.add_sink(Box::new(Sink { count: r }));
     }));
 
+    // Non-trickle ICE: gather candidates into SDP, exchange via set_remote_description
     let offer = pc1.create_offer().expect("offer");
-    eprintln!("[test] offer SDP m-line present: {}", offer.sdp.contains("m=video"));
     pc1.set_local_description(&offer).expect("set local1");
-    pc2.set_remote_description(&offer).expect("set remote2");
+    pc1.gather_complete().ok();
+    // Use gathered LOCAL description (includes candidates in SDP)
+    let offer_with_cands = pc1.local_description().expect("local desc1");
+    eprintln!("[test] offer SDP size={}", offer_with_cands.sdp.len());
+    pc2.set_remote_description(&offer_with_cands).expect("set remote2");
+
     let answer = pc2.create_answer().expect("answer");
     pc2.set_local_description(&answer).expect("set local2");
-    pc1.set_remote_description(&answer).expect("set remote1");
+    pc2.gather_complete().ok();
+    let answer_with_cands = pc2.local_description().expect("local desc2");
+    eprintln!("[test] answer SDP size={}", answer_with_cands.sdp.len());
+    pc1.set_remote_description(&answer_with_cands).expect("set remote1");
 
-    // Wait for gather + exchange continuously
-    pc1.gather_complete().ok(); pc2.gather_complete().ok();
-    let mut total = 0u32;
-    for c in rx2.try_iter() { total += 1; pc2.add_ice_candidate(&c.candidate, c.sdp_mid.as_deref().unwrap_or("")).ok(); }
-    for c in rx1.try_iter() { total += 1; pc1.add_ice_candidate(&c.candidate, c.sdp_mid.as_deref().unwrap_or("")).ok(); }
-    eprintln!("[test] candidates exchanged: {}", total);
+    // Also exchange explicit candidates for trickle fallback
+    for c in rx2.try_iter() { pc2.add_ice_candidate(&c.candidate, c.sdp_mid.as_deref().unwrap_or("")).ok(); }
+    for c in rx1.try_iter() { pc1.add_ice_candidate(&c.candidate, c.sdp_mid.as_deref().unwrap_or("")).ok(); }
+
+    eprintln!("[test] non-trickle SDP exchanged, checking ICE...");
 
     let start = Instant::now();
     loop {
