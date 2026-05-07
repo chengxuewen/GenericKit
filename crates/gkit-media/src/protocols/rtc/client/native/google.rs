@@ -20,7 +20,7 @@ pub struct GoogleFactory;
 // --- GooglePeerConnection ---
 
 impl GooglePeerConnection {
-    pub fn new() -> Self {
+    pub fn new() -> MediaResult<Self> { Ok(
         Self {
             state: IceConnectionState::New,
             closed: false,
@@ -155,7 +155,7 @@ impl DataChannel for GoogleDataChannel {
 // --- GoogleFactory ---
 
 impl GoogleFactory {
-    pub fn new() -> Self {
+    pub fn new() -> MediaResult<Self> { Ok(
         Self
     }
 }
@@ -164,11 +164,11 @@ impl PeerConnectionFactory for GoogleFactory {
     type PC = GooglePeerConnection;
 
     fn create_peer_connection(&self) -> MediaResult<Self::PC> {
-        Ok(GooglePeerConnection::new())
+        GooglePeerConnection::new()
     }
 
     fn create_peer_connection_with_config(&self, _config: &RtcConfiguration) -> MediaResult<Self::PC> {
-        Ok(GooglePeerConnection::new())
+        GooglePeerConnection::new()
     }
 }
 

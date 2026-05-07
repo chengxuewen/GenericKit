@@ -45,8 +45,8 @@ mod stub {
 
     impl PeerConnectionFactory for NativeFactory {
         type PC = NativePeerConnection;
-        fn create_peer_connection(&self) -> MediaResult<Self::PC> { Ok(NativePeerConnection::new()) }
-        fn create_peer_connection_with_config(&self, _c: &RtcConfiguration) -> MediaResult<Self::PC> { Ok(NativePeerConnection::new()) }
+        fn create_peer_connection(&self) -> MediaResult<Self::PC> { NativePeerConnection::new() }
+        fn create_peer_connection_with_config(&self, _c: &RtcConfiguration) -> MediaResult<Self::PC> { NativePeerConnection::new() }
     }
 }
 #[cfg(not(feature = "backend-native-webrtc-rs"))]
