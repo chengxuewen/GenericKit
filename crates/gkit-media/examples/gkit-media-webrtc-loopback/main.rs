@@ -1,11 +1,10 @@
 // gkit-media WebRTC P2P Loopback Demo (egui) — real ICE over STUN
 // Usage: cargo run -p gkit-media --example gkit-media-webrtc-loopback
 //
-// Two RTCPeerConnections via SDP+ICE with Google/Cloudflare STUN servers.
-// Requires internet. Both PCs connect over loopback with STUN-discovered addresses.
-// PC1 (sender): VideoFrameGenerator → I420 → write_sample(video track)
-// PC2 (receiver): on_track() → count RTP frames
-// egui: side-by-side — generated frame (left) | receiver frame count (right)
+// PC1 (sender): VideoFrameGenerator → I420 → RGBA → display + RTP track
+// PC2 (receiver): on_track() → count frames
+// egui side-by-side: generated frame (left) | receiver status (right)
+// SDP+ICE runs in background after frame generation starts.
 
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -29,6 +28,9 @@ fn stun_config() -> RTCConfiguration {
     RTCConfiguration {
         ice_servers: vec![RTCIceServer {
             urls: vec![
+                "stun:stun.qq.com:3478".into(),
+                "stun:stun.miwifi.com:3478".into(),
+                "stun:stun.chat.bilibili.com:3478".into(),
                 "stun:stun.l.google.com:19302".into(),
                 "stun:stun1.l.google.com:19302".into(),
                 "stun:stun2.l.google.com:19302".into(),
@@ -46,6 +48,14 @@ struct Pipeline {
     sender_count: Mutex<u64>,
     receiver_count: Mutex<u64>,
     status: Mutex<String>,
+
+    // Per-PC state snapshots (updated by background thread)
+    pc1_ice: Mutex<String>,
+    pc1_conn: Mutex<String>,
+    pc1_sig: Mutex<String>,
+    pc2_ice: Mutex<String>,
+    pc2_conn: Mutex<String>,
+    pc2_sig: Mutex<String>,
 }
 
 fn main() -> Result<(), eframe::Error> {
@@ -53,15 +63,42 @@ fn main() -> Result<(), eframe::Error> {
         sender_frame: Mutex::new(None),
         sender_count: Mutex::new(0),
         receiver_count: Mutex::new(0),
-        status: Mutex::new("Creating P2P via STUN...".into()),
+        status: Mutex::new("Starting...".into()),
+        pc1_ice: Mutex::new("—".into()),
+        pc1_conn: Mutex::new("—".into()),
+        pc1_sig: Mutex::new("—".into()),
+        pc2_ice: Mutex::new("—".into()),
+        pc2_conn: Mutex::new("—".into()),
+        pc2_sig: Mutex::new("—".into()),
     });
 
+    // Start VideoFrameGenerator immediately (always visible)
+    let mut g = VideoFrameGenerator::new(W, H, FPS);
+    let disp = pipeline.clone();
+    struct ShowSink { p: Arc<Pipeline> }
+    impl VideoSink<gkit_media::video::frame::BoxVideoFrame> for ShowSink {
+        fn on_frame(&self, frame: &gkit_media::video::frame::BoxVideoFrame) {
+            if let Ok(i420) = frame.buffer.to_i420() {
+                let mut rgba = vec![0u8; (W * H * 4) as usize];
+                i420_to_argb(&i420, &mut rgba, W * 4, VideoFormatType::RGBA);
+                *self.p.sender_frame.lock().unwrap() = Some(rgba);
+                *self.p.sender_count.lock().unwrap() += 1;
+            }
+        }
+    }
+    g.add_or_update_sink(Box::new(ShowSink { p: disp }),
+        VideoSinkWants { is_active: true, ..Default::default() });
+    g.start();
+
+    // P2P WebRTC setup in background (does not block UI)
     let p = pipeline.clone();
     std::thread::spawn(move || {
         let rt = Runtime::new().unwrap();
         rt.block_on(async move {
+            *p.status.lock().unwrap() = "STUN lookup...".into();
             let api = APIBuilder::new().build();
             let config = stun_config();
+
             let pc1 = Arc::new(api.new_peer_connection(config.clone()).await.unwrap());
             let pc2 = Arc::new(api.new_peer_connection(config).await.unwrap());
 
@@ -91,7 +128,7 @@ fn main() -> Result<(), eframe::Error> {
                 Box::pin(async {})
             }));
 
-            *p.status.lock().unwrap() = "SDP+ICE negotiation...".into();
+            *p.status.lock().unwrap() = "SDP+ICE...".into();
             let offer = pc1.create_offer(None).await.unwrap();
             pc1.set_local_description(offer.clone()).await.unwrap();
             let mut g1 = pc1.gathering_complete_promise().await;
@@ -107,30 +144,43 @@ fn main() -> Result<(), eframe::Error> {
             let pc1c = pc1.clone(); let pc2c = pc2.clone();
             tokio::spawn(async move { while let Some(c) = rx2.recv().await { pc1c.add_ice_candidate(c).await.ok(); } });
             tokio::spawn(async move { while let Some(c) = rx1.recv().await { pc2c.add_ice_candidate(c).await.ok(); } });
-            *p.status.lock().unwrap() = format!("P2P via STUN — {}x{} {}fps", W, H, FPS);
 
-            let mut g = VideoFrameGenerator::new(W, H, FPS);
-            let sp = p.clone();
-            struct Sink { s: Arc<Pipeline>, track: Arc<TrackLocalStaticSample> }
-            impl VideoSink<gkit_media::video::frame::BoxVideoFrame> for Sink {
+            *p.status.lock().unwrap() = format!("P2P connected — {}x{} {}fps", W, H, FPS);
+
+            // Poll state periodically for UI
+            let p_state = p.clone();
+            let pc1s = pc1.clone();
+            let pc2s = pc2.clone();
+            tokio::spawn(async move {
+                loop {
+                    *p_state.pc1_ice.lock().unwrap() = format!("{:?}", pc1s.ice_connection_state());
+                    *p_state.pc1_conn.lock().unwrap() = format!("{:?}", pc1s.connection_state());
+                    *p_state.pc1_sig.lock().unwrap() = format!("{:?}", pc1s.signaling_state());
+                    *p_state.pc2_ice.lock().unwrap() = format!("{:?}", pc2s.ice_connection_state());
+                    *p_state.pc2_conn.lock().unwrap() = format!("{:?}", pc2s.connection_state());
+                    *p_state.pc2_sig.lock().unwrap() = format!("{:?}", pc2s.signaling_state());
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                }
+            });
+
+            // Feed video frames to RTP track
+            let mut feed = VideoFrameGenerator::new(W, H, FPS);
+            struct FeedSink { track: Arc<TrackLocalStaticSample> }
+            impl VideoSink<gkit_media::video::frame::BoxVideoFrame> for FeedSink {
                 fn on_frame(&self, frame: &gkit_media::video::frame::BoxVideoFrame) {
                     if let Ok(i420) = frame.buffer.to_i420() {
-                        let mut rgba = vec![0u8; (W * H * 4) as usize];
-                        i420_to_argb(&i420, &mut rgba, W * 4, VideoFormatType::RGBA);
-                        *self.s.sender_frame.lock().unwrap() = Some(rgba);
-                        *self.s.sender_count.lock().unwrap() += 1;
                         let raw: Vec<u8> = i420.data_y.iter().chain(&i420.data_u).chain(&i420.data_v).copied().collect();
-                        let rt2 = Runtime::new().unwrap();
-                        let _ = rt2.block_on(self.track.write_sample(&webrtc::media::Sample {
+                        let rt = Runtime::new().unwrap();
+                        let _ = rt.block_on(self.track.write_sample(&webrtc::media::Sample {
                             data: bytes::Bytes::from(raw), duration: Duration::from_micros(66_666),
                             ..Default::default()
                         }));
                     }
                 }
             }
-            g.add_or_update_sink(Box::new(Sink { s: sp, track: video_track }),
+            feed.add_or_update_sink(Box::new(FeedSink { track: video_track }),
                 VideoSinkWants { is_active: true, ..Default::default() });
-            g.start();
+            feed.start();
             loop { std::thread::sleep(Duration::from_secs(3600)); }
         });
     });
@@ -156,10 +206,23 @@ fn main() -> Result<(), eframe::Error> {
                             let s = (ui.available_width() / W as f32).min(1.0);
                             ui.image(egui::load::SizedTexture::new(t.id(), [W as f32 * s, H as f32 * s]));
                         }
+                        ui.separator();
+                        ui.label(format!("ICE: {}", self.p.pc1_ice.lock().unwrap()));
+                        ui.label(format!("Conn: {}", self.p.pc1_conn.lock().unwrap()));
+                        ui.label(format!("Sig:  {}", self.p.pc1_sig.lock().unwrap()));
                     });
                     cols[1].vertical_centered(|ui| {
                         ui.heading(format!("PC2 Receiver ({})", rc));
-                        ui.label("RTP frames received; VP8 decode pending");
+                        ui.separator();
+                        ui.label(format!("ICE: {}", self.p.pc2_ice.lock().unwrap()));
+                        ui.label(format!("Conn: {}", self.p.pc2_conn.lock().unwrap()));
+                        ui.label(format!("Sig:  {}", self.p.pc2_sig.lock().unwrap()));
+                        ui.separator();
+                        if rc > 0 {
+                            ui.label("RTP frames received");
+                        } else {
+                            ui.label("Waiting for RTP...");
+                        }
                     });
                 });
             });
