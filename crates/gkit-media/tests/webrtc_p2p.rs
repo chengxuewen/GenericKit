@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use gkit_media::protocols::rtc::client::core::{
     PeerConnection, PeerConnectionFactory, IceCandidate, IceConnectionState,
-    SessionDescription, VideoTrack, MediaError,
+    SessionDescription, VideoTrack,
 };
 use gkit_media::protocols::rtc::client::native::NativeFactory;
 

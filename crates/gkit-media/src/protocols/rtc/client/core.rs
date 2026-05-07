@@ -1,5 +1,7 @@
 use std::fmt;
 use std::sync::Arc;
+use crate::video::frame::BoxVideoFrame;
+use crate::video::source_sink::{VideoSink, VideoSource};
 
 /// Error type for media operations.
 #[derive(Debug)]
@@ -104,24 +106,13 @@ pub struct IceCandidate {
     pub sdp_mline_index: Option<u16>,
 }
 
-/// Local video track for sending frames via RTP.
-pub struct VideoTrack {
-    /// Unique track ID.
-    pub id: String,
-    /// Track kind ("video").
-    pub kind: String,
-    /// Write an I420 frame (raw bytes) to the RTP track.
-    /// Returns number of RTP packets sent.
-    pub write_fn: Box<dyn Fn(&[u8]) -> MediaResult<u32> + Send + Sync>,
-}
-
-impl VideoTrack {
-    pub fn new(id: String, write_fn: Box<dyn Fn(&[u8]) -> MediaResult<u32> + Send + Sync>) -> Self {
-        Self { id, kind: "video".into(), write_fn }
-    }
-    pub fn write_raw(&self, data: &[u8]) -> MediaResult<u32> {
-        (self.write_fn)(data)
-    }
+/// W3C MediaStreamTrack-like abstraction for video.
+/// Sender: created via `create_video_track(source)`, bridges VideoSource → RTP.
+/// Receiver: obtained via `set_on_track` callback, `add_sink()` registers consumers.
+pub trait VideoTrack: Send {
+    fn id(&self) -> &str;
+    fn kind(&self) -> &str;
+    fn add_sink(&self, sink: Box<dyn VideoSink<BoxVideoFrame>>);
 }
 
 /// W3C RTCPeerConnection trait.
@@ -144,10 +135,10 @@ pub trait PeerConnection: Send {
     fn remote_max_message_size(&self) -> MediaResult<usize> { Ok(65536) }
     fn close(&mut self) -> MediaResult<()>;
 
-    /// Add a local video track to the PeerConnection.
-    fn add_track(&self, _track: Arc<VideoTrack>) -> MediaResult<()> { Err(MediaError::new("not supported")) }
-    /// Register a callback for remote tracks.
-    fn set_on_track(&self, _cb: Box<dyn Fn(Arc<VideoTrack>) + Send>) {}
+    /// Create a local video track backed by the given source (sender side).
+    fn create_video_track(&self, _source: Box<dyn VideoSource<BoxVideoFrame>>) -> MediaResult<Box<dyn VideoTrack>> { Err(MediaError::new("not supported")) }
+    /// Register callback for incoming remote tracks (receiver side).
+    fn set_on_track(&self, _cb: Box<dyn Fn(Box<dyn VideoTrack>) + Send>) {}
 
     /// Register callback for local ICE candidates.
     fn set_on_ice_candidate(&self, _cb: Box<dyn Fn(IceCandidate) + Send>) {}

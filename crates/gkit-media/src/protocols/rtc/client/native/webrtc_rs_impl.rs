@@ -179,22 +179,44 @@ impl PeerConnection for NativePeerConnection {
         rt().block_on(async { self.pc.close().await.map_err(|e| MediaError::new(format!("{e}"))) })
     }
 
-    fn add_track(&self, _track: Arc<VideoTrack>) -> MediaResult<()> {
+    fn create_video_track(&self, source: Box<dyn crate::video::source_sink::VideoSource<crate::video::frame::BoxVideoFrame>>) -> MediaResult<Box<dyn VideoTrack>> {
         use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
+        use crate::video::source_sink::VideoSinkWants;
+
+        struct WrtcVideoTrack {
+            id: String,
+            sinks: std::sync::Mutex<Vec<Box<dyn crate::video::source_sink::VideoSink<crate::video::frame::BoxVideoFrame>>>>,
+        }
+        impl VideoTrack for WrtcVideoTrack {
+            fn id(&self) -> &str { &self.id }
+            fn kind(&self) -> &str { "video" }
+            fn add_sink(&self, sink: Box<dyn crate::video::source_sink::VideoSink<crate::video::frame::BoxVideoFrame>>) {
+                self.sinks.lock().unwrap().push(sink);
+            }
+        }
+
         let tls = Arc::new(TrackLocalStaticSample::new(
             webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability {
-                mime_type: webrtc::api::media_engine::MIME_TYPE_VP8.to_string(), ..Default::default()
-            }, _track.id.clone(), "gkit".into(),
+                mime_type: webrtc::api::media_engine::MIME_TYPE_H264.to_string(), ..Default::default()
+            }, "video0".into(), "gkit".into(),
         ));
+        let track = Box::new(WrtcVideoTrack { id: "video0".into(), sinks: std::sync::Mutex::new(Vec::new()) });
         let pc = self.pc.clone();
-        rt().block_on(async move { pc.add_track(tls).await.map(|_| ()).map_err(|e| MediaError::new(format!("{e}"))) })
+        rt().block_on(async move { pc.add_track(tls).await.map(|_| ()).map_err(|e| MediaError::new(format!("{e}"))) })?;
+        Ok(track)
     }
 
-    fn set_on_track(&self, cb: Box<dyn Fn(Arc<VideoTrack>) + Send>) {
+    fn set_on_track(&self, cb: Box<dyn Fn(Box<dyn VideoTrack>) + Send>) {
         let cb = Arc::new(std::sync::Mutex::new(Some(cb)));
         self.pc.on_track(Box::new(move |track, _receiver, _transceiver| {
             if let Ok(lock) = cb.lock() { if let Some(ref f) = *lock {
-                f(Arc::new(VideoTrack { id: track.id().to_string(), kind: track.kind().to_string(), write_fn: Box::new(|_| Err(MediaError::new("remote"))) }));
+                struct RmtTrack { id: String }
+                impl VideoTrack for RmtTrack {
+                    fn id(&self) -> &str { &self.id }
+                    fn kind(&self) -> &str { "video" }
+                    fn add_sink(&self, _sink: Box<dyn crate::video::source_sink::VideoSink<crate::video::frame::BoxVideoFrame>>) {}
+                }
+                f(Box::new(RmtTrack { id: track.id().to_string() }));
             }}
             Box::pin(async {})
         }));

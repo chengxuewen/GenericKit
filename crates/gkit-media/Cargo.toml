@@ -6,15 +6,14 @@ edition.workspace = true
 [features]
 default = ["backend-native"]
 backend-native = []
-backend-native-webrtc-rs = ["backend-native", "dep:webrtc", "dep:tokio", "dep:bytes"]
-backend-native-google = ["backend-native"]
-backend-wasm = []
+backend-native-webrtc-rs = ["backend-native", "dep:webrtc", "dep:tokio", "dep:bytes", "dep:openh264"]
 
 [dependencies]
 gkit-core.workspace = true
 webrtc = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 bytes = { workspace = true, optional = true }
+openh264 = { workspace = true, optional = true }
 
 [build-dependencies]
 ureq = { version = "2", features = ["tls"] }

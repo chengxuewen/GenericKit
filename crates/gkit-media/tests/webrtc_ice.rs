@@ -49,7 +49,7 @@ fn ice_state_starts_new() {
 #[test]
 fn ice_state_closed_after_close() {
     let factory = NativeFactory::default();
-    let pc = factory.create_peer_connection().expect("create pc");
+    let mut pc = factory.create_peer_connection().expect("create pc");
     pc.close().expect("close");
     assert_eq!(pc.ice_connection_state(), IceConnectionState::Closed);
 }
