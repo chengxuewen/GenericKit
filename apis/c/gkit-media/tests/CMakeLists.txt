@@ -54,3 +54,9 @@ add_executable(gkit_media_c_test_video_frame "${_test_dir}/test_video_frame.c")
 target_link_libraries(gkit_media_c_test_video_frame gkit_media_c GKitWrapUnity::WrapUnity)
 set_target_properties(gkit_media_c_test_video_frame PROPERTIES FOLDER "gkit_media/apis/c/tests")
 add_test(NAME gkit_media_c_test_video_frame COMMAND gkit_media_c_test_video_frame)
+
+# test_rtc_factory — Factory create/destroy, backend names, registered backends
+add_executable(gkit_media_c_test_rtc_factory "${_test_dir}/test_rtc_factory.c")
+target_link_libraries(gkit_media_c_test_rtc_factory gkit_media_c GKitWrapUnity::WrapUnity)
+set_target_properties(gkit_media_c_test_rtc_factory PROPERTIES FOLDER "gkit_media/apis/c/tests")
+add_test(NAME gkit_media_c_test_rtc_factory COMMAND gkit_media_c_test_rtc_factory)

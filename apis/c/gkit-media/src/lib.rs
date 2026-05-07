@@ -3,8 +3,9 @@ use std::os::raw::c_char;
 
 use gkit_media;
 use gkit_media::protocols::rtc::client::core::{
-    DataChannel as DcTrait, PeerConnection as PcTrait, SessionDescription,
+    DataChannel as DcTrait, PeerConnection as PcTrait, SessionDescription, PeerConnectionFactory,
 };
+use gkit_media::protocols::rtc::client::engine::RtcEngine;
 
 // --- SCTP settings (global, set before creating connections) ---
 
@@ -105,6 +106,109 @@ fn to_c_string(s: &str) -> *mut c_char {
 pub unsafe extern "C" fn gkit_media_hello() {
     gkit_media::media_hello();
 }
+
+// ============================================================================
+// Factory (create via backend name, then create PeerConnection)
+// ============================================================================
+
+struct FactoryHandleBox {
+    inner: Box<dyn PeerConnectionFactory>,
+}
+
+fn factory_ptr_to_inner<'a>(ptr: *mut std::ffi::c_void) -> Option<&'a mut Box<dyn PeerConnectionFactory>> {
+    if ptr.is_null() { None }
+    else { unsafe { Some(&mut (*(ptr as *mut FactoryHandleBox)).inner) } }
+}
+
+/// Create an RTC factory by backend name. Returns opaque handle, or null on failure.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn gkit_media_rtc_create_factory(
+    backend_name: *const c_char,
+) -> *mut std::ffi::c_void {
+    unsafe {
+        let name = CStr::from_ptr(backend_name).to_str().unwrap_or_default();
+        match RtcEngine::create(name) {
+            Ok(f) => Box::into_raw(Box::new(FactoryHandleBox { inner: f })) as *mut std::ffi::c_void,
+            Err(_) => std::ptr::null_mut(),
+        }
+    }
+}
+
+/// Destroy a factory and free resources.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn gkit_media_rtc_destroy_factory(handle: *mut std::ffi::c_void) { unsafe {
+    if handle.is_null() { return; }
+    let _ = Box::from_raw(handle as *mut FactoryHandleBox);
+}}
+
+/// Get the backend name of a factory. Returns null if handle is invalid.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn gkit_media_rtc_factory_backend_name(
+    handle: *mut std::ffi::c_void,
+) -> *mut c_char {
+    let Some(f) = factory_ptr_to_inner(handle) else { return std::ptr::null_mut() };
+    to_c_string(f.backend_name())
+}
+
+/// Create a PeerConnection from a factory handle. Returns opaque handle, or null on failure.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn gkit_media_rtc_factory_create_peer_connection(
+    factory: *mut std::ffi::c_void,
+) -> *mut std::ffi::c_void {
+    let Some(f) = factory_ptr_to_inner(factory) else { return std::ptr::null_mut() };
+    match f.create_peer_connection() {
+        Ok(inner) => Box::into_raw(Box::new(PcHandleBox {
+            inner,
+            callbacks: PcCallbackData {
+                user_data: std::ptr::null_mut(),
+                on_state_change: None,
+                on_ice_state_change: None,
+                on_gathering_state_change: None,
+                on_signaling_state_change: None,
+                on_local_description: None,
+                on_local_candidate: None,
+                on_data_channel: None,
+            },
+        })) as *mut std::ffi::c_void,
+        Err(_) => std::ptr::null_mut(),
+    }
+}
+
+/// Get the list of registered backend names.
+/// Returns count; *out_names receives an array of strings. Caller must free with
+/// gkit_media_rtc_free_string_array.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn gkit_media_rtc_get_registered_backends(
+    out_count: *mut i32,
+) -> *mut *mut c_char {
+    let names = RtcEngine::registered_types();
+    if !out_count.is_null() {
+        unsafe { *out_count = names.len() as i32; }
+    }
+    if names.is_empty() {
+        return std::ptr::null_mut();
+    }
+    let mut ptrs: Vec<*mut c_char> = names.iter().map(|s| to_c_string(s)).collect();
+    let arr = ptrs.as_mut_ptr();
+    std::mem::forget(ptrs);
+    arr
+}
+
+/// Free a string array returned by gkit_media_rtc_get_registered_backends.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn gkit_media_rtc_free_string_array(
+    arr: *mut *mut c_char,
+    count: i32,
+) { unsafe {
+    if arr.is_null() { return; }
+    for i in 0..count as isize {
+        let s = *arr.offset(i);
+        if !s.is_null() {
+            let _ = CString::from_raw(s);
+        }
+    }
+    let _ = Vec::from_raw_parts(arr, count as usize, count as usize);
+}}
 
 // ============================================================================
 // PeerConnection
