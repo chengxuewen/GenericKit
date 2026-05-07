@@ -578,12 +578,55 @@ cargo test -p gkit-media && ctest --test-dir build-auto          # full verify
 
 ## 11. Phase Summary
 
-| Phase | 描述 | 依赖 |
+| Phase | 描述 | 状态 |
 |-------|------|------|
-| 1 | core traits 改动 + engine.rs + 宏 | — |
-| 2 | webrtc-rs 适配新 trait | Phase 1 |
-| 3 | google.rs 重写 + google_lk 激活 | Phase 1, libwebrtc binary |
-| 4 | Feature flags 调整 + mod.rs 修改 | Phase 1 |
-| 5 | build.rs — LibWebRTC 下载/缓存/编译 | Phase 3 (需先有 google_lk 代码) |
-| 6 | C FFI 新 API + C++ RtcFactory 封装 | Phase 1 |
-| 7 | 现有测试/示例迁移 + 新测试 | Phase 1-5 |
+| 1 | core traits 改动 + engine.rs + 宏 | ✅ 已实现 |
+| 2 | webrtc-rs 适配新 trait | ✅ 已实现（默认关闭） |
+| 3 | google.rs 重写 + google_lk 激活 | ✅ 已实现 |
+| 4 | Feature flags + mod.rs + Cargo.toml | ✅ 已实现 |
+| 5 | build.rs — LibWebRTC 下载/缓存/编译 | ✅ 已创建 |
+| 6 | C FFI 新 API + C++ RtcFactory 封装 | ⏳ 待实现 |
+| 7 | 现有测试/示例迁移 | ✅ 已迁移 |
+
+## 12. Implementation Status (2026-05-07)
+
+### 已完成
+
+| 文件 | 变更 |
+|------|------|
+| `core.rs` | `PeerConnectionFactory` 去掉关联类型，返回 `Box<dyn PeerConnection>` |
+| `engine.rs` | `RtcEngine` 全局注册中心（`fn()` 指针, `RwLock`） |
+| `engine_macros.rs` | `gkit_register_rtc_backend!` 宏（`ctor` crate） |
+| `google.rs` | 完整重写：`GooglePeerConnection`/`GoogleDataChannel`/`GoogleFactory` 包装 google_lk |
+| `webrtc_rs.rs` | 适配新 trait + 注册宏 |
+| `wasm.rs` | 适配新 trait + 注册宏 |
+| `native/mod.rs` | 移除互斥编译守卫 |
+| `lib.rs` | 解除 `build_sys` 注释；`make_peer_connection()` 改为调用 `RtcEngine` |
+| `Cargo.toml` | default → `backend-native-google`；新增 google 依赖；新增 umbrella feature |
+| `build.rs` | LibWebRTC 下载/缓存/编译脚本（LiveKit 预编译 release） |
+| `tests/*.rs` | `NativeFactory` → `RtcEngine::create_default()` |
+| `example/*loopback*` | 引擎模式 |
+| `google_lk/native/*.rs` | 29 处 `use webrtc_sys::` → `use crate::build_sys::webrtc_sys::` |
+
+### 待编译验证
+
+由于 cargo 依赖下载超时（crates.io 网络），尚未完成 `cargo check` 编译验证。
+
+**编译命令**（有网络时执行）：
+
+```bash
+# 默认 google_lk 后端
+cargo check -p gkit-media
+
+# 或跳过 LibWebRTC 下载（仅检查 Rust 代码）
+GKIT_SKIP_WEBRTC_DOWNLOAD=true cargo check -p gkit-media
+
+# 全后端
+cargo check -p gkit-media --features backend-native-all
+```
+
+**已知风险**：
+- `ctor` crate 版本为 0.2，需确认没有破坏性变更
+- google_lk 的编译依赖 libwebrtc C++ 二进制，需要 LiveKit release 可访问
+- `build.rs` 中 `std("c++17")` 需要系统安装 C++17 编译器
+- 平台 link 依赖（X11, dl, pthread）仅 Linux 验证过
