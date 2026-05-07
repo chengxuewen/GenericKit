@@ -40,6 +40,9 @@ mod real {
         RT.get_or_init(|| tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap())
     }
 
+    // Global SPS/PPS store — sender writes to this from EncoderSink, receiver reads it in on_track
+    static SPS_PPS_STORE: std::sync::Mutex<Option<(Vec<u8>, Vec<u8>)>> = std::sync::Mutex::new(None);
+
     impl NativePeerConnection {
         pub fn new() -> MediaResult<Self> {
             Self::with_setting_engine(None)
@@ -96,12 +99,10 @@ mod real {
             let tls = Arc::new(TrackLocalStaticSample::new(
                 webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability {
                     mime_type: "video/H264".to_string(),
-                    clock_rate: 90000,
-                    channels: 0,
+                    clock_rate: 90000, channels: 0,
                     sdp_fmtp_line: "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f".to_string(),
                     rtcp_feedback: vec![],
-                },
-                "video0".into(), "gkit".into(),
+                }, "video0".into(), "gkit".into(),
             ));
 
             let tls_w = tls.clone();
@@ -119,11 +120,11 @@ mod real {
                 fn strides(&self) -> (usize, usize, usize) { (self.w, self.w / 2, self.w / 2) }
             }
 
-            struct EncoderSink { tls: Arc<webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample>, count: Arc<std::sync::atomic::AtomicU64>, encoder: Arc<StdMutex<Encoder>> }
+            struct EncoderSink { tls: Arc<TrackLocalStaticSample>, count: Arc<std::sync::atomic::AtomicU64>, encoder: Arc<StdMutex<Encoder>> }
             impl crate::video::source_sink::VideoSink<crate::video::frame::BoxVideoFrame> for EncoderSink {
                 fn on_frame(&self, frame: &crate::video::frame::BoxVideoFrame) {
                     let n = self.count.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
-                    if n % 30 == 1 { eprintln!("[gkit] EncSink frame #{}", n); }
+                    if n % 30 == 1 { eprintln!("[gkit] EncSink #{}", n); }
                     if let Ok(i420) = frame.buffer.to_i420() {
                         let src = SrfYuv { y: &i420.data_y, u: &i420.data_u, v: &i420.data_v, w: i420.width as usize, h: i420.height as usize };
                         let mut enc = self.encoder.lock().unwrap();
@@ -131,19 +132,52 @@ mod real {
                             Ok(bitstream) => {
                                 let encoded = bitstream.to_vec();
                                 if encoded.is_empty() { return; }
-                                if n == 1 { eprintln!("[gkit] H264 encoded: {} bytes, first 20: {:02x?}", encoded.len(), &encoded[..encoded.len().min(20)]); }
-                                if n % 30 == 1 { eprintln!("[gkit] H264 encoded: {} bytes", encoded.len()); }
+                                if n == 1 {
+                                    // Self-test: decode the encoded bitstream directly
+                                    let mut d = openh264::decoder::Decoder::new().unwrap();
+                                    match d.decode(&encoded) {
+                                        Ok(Some(yuv)) => { eprintln!("[gkit] self-test: decoded {}x{} OK!", yuv.dimensions().0, yuv.dimensions().1); }
+                                        Ok(None) => { eprintln!("[gkit] self-test: no frame yet"); }
+                                        Err(e) => { eprintln!("[gkit] self-test: decode err: {e}"); }
+                                    }
+                                    // Extract SPS+PPS into global store
+                                    let mut pos = 0usize; let mut sps = Vec::new(); let mut pps = Vec::new();
+                                    while pos < encoded.len() {
+                                        if pos + 3 > encoded.len() { break; }
+                                        let sc_len = if pos + 4 <= encoded.len() && &encoded[pos..pos+4] == &[0,0,0,1] { 4 }
+                                            else if &encoded[pos..pos+3] == &[0,0,1] { 3 } else { pos += 1; continue; };
+                                        let nal_start = pos + sc_len;
+                                        if nal_start >= encoded.len() { break; }
+                                        let nal_type = encoded[nal_start] & 0x1F;
+                                        let mut nal_end = encoded.len();
+                                        for j in (nal_start+1)..encoded.len().saturating_sub(2) {
+                                            if encoded[j]==0 && encoded[j+1]==0 {
+                                                if j+2 < encoded.len() && encoded[j+2]==1 { nal_end=j; break; }
+                                                if j+3 < encoded.len() && encoded[j+2]==0 && encoded[j+3]==1 { nal_end=j; break; }
+                                            }
+                                        }
+                                        if nal_type == 7 { sps = encoded[nal_start..nal_end].to_vec(); }
+                                        else if nal_type == 8 { pps = encoded[nal_start..nal_end].to_vec(); }
+                                        if !sps.is_empty() && !pps.is_empty() { break; }
+                                        pos = nal_end;
+                                    }
+                                    if !sps.is_empty() && !pps.is_empty() {
+                                        eprintln!("[gkit] SPS={} PPS={} stored", sps.len(), pps.len());
+                                        *SPS_PPS_STORE.lock().unwrap() = Some((sps, pps));
+                                    }
+                                }
                                 let s = webrtc::media::Sample { data: bytes::Bytes::from(encoded), duration: std::time::Duration::from_micros(66_666), timestamp: std::time::SystemTime::now(), ..Default::default() };
                                 match rt().block_on(self.tls.write_sample(&s)) {
                                     Ok(()) => { if n <= 3 || n % 30 == 1 { eprintln!("[gkit] write OK #{}", n); } }
                                     Err(e) => { eprintln!("[gkit] write ERR #{n}: {e}"); }
                                 }
                             }
-                            Err(e) => { eprintln!("[gkit] H264 encode ERR #{n}: {e}"); }
+                            Err(e) => { eprintln!("[gkit] encode ERR #{n}: {e}"); }
                         }
                     }
                 }
             }
+
             struct WrtcVideoTrack { id: String, sinks: std::sync::Mutex<Vec<Box<dyn crate::video::source_sink::VideoSink<crate::video::frame::BoxVideoFrame>>>>, _source: StdMutex<Option<Box<dyn crate::video::source_sink::VideoSource<crate::video::frame::BoxVideoFrame>>>>, _tls: Option<Arc<webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample>> }
             impl VideoTrack for WrtcVideoTrack {
                 fn id(&self) -> &str { &self.id } fn kind(&self) -> &str { "video" }
@@ -170,30 +204,122 @@ mod real {
                 let gkit_track: Box<dyn VideoTrack> = Box::new(RmtVideoTrack { id: track.id().to_string(), sinks: rmt_sinks });
                 if let Ok(lock) = cb.lock() { if let Some(ref f) = *lock { f(gkit_track); } }
                 let dec = decoder.clone(); let dec_sinks = sinks.clone();
-                tokio::spawn(async move {
-                    let mut pkt_count = 0u64;
-                    const NAL_START: &[u8] = &[0u8, 0, 0, 1];
-                    loop { match track.read_rtp().await { Ok((pkt, _)) => { pkt_count += 1; if pkt_count % 30 == 1 { eprintln!("[gkit] decoder RTP pkt #{} ({} bytes)", pkt_count, pkt.payload.len()); }                 let mut d = dec.lock().unwrap(); 
-                let need_start = pkt.payload.len() < 4 || (&pkt.payload[..4.min(pkt.payload.len())] != &[0, 0, 0, 1] && &pkt.payload[..3.min(pkt.payload.len())] != &[0, 0, 1]);
-                if pkt_count <= 5 { eprintln!("[gkit] pkt {}: {} bytes, need_start={}, first_byte=0x{:02x}", pkt_count, pkt.payload.len(), need_start, pkt.payload.first().unwrap_or(&0)); }
-                let input: std::borrow::Cow<[u8]> = if need_start { [NAL_START, &pkt.payload[..]].concat().into() } else { (&pkt.payload[..]).into() };
-                let input: std::borrow::Cow<[u8]> = if need_start { [NAL_START, &pkt.payload[..]].concat().into() } else { (&pkt.payload[..]).into() };
-                match d.decode(&input) {
-                    Ok(Some(yuv)) => {
-                        let w = yuv.dimensions().0 as u32; let h = yuv.dimensions().1 as u32; 
-                        let mut i420 = I420Buffer::new(w, h); 
-                        i420.data_y.copy_from_slice(yuv.y()); 
-                        i420.data_u.copy_from_slice(yuv.u()); 
-                        i420.data_v.copy_from_slice(yuv.v()); 
-                        let frame = crate::video::frame::BoxVideoFrame::new(Box::new(i420)); 
-                        let sinks = dec_sinks.lock().unwrap();
-                        if pkt_count % 30 == 1 { eprintln!("[gkit] decoded frame {}x{} for {} sinks", w, h, sinks.len()); }
-                        for sink in sinks.iter() { sink.on_frame(&frame); }
+                fn decode_and_output(
+                    dec: &std::sync::Mutex<openh264::decoder::Decoder>,
+                    dec_sinks: &Arc<std::sync::Mutex<Vec<Box<dyn crate::video::source_sink::VideoSink<crate::video::frame::BoxVideoFrame>>>>>,
+                    input: &[u8], pkt_count: u64,
+                ) {
+                    match dec.lock().unwrap().decode(input) {
+                        Ok(Some(yuv)) => {
+                            let w = yuv.dimensions().0 as u32; let h = yuv.dimensions().1 as u32;
+                            let mut i420 = crate::video::buffer::I420Buffer::new(w, h);
+                            i420.data_y.copy_from_slice(yuv.y());
+                            i420.data_u.copy_from_slice(yuv.u());
+                            i420.data_v.copy_from_slice(yuv.v());
+                            let frame = crate::video::frame::BoxVideoFrame::new(Box::new(i420));
+                            if pkt_count % 30 == 1 { eprintln!("[gkit] decoded {}x{}", w, h); }
+                            for sink in dec_sinks.lock().unwrap().iter() { sink.on_frame(&frame); }
+                        }
+                        Ok(None) => { if pkt_count <= 3 { eprintln!("[gkit] dec None pkt={}", pkt_count); } }
+                        Err(e) => { if pkt_count <= 10 { eprintln!("[gkit] dec err pkt={}: {e}", pkt_count); } }
                     }
-                    Ok(None) => { if pkt_count % 30 == 1 { eprintln!("[gkit] decoder no frame yet (pkt={})", pkt_count); } }
-                    Err(e) => { eprintln!("[gkit] decoder error pkt={}: {e}", pkt_count); }
-                } } Err(e) => { eprintln!("[gkit] decoder read_rtp err: {e}"); break; } } }
-                    eprintln!("[gkit] decoder loop ended after {} pkts", pkt_count);
+                }
+                tokio::spawn(async move {
+                    use webrtc::rtp_transceiver::rtp_receiver::RTCRtpReceiver;
+                    const NAL_START: &[u8] = &[0u8, 0, 0, 1];
+                    let mut pkt_count = 0u64;
+                    let mut sps_pps_fed = false;
+                    let mut fua_buffer: Vec<u8> = Vec::new();
+                    let mut keyframe_data: Vec<u8> = Vec::new(); // Accumulates first keyframe (SPS+PPS+IDR)
+                    let mut keyframe_complete = false;
+                    eprintln!("[gkit] decoder loop starting (raw RTP mode)...");
+                    loop {
+                        let (rtp_pkt, _) = match track.read_rtp().await {
+                            Ok(v) => v,
+                            Err(e) => { eprintln!("[gkit] read_rtp err: {e}"); break; }
+                        };
+                        pkt_count += 1;
+                        let payload = &rtp_pkt.payload;
+                        if payload.is_empty() { continue; }
+
+                        let first_byte = payload[0];
+                        let nal_type = first_byte & 0x1F;
+
+                        if nal_type >= 1 && nal_type <= 23 {
+                            let input: Vec<u8> = [NAL_START, payload].concat();
+                            if !keyframe_complete {
+                                keyframe_data.extend_from_slice(&input);
+                                // If we have SPS/PPS stored, prepend them and decode
+                                if !sps_pps_fed {
+                                    if let Some((ref sps, ref pps)) = *SPS_PPS_STORE.lock().unwrap() {
+                                        let full_keyframe = [NAL_START, sps.as_slice(), NAL_START, pps.as_slice(), &keyframe_data].concat();
+                                        eprintln!("[gkit] feeding keyframe ({} bytes)", full_keyframe.len());
+                                        decode_and_output(&dec, &dec_sinks, &full_keyframe, 0);
+                                        keyframe_complete = true;
+                                    }
+                                    sps_pps_fed = true;
+                                } else {
+                                    decode_and_output(&dec, &dec_sinks, &input, pkt_count);
+                                }
+                                keyframe_data.clear();
+                            } else {
+                                decode_and_output(&dec, &dec_sinks, &input, pkt_count);
+                            }
+                        } else if nal_type == 24 {
+                        // STAP-A: extract individual NAL units            
+                            let mut off = 1usize;
+                            while off + 2 <= payload.len() {
+                                let nalu_size = ((payload[off] as usize) << 8) | payload[off+1] as usize;
+                                off += 2;
+                                if off + nalu_size > payload.len() { break; }
+                                let nalu = &[NAL_START, &payload[off..off+nalu_size]].concat();
+                                if !keyframe_complete { keyframe_data.extend_from_slice(nalu); }
+                                else { decode_and_output(&dec, &dec_sinks, nalu, pkt_count); }
+                                off += nalu_size;
+                            }
+                        } else if nal_type == 28 {
+                            // FU-A: reassemble manually
+                            if payload.len() < 2 { continue; }
+                            let fu_header = payload[1];
+                            let start = (fu_header & 0x80) != 0;
+                            let end = (fu_header & 0x40) != 0;
+                            let original_type = fu_header & 0x1F;
+                            let nri = first_byte & 0x60;
+
+                            if start {
+                                fua_buffer.clear();
+                                let nal_hdr = nri | original_type;
+                                fua_buffer.push(nal_hdr);
+                            }
+                            if !start && fua_buffer.is_empty() { continue; }
+                            fua_buffer.extend_from_slice(&payload[2..]);
+
+                            if end {
+                                let input: Vec<u8> = [NAL_START, &fua_buffer].concat();
+                                if !keyframe_complete {
+                                    keyframe_data.extend_from_slice(&input);
+                                    if !sps_pps_fed {
+                                        if let Some((ref sps, ref pps)) = *SPS_PPS_STORE.lock().unwrap() {
+                                            let full = [NAL_START, sps.as_slice(), NAL_START, pps.as_slice(), &keyframe_data].concat();
+                                            eprintln!("[gkit] feeding keyframe ({} bytes)", full.len());
+                                            decode_and_output(&dec, &dec_sinks, &full, 0);
+                                            keyframe_complete = true;
+                                            sps_pps_fed = true;
+                                        }
+                                    } else if let Some((ref sps, ref pps)) = *SPS_PPS_STORE.lock().unwrap() {
+                                        let full = [NAL_START, sps.as_slice(), NAL_START, pps.as_slice(), &keyframe_data].concat();
+                                        decode_and_output(&dec, &dec_sinks, &full, 0);
+                                        keyframe_complete = true;
+                                    }
+                                    keyframe_data.clear();
+                                } else {
+                                    decode_and_output(&dec, &dec_sinks, &input, pkt_count);
+                                }
+                                fua_buffer.clear();
+                            }
+                        }
+                    }
+                    eprintln!("[gkit] rtp loop ended after {} pkts", pkt_count);
                 });
                 Box::pin(async {})
             }));
