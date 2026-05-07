@@ -1,4 +1,5 @@
 use std::fmt;
+use std::sync::Arc;
 
 /// Error type for media operations.
 #[derive(Debug)]
@@ -103,6 +104,26 @@ pub struct IceCandidate {
     pub sdp_mline_index: Option<u16>,
 }
 
+/// Local video track for sending frames via RTP.
+pub struct VideoTrack {
+    /// Unique track ID.
+    pub id: String,
+    /// Track kind ("video").
+    pub kind: String,
+    /// Write an I420 frame (raw bytes) to the RTP track.
+    /// Returns number of RTP packets sent.
+    pub write_fn: Box<dyn Fn(&[u8]) -> MediaResult<u32> + Send + Sync>,
+}
+
+impl VideoTrack {
+    pub fn new(id: String, write_fn: Box<dyn Fn(&[u8]) -> MediaResult<u32> + Send + Sync>) -> Self {
+        Self { id, kind: "video".into(), write_fn }
+    }
+    pub fn write_raw(&self, data: &[u8]) -> MediaResult<u32> {
+        (self.write_fn)(data)
+    }
+}
+
 /// W3C RTCPeerConnection trait.
 pub trait PeerConnection: Send {
     fn create_offer(&self) -> MediaResult<SessionDescription>;
@@ -123,12 +144,16 @@ pub trait PeerConnection: Send {
     fn remote_max_message_size(&self) -> MediaResult<usize> { Ok(65536) }
     fn close(&mut self) -> MediaResult<()>;
 
-    /// Register callback for local ICE candidates. Called with candidate and sdp_mid.
+    /// Add a local video track to the PeerConnection.
+    fn add_track(&self, _track: Arc<VideoTrack>) -> MediaResult<()> { Err(MediaError::new("not supported")) }
+    /// Register a callback for remote tracks.
+    fn set_on_track(&mut self, _cb: Box<dyn Fn(Arc<VideoTrack>) + Send>) {}
+
+    /// Register callback for local ICE candidates.
     fn set_on_ice_candidate(&mut self, _cb: Box<dyn Fn(IceCandidate) + Send>) {}
     /// Register callback for ICE connection state changes.
     fn set_on_ice_connection_state_change(&mut self, _cb: Box<dyn Fn(IceConnectionState) + Send>) {}
-    /// Wait until ICE gathering is complete. Returns immediately if already complete.
-    /// Blocks the calling thread.
+    /// Wait until ICE gathering is complete.
     fn gather_complete(&self) -> MediaResult<()> { Ok(()) }
 }
 

@@ -5,7 +5,7 @@ use std::sync::{Arc, OnceLock};
 use crate::protocols::rtc::client::core::{
     ConnectionState, DataChannel, DataChannelState, GatheringState, IceCandidate,
     IceConnectionState, MediaError, MediaResult, PeerConnection, PeerConnectionFactory,
-    RtcConfiguration, SessionDescription, SignalingState,
+    RtcConfiguration, SessionDescription, SignalingState, VideoTrack,
 };
 
 #[cfg(feature = "backend-native-webrtc-rs")]
@@ -171,6 +171,27 @@ impl PeerConnection for NativePeerConnection {
     }
     fn close(&mut self) -> MediaResult<()> {
         rt().block_on(async { self.pc.close().await.map_err(|e| MediaError::new(format!("{e}"))) })
+    }
+
+    fn add_track(&self, _track: Arc<VideoTrack>) -> MediaResult<()> {
+        use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
+        let tls = Arc::new(TrackLocalStaticSample::new(
+            webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability {
+                mime_type: webrtc::api::media_engine::MIME_TYPE_VP8.to_string(), ..Default::default()
+            }, _track.id.clone(), "gkit".into(),
+        ));
+        let pc = self.pc.clone();
+        rt().block_on(async move { pc.add_track(tls).await.map(|_| ()).map_err(|e| MediaError::new(format!("{e}"))) })
+    }
+
+    fn set_on_track(&mut self, cb: Box<dyn Fn(Arc<VideoTrack>) + Send>) {
+        let cb = Arc::new(std::sync::Mutex::new(Some(cb)));
+        self.pc.on_track(Box::new(move |track, _receiver, _transceiver| {
+            if let Ok(lock) = cb.lock() { if let Some(ref f) = *lock {
+                f(Arc::new(VideoTrack { id: track.id().to_string(), kind: track.kind().to_string(), write_fn: Box::new(|_| Err(MediaError::new("remote"))) }));
+            }}
+            Box::pin(async {})
+        }));
     }
 
     fn set_on_ice_candidate(&mut self, cb: Box<dyn Fn(IceCandidate) + Send>) {

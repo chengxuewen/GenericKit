@@ -8,7 +8,7 @@
 use std::sync::{Arc, Mutex};
 use eframe::egui;
 use gkit_media::capture::generator::VideoFrameGenerator;
-use gkit_media::protocols::rtc::client::core::{PeerConnection, PeerConnectionFactory, IceCandidate};
+use gkit_media::protocols::rtc::client::core::{PeerConnection, PeerConnectionFactory, IceCandidate, VideoTrack};
 use gkit_media::protocols::rtc::client::native::NativeFactory;
 use gkit_media::video::buffer::VideoFormatType;
 use gkit_media::video::convert::i420_to_argb;
@@ -21,6 +21,7 @@ struct Pipeline {
     sender_count: Mutex<u64>,
     pc1_ice: Mutex<String>, pc2_ice: Mutex<String>,
     pc1_log: Mutex<Vec<String>>, pc2_log: Mutex<Vec<String>>,
+    rtp_count: Mutex<u64>,
     status: Mutex<String>,
 }
 
@@ -29,6 +30,7 @@ fn main() -> Result<(), eframe::Error> {
         sender_frame: Mutex::new(None), sender_count: Mutex::new(0),
         pc1_ice: Mutex::new("—".into()), pc2_ice: Mutex::new("—".into()),
         pc1_log: Mutex::new(Vec::new()), pc2_log: Mutex::new(Vec::new()),
+        rtp_count: Mutex::new(0),
         status: Mutex::new("Creating gkit P2P...".into()),
     });
 
@@ -66,6 +68,14 @@ fn main() -> Result<(), eframe::Error> {
         pc2.set_on_ice_candidate(Box::new(move |c| {
             let _ = tx1.send(c);
         }));
+
+        // Video track on PC1 (sender)
+        let rtp_rx = p.clone();
+        let track = Arc::new(VideoTrack { id: "video0".into(), kind: "video".into(), write_fn: Box::new(|_data: &[u8]| Err(gkit_media::protocols::rtc::client::core::MediaError::new("local only"))) });
+        pc1.add_track(track).expect("add_track");
+
+        // on_track on PC2 (receiver)
+        pc2.set_on_track(Box::new(move |_t| { *rtp_rx.rtp_count.lock().unwrap() += 1; }));
 
         // Log ICE state changes
         let plog1 = p.clone(); let plog2 = p.clone();
@@ -135,7 +145,8 @@ fn main() -> Result<(), eframe::Error> {
                     });
                     cols[1].vertical_centered(|ui| {
                         ui.heading(format!("PC2 Receiver ({})", sc));
-                        ui.label("(loopback display; RTP needs add_track API)");
+                        let rtp = *self.p.rtp_count.lock().unwrap();
+                        if rtp > 0 { ui.label(format!("RTP tracks received: {}", rtp)); }
                         if let Some(ref rgba) = *self.p.sender_frame.lock().unwrap() {
                             self.rt = Some(ctx.load_texture("r", egui::ColorImage::from_rgba_unmultiplied([W as usize, H as usize], rgba), egui::TextureOptions::LINEAR));
                         }
