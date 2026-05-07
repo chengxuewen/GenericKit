@@ -92,26 +92,35 @@ impl PeerConnectionFactory for NativeFactory {
 ```rust
 // engine.rs
 use std::collections::HashMap;
-use std::sync::{Mutex, OnceLock};
+use std::sync::{RwLock, OnceLock};
 
-type FactoryCreator = Box<dyn Fn() -> Box<dyn PeerConnectionFactory> + Send + Sync>;
+type FactoryCreator = fn() -> Box<dyn PeerConnectionFactory>;
 
-fn registry() -> &'static Mutex<HashMap<&'static str, FactoryCreator>> {
-    static REG: OnceLock<Mutex<HashMap<&'static str, FactoryCreator>>> = OnceLock::new();
-    REG.get_or_init(|| Mutex::new(HashMap::new()))
+fn registry() -> &'static RwLock<HashMap<&'static str, FactoryCreator>> {
+    static REG: OnceLock<RwLock<HashMap<&'static str, FactoryCreator>>> = OnceLock::new();
+    REG.get_or_init(|| RwLock::new(HashMap::new()))
 }
 
 pub struct RtcEngine;
 
 impl RtcEngine {
     /// 按名称创建后端工厂
-    pub fn create(backend_name: &str) -> MediaResult<Box<dyn PeerConnectionFactory>>;
+    pub fn create(backend_name: &str) -> MediaResult<Box<dyn PeerConnectionFactory>> {
+        let map = registry().read().unwrap();
+        let creator = map.get(backend_name)
+            .ok_or_else(|| MediaError::new(format!("unknown backend: {backend_name}")))?;
+        creator()
+    }
 
-    /// 注册后端（每个后端在模块初始化时调用）
-    pub fn register(name: &'static str, creator: FactoryCreator);
+    /// 注册后端
+    pub fn register(name: &'static str, creator: FactoryCreator) {
+        registry().write().unwrap().entry(name).or_insert(creator);
+    }
 
     /// 已注册的后端名称列表
-    pub fn registered_types() -> Vec<String>;
+    pub fn registered_types() -> Vec<String> {
+        registry().read().unwrap().keys().map(|k| k.to_string()).collect()
+    }
 
     /// 创建默认后端（优先级：webrtc-rs > google_lk > wasm > 第一个）
     pub fn create_default() -> MediaResult<Box<dyn PeerConnectionFactory>>;
@@ -135,7 +144,7 @@ macro_rules! gkit_register_rtc_backend {
         fn __gkit_rtc_register() {
             $crate::protocols::rtc::client::engine::RtcEngine::register(
                 $name,
-                Box::new(|| Box::new(<$factory as Default>::default())),
+                || Box::new(<$factory as Default>::default()),
             );
         }
     };
@@ -368,7 +377,91 @@ sed -i 's/use webrtc_sys::/use crate::build_sys::webrtc_sys::/g' \
 
 ---
 
-## 8. 测试策略
+## 8. Rust 设计决策与注意事项
+
+设计中有多处与 C++ 习惯不同的 Rust 特化选择，以下逐一标注。
+
+### 8.1 静态注册：`ctor` vs `inventory` vs 手动 init
+
+当前选择 `ctor` crate（≈ C++ 的 `__attribute__((constructor))`）。
+
+| 方案 | 优点 | 缺点 |
+|------|------|------|
+| `ctor` (当前) | 简单直接，与 OpenCTK 的 static global constructor 等价 | 依赖运行时构造函数，在 `cdylib` 中可能不被调用；某些嵌入式平台不支持 |
+| `inventory` crate | 纯链接期注册，无运行时开销；比 ctor 更「Rust 味」 | 需要 `inventory` + `submit` 两个 crate，API 略繁琐 |
+| 手动 `RtcEngine::init()` | 最可控，无外部依赖 | 用户忘记调用则注册表为空 |
+
+**建议**：先用 `ctor` 快速落地，后续如遇跨平台问题再切 `inventory`。两者对后端代码（宏调用方）透明。
+
+### 8.2 `Mutex<HashMap>` vs `RwLock<HashMap>`
+
+当前用 `Mutex<HashMap>` 保护全局注册表。注册表的特点是：**写极少（启动时各后端注册一次），读频繁（每次创建 PC 都查表）**。
+
+```rust
+// 当前
+fn registry() -> &'static Mutex<HashMap<&'static str, FactoryCreator>> { ... }
+
+// 建议改为 RwLock（或用 OnceLock 彻底消除锁）
+fn registry() -> &'static RwLock<HashMap<&'static str, FactoryCreator>> { ... }
+```
+
+**更激进方案**：用 `OnceLock<HashMap>` + `register()` 内部拿锁重建整个 HashMap（因为只在启动时写一次），`create()` 无锁读。复杂度较高，先 `RwLock` 即可。
+
+### 8.3 `Box<dyn Fn()>` closure vs `fn()` 函数指针
+
+```rust
+// 当前：用闭包装箱（灵活但多一层间接调用）
+type FactoryCreator = Box<dyn Fn() -> Box<dyn PeerConnectionFactory> + Send + Sync>;
+
+// 备选：用裸函数指针（零开销，但无法捕获状态）
+type FactoryCreator = fn() -> Box<dyn PeerConnectionFactory>;
+```
+
+如果 Factory 创建不需要捕获任何状态（目前设计确实不需要），`fn()` 指针更高效且无需堆分配。**建议改为 `fn()`**。
+
+### 8.4 Tokio Runtime 生命周期
+
+```rust
+pub struct GoogleFactory {
+    rt: &'static tokio::runtime::Runtime,  // 持有 static 引用
+}
+```
+
+`OnceLock<Runtime>` 初始化的 runtime **永远不会被 drop**，进程退出时线程可能未正确 join。对短期程序无影响，长期运行的服务可考虑：
+- 注册一个 `drop` handler
+- 或使用 `tokio::runtime::Handle` 替代 `&Runtime`（Handle 更轻量，可 clone）
+
+**当前影响**：非关键，仅在生产环境长期运行时需关注。
+
+### 8.5 Trait object 与 Send 约束
+
+```rust
+pub trait PeerConnectionFactory: Send { ... }
+```
+
+`PeerConnection` trait 本身也需要 `Send`（C FFI 的 `PcHandleBox.inner: Box<dyn PcTrait>` 已隐式要求）。当前 `PeerConnection` trait 定义中：
+- 方法参数有 `Box<dyn VideoSink>` — 这需要 `VideoSink: Send` 才能整体 `Send`
+
+确认 `VideoSink` / `VideoSource` 已有 `Send` bound（`source_sink.rs` 中应已有），否则 trait object 组合会编译报错。
+
+### 8.6 `#[cfg_attr(not(test), ::ctor::ctor)]` — 测试时行为
+
+`not(test)` 条件确保 `#[test]` 编译时不会触发 `ctor`，因为 `cargo test` 把主代码和测试编译在一起，`#[ctor]` 会重复注册。但这也意味着**测试中需要手动调用注册**：
+
+```rust
+#[test]
+fn test_engine() {
+    // 测试中 ctor 不触发，需手动注册
+    RtcEngine::register("webrtc-rs", Box::new(|| Box::new(NativeFactory::default())));
+    // ...
+}
+```
+
+或者改为在测试模块中显式 import 注册代码路径（而非依赖 `ctor`）。
+
+---
+
+## 9. 测试策略
 
 ### 受影响需修改的现有代码
 
@@ -401,7 +494,7 @@ cargo test -p gkit-media && ctest --test-dir build-auto          # full verify
 
 ---
 
-## 9. Non-Goals
+## 10. Non-Goals
 
 - 不改 `PeerConnection` trait — 已对象安全
 - 不移除现有 feature flag 体系 — 保留裁剪能力
@@ -410,7 +503,7 @@ cargo test -p gkit-media && ctest --test-dir build-auto          # full verify
 
 ---
 
-## 10. Phase Summary
+## 11. Phase Summary
 
 | Phase | 描述 | 依赖 |
 |-------|------|------|
