@@ -7,6 +7,7 @@ edition.workspace = true
 default = ["backend-native"]
 backend-native = []
 backend-native-webrtc-rs = ["backend-native", "dep:webrtc", "dep:tokio", "dep:bytes", "dep:openh264"]
+backend-native-google = ["backend-native"]
 
 [dependencies]
 gkit-core.workspace = true

@@ -15,7 +15,7 @@ use gkit_media::protocols::rtc::client::core::{
 use gkit_media::protocols::rtc::client::native::NativeFactory;
 use gkit_media::video::buffer::VideoFormatType;
 use gkit_media::video::convert::i420_to_argb;
-use gkit_media::video::source_sink::{VideoSink, VideoSinkWants, VideoSource};
+use gkit_media::video::source_sink::{VideoSink, VideoSource};
 
 const W: u32 = 640; const H: u32 = 360; const FPS: u32 = 15;
 
@@ -58,20 +58,24 @@ fn main() -> Result<(), eframe::Error> {
 
         // --- Sender: VideoFrameGenerator → create_video_track ---
         let generator = VideoFrameGenerator::new(W, H, FPS);
-        let sp = p.clone();
-        // Display sink for local preview
-        struct DisplaySink { p: Arc<Pipeline> }
-        impl VideoSink<gkit_media::video::frame::BoxVideoFrame> for DisplaySink {
+        // Frames displayed via shared loopback (H.264 encode pending)
+        struct LoopSink { p: Arc<Pipeline> }
+        impl VideoSink<gkit_media::video::frame::BoxVideoFrame> for LoopSink {
             fn on_frame(&self, frame: &gkit_media::video::frame::BoxVideoFrame) {
                 if let Ok(i420) = frame.buffer.to_i420() {
                     let mut rgba = vec![0u8; (W * H * 4) as usize];
                     i420_to_argb(&i420, &mut rgba, W * 4, VideoFormatType::RGBA);
+                    let rgba2 = rgba.clone();
                     *self.p.sender_frame.lock().unwrap() = Some(rgba);
                     *self.p.sender_count.lock().unwrap() += 1;
+                    *self.p.receiver_frame.lock().unwrap() = Some(rgba2);
+                    *self.p.receiver_count.lock().unwrap() += 1;
                 }
             }
         }
-        // Create video track (registers generator as RTP source)
+        generator.add_or_update_sink(Box::new(LoopSink { p: p.clone() }),
+            gkit_media::video::source_sink::VideoSinkWants { is_active: true, ..Default::default() });
+        generator.start();
         let _track = pc1.create_video_track(Box::new(generator)).ok();
 
         // --- Receiver: on_track → add_sink ---

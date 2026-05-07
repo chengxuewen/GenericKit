@@ -182,7 +182,6 @@ impl PeerConnection for NativePeerConnection {
     fn create_video_track(&self, source: Box<dyn crate::video::source_sink::VideoSource<crate::video::frame::BoxVideoFrame>>) -> MediaResult<Box<dyn VideoTrack>> {
         use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
         use crate::video::source_sink::VideoSinkWants;
-        use crate::video::buffer::VideoBuffer;
         use std::sync::Mutex as StdMutex;
 
         let tls = Arc::new(TrackLocalStaticSample::new(

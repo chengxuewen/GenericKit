@@ -1,5 +1,4 @@
 use std::fmt;
-use std::sync::Arc;
 use crate::video::frame::BoxVideoFrame;
 use crate::video::source_sink::{VideoSink, VideoSource};
 
