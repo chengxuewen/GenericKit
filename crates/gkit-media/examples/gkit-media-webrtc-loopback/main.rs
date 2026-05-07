@@ -38,14 +38,13 @@ fn main() -> Result<(), eframe::Error> {
     struct LoopSink { p: Arc<Pipeline> }
     impl VideoSink<BoxVideoFrame> for LoopSink {
         fn on_frame(&self, frame: &BoxVideoFrame) {
-            if let Ok(i420) = frame.buffer.to_i420() {
-                let mut rgba = vec![0u8; (W * H * 4) as usize];
-                i420_to_argb(&i420, &mut rgba, W * 4, VideoFormatType::RGBA);
-                *self.p.sender_frame.lock().unwrap() = Some(rgba.clone());
-                *self.p.receiver_frame.lock().unwrap() = Some(rgba);
-                *self.p.sender_count.lock().unwrap() += 1;
-                *self.p.receiver_count.lock().unwrap() += 1;
-            }
+                if let Ok(i420) = frame.buffer.to_i420() {
+                    let mut rgba = vec![0u8; (W * H * 4) as usize];
+                    i420_to_argb(&i420, &mut rgba, W * 4, VideoFormatType::RGBA);
+                    *self.p.sender_frame.lock().unwrap() = Some(rgba);
+                    *self.p.sender_count.lock().unwrap() += 1;
+                    // Note: receiver_frame is updated ONLY by P2P on_track decoder
+                }
         }
     }
     generator.add_or_update_sink(Box::new(LoopSink { p: dp }),
@@ -82,10 +81,22 @@ fn main() -> Result<(), eframe::Error> {
         if let Err(e) = pc1.create_video_track(Box::new(VideoFrameGenerator::new(W, H, FPS))) {
             let mut log = p.pc1_log.lock().unwrap(); log.push(format!("track err: {e}"));
         }
-        // receiver callback on PC2
+        // receiver callback on PC2 — updates receiver_frame with P2P decoded frames
         let rp = p.clone();
-        pc2.set_on_track(Box::new(move |_t: Box<dyn VideoTrack>| {
-            *rp.receiver_count.lock().unwrap() += 1;
+        pc2.set_on_track(Box::new(move |track: Box<dyn VideoTrack>| {
+            let dp = rp.clone();
+            struct P2PSink { p: Arc<Pipeline> }
+            impl VideoSink<BoxVideoFrame> for P2PSink {
+                fn on_frame(&self, frame: &BoxVideoFrame) {
+                    if let Ok(i420) = frame.buffer.to_i420() {
+                        let mut rgba = vec![0u8; (W * H * 4) as usize];
+                        i420_to_argb(&i420, &mut rgba, W * 4, VideoFormatType::RGBA);
+                        *self.p.receiver_frame.lock().unwrap() = Some(rgba);
+                        *self.p.receiver_count.lock().unwrap() += 1;
+                    }
+                }
+            }
+            track.add_sink(Box::new(P2PSink { p: dp }));
         }));
 
         // SDP exchange (don't block too long)
