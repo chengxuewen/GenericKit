@@ -182,10 +182,62 @@ impl PeerConnection for NativePeerConnection {
     fn create_video_track(&self, source: Box<dyn crate::video::source_sink::VideoSource<crate::video::frame::BoxVideoFrame>>) -> MediaResult<Box<dyn VideoTrack>> {
         use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
         use crate::video::source_sink::VideoSinkWants;
+        use crate::video::buffer::VideoBuffer;
+        use std::sync::Mutex as StdMutex;
+
+        let tls = Arc::new(TrackLocalStaticSample::new(
+            webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability {
+                mime_type: webrtc::api::media_engine::MIME_TYPE_H264.to_string(), ..Default::default()
+            }, "video0".into(), "gkit".into(),
+        ));
+
+        let encoder = Arc::new(StdMutex::new(openh264::encoder::Encoder::new()
+            .map_err(|e| MediaError::new(format!("openh264 encoder: {e}")))?));
+
+        let tls_w = tls.clone();
+        let enc_w = encoder.clone();
+        source.add_or_update_sink(Box::new(EncoderSink { tls: tls_w, encoder: enc_w }),
+            VideoSinkWants { is_active: true, ..Default::default() });
+
+        struct EncoderSink {
+            tls: Arc<TrackLocalStaticSample>,
+            encoder: Arc<StdMutex<openh264::encoder::Encoder>>,
+        }
+        impl crate::video::source_sink::VideoSink<crate::video::frame::BoxVideoFrame> for EncoderSink {
+            fn on_frame(&self, frame: &crate::video::frame::BoxVideoFrame) {
+                if let Ok(i420) = frame.buffer.to_i420() {
+                    let src = I420Wrap(i420);
+                    let nal_data = {
+                        let mut enc = self.encoder.lock().unwrap();
+                        enc.encode(&src).ok().map(|bs| bs.to_vec())
+                    };
+                    if let Some(data) = nal_data {
+                        let data = bytes::Bytes::from(data);
+                        let _ = rt().block_on(self.tls.write_sample(&webrtc::media::Sample {
+                            data, duration: std::time::Duration::from_micros(66_666),
+                            timestamp: std::time::SystemTime::now(),
+                            ..Default::default()
+                        }));
+                    }
+                }
+            }
+        }
+
+        struct I420Wrap(crate::video::buffer::I420Buffer);
+        impl openh264::formats::YUVSource for I420Wrap {
+            fn dimensions(&self) -> (usize, usize) { (self.0.width as usize, self.0.height as usize) }
+            fn strides(&self) -> (usize, usize, usize) { (self.0.stride_y as usize, self.0.stride_u as usize, self.0.stride_v as usize) }
+            fn y(&self) -> &[u8] { &self.0.data_y }
+            fn u(&self) -> &[u8] { &self.0.data_u }
+            fn v(&self) -> &[u8] { &self.0.data_v }
+        }
 
         struct WrtcVideoTrack {
             id: String,
             sinks: std::sync::Mutex<Vec<Box<dyn crate::video::source_sink::VideoSink<crate::video::frame::BoxVideoFrame>>>>,
+            _source: StdMutex<Option<Box<dyn crate::video::source_sink::VideoSource<crate::video::frame::BoxVideoFrame>>>>,
+            _tls: Option<Arc<TrackLocalStaticSample>>,
+            _encoder: Option<Arc<StdMutex<openh264::encoder::Encoder>>>,
         }
         impl VideoTrack for WrtcVideoTrack {
             fn id(&self) -> &str { &self.id }
@@ -195,15 +247,11 @@ impl PeerConnection for NativePeerConnection {
             }
         }
 
-        let tls = Arc::new(TrackLocalStaticSample::new(
-            webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability {
-                mime_type: webrtc::api::media_engine::MIME_TYPE_H264.to_string(), ..Default::default()
-            }, "video0".into(), "gkit".into(),
-        ));
-        let track = Box::new(WrtcVideoTrack { id: "video0".into(), sinks: std::sync::Mutex::new(Vec::new()) });
         let pc = self.pc.clone();
-        rt().block_on(async move { pc.add_track(tls).await.map(|_| ()).map_err(|e| MediaError::new(format!("{e}"))) })?;
-        Ok(track)
+        let tls_for_add = tls.clone();
+        rt().block_on(async move { pc.add_track(tls_for_add).await.map(|_| ()).map_err(|e| MediaError::new(format!("{e}"))) })?;
+        Ok(Box::new(WrtcVideoTrack { id: "video0".into(), sinks: std::sync::Mutex::new(Vec::new()),
+            _source: StdMutex::new(Some(source)), _tls: Some(tls), _encoder: Some(encoder) }))
     }
 
     fn set_on_track(&self, cb: Box<dyn Fn(Box<dyn VideoTrack>) + Send>) {
