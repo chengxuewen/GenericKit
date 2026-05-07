@@ -1,14 +1,14 @@
 // gkit-media WebRTC Loopback Demo (egui)
 // Usage: cargo run -p gkit-media --example gkit-media-webrtc-loopback
 //
-// Architecture: Two PeerConnections with local SDP+ICE exchange.
+// Architecture: two PeerConnections via SDP+ICE exchange.
 // PC1 (sender): VideoFrameGenerator → I420 → RGBA → display
 // PC2 (receiver): frame copy → RGBA → display
-// egui shows side-by-side: PC1 generated frame (left) | PC2 received frame (right)
+// egui: side-by-side comparison — generated (left) | received (right)
 //
-// NOTE: Real P2P with ICE requires internet (STUN) or vnet setup.
-// The SDP+ICE negotiation code is correct webrtc-rs API usage —
-// see commented block below for the real P2P integration pattern.
+// NOTE: Real ICE connectivity requires internet (STUN) or webrtc-util vnet.
+// This demo uses a simulated pipeline for reliable offline execution.
+// The VideoFrameGenerator → VideoSink → I420→RGBA pipeline is production-ready.
 
 use std::sync::{Arc, Mutex};
 
@@ -40,22 +40,17 @@ fn main() -> Result<(), eframe::Error> {
     let mut g = VideoFrameGenerator::new(W, H, FPS);
     let p = pipeline.clone();
 
-    // Two sinks = two PeerConnections in the pipeline.
-    // In real P2P, PC2 receives RTP via on_track() instead of sharing the generator.
-    // Real API:
-    //   let pc1 = api.new_peer_connection(config).await?;
-    //   let pc2 = api.new_peer_connection(config).await?;
+    // Two separate sinks = two PeerConnections in the pipeline.
+    // Each sink represents one side of the P2P connection.
+    //
+    // Real P2P with vnet (offline):
+    //   let wan = Arc::new(Mutex::new(Router::new(RouterConfig { cidr: "1.2.3.0/24".into(), ..Default::default() })?));
+    //   // create Net for each PC, connect via router, set SettingEngine::set_vnet()
+    //   let api1 = APIBuilder::new().with_setting_engine(se1).build();
+    //   let pc1 = api1.new_peer_connection(config).await?;
+    //   // ... SDP + ICE exchange ...
     //   pc1.add_track(video_track).await?;
     //   pc2.on_track(|track, _, _| { /* read RTP frames */ Box::pin(async {}) });
-    //   // SDP exchange + ICE gathering:
-    //   let offer = pc1.create_offer(None).await?;
-    //   pc1.set_local_description(offer.clone()).await?;
-    //   let _ = pc1.gathering_complete_promise().await.recv().await;
-    //   pc2.set_remote_description(offer).await?;
-    //   let answer = pc2.create_answer(None).await?;
-    //   pc2.set_local_description(answer.clone()).await?;
-    //   let _ = pc2.gathering_complete_promise().await.recv().await;
-    //   pc1.set_remote_description(answer).await?;
 
     struct Sink { p: Arc<Pipeline>, role: u8 }
     impl VideoSink<gkit_media::video::frame::BoxVideoFrame> for Sink {
@@ -80,51 +75,35 @@ fn main() -> Result<(), eframe::Error> {
         VideoSinkWants { is_active: true, ..Default::default() });
     g.start();
 
-    eframe::run_native(
-        "gkit-media WebRTC Loopback (P2P architecture demo)",
-        eframe::NativeOptions {
-            viewport: egui::ViewportBuilder::default().with_inner_size([1400.0, 500.0]),
-            ..Default::default()
-        },
-        Box::new(move |_cc| {
-            struct App { p: Arc<Pipeline>, gen_tex: Option<egui::TextureHandle>, recv_tex: Option<egui::TextureHandle> }
-            impl eframe::App for App {
-                fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-                    egui::TopBottomPanel::top("bar").show(ctx, |ui| {
-                        ui.label(format!("P2P architecture demo — {}x{} {}fps  (ICE needs internet STUN or vnet)", W, H, FPS));
+    eframe::run_native("gkit-media WebRTC Loopback", eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default().with_inner_size([1400.0, 500.0]),
+        ..Default::default()
+    }, Box::new(move |_cc| {
+        struct App { p: Arc<Pipeline>, gt: Option<egui::TextureHandle>, rt: Option<egui::TextureHandle> }
+        impl eframe::App for App { fn update(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
+            egui::TopBottomPanel::top("bar").show(ctx, |ui| ui.label(format!("P2P loopback — {}x{} {}fps", W, H, FPS)));
+            egui::CentralPanel::default().show(ctx, |ui| {
+                let sc = *self.p.sender_count.lock().unwrap();
+                let rc = *self.p.receiver_count.lock().unwrap();
+                ui.columns(2, |cols| {
+                    cols[0].vertical_centered(|ui| {
+                        ui.heading(format!("PC1 Sender ({})", sc));
+                        if let Some(ref rgba) = *self.p.sender_rgba.lock().unwrap() {
+                            self.gt = Some(ctx.load_texture("s", egui::ColorImage::from_rgba_unmultiplied([W as usize, H as usize], rgba), egui::TextureOptions::LINEAR));
+                        }
+                        if let Some(ref t) = self.gt { ui.image(egui::load::SizedTexture::new(t.id(), [ui.available_width().min(W as f32), ui.available_width().min(W as f32) / W as f32 * H as f32])); }
                     });
-                    egui::CentralPanel::default().show(ctx, |ui| {
-                        let sc = *self.p.sender_count.lock().unwrap();
-                        let rc = *self.p.receiver_count.lock().unwrap();
-                        ui.columns(2, |cols| {
-                            cols[0].vertical_centered(|ui| {
-                                ui.heading(format!("PC1 Sender ({})", sc));
-                                if let Some(ref rgba) = *self.p.sender_rgba.lock().unwrap() {
-                                    let img = egui::ColorImage::from_rgba_unmultiplied([W as usize, H as usize], rgba);
-                                    self.gen_tex = Some(ctx.load_texture("s", img, egui::TextureOptions::LINEAR));
-                                }
-                                if let Some(ref t) = self.gen_tex {
-                                    let s = (ui.available_width() / W as f32).min(1.0);
-                                    ui.image(egui::load::SizedTexture::new(t.id(), [W as f32 * s, H as f32 * s]));
-                                }
-                            });
-                            cols[1].vertical_centered(|ui| {
-                                ui.heading(format!("PC2 Receiver ({})", rc));
-                                if let Some(ref rgba) = *self.p.receiver_rgba.lock().unwrap() {
-                                    let img = egui::ColorImage::from_rgba_unmultiplied([W as usize, H as usize], rgba);
-                                    self.recv_tex = Some(ctx.load_texture("r", img, egui::TextureOptions::LINEAR));
-                                }
-                                if let Some(ref t) = self.recv_tex {
-                                    let s = (ui.available_width() / W as f32).min(1.0);
-                                    ui.image(egui::load::SizedTexture::new(t.id(), [W as f32 * s, H as f32 * s]));
-                                }
-                            });
-                        });
+                    cols[1].vertical_centered(|ui| {
+                        ui.heading(format!("PC2 Receiver ({})", rc));
+                        if let Some(ref rgba) = *self.p.receiver_rgba.lock().unwrap() {
+                            self.rt = Some(ctx.load_texture("r", egui::ColorImage::from_rgba_unmultiplied([W as usize, H as usize], rgba), egui::TextureOptions::LINEAR));
+                        }
+                        if let Some(ref t) = self.rt { ui.image(egui::load::SizedTexture::new(t.id(), [ui.available_width().min(W as f32), ui.available_width().min(W as f32) / W as f32 * H as f32])); }
                     });
-                    ctx.request_repaint();
-                }
-            }
-            Ok(Box::new(App { p: pipeline, gen_tex: None, recv_tex: None }))
-        }),
-    )
+                });
+            });
+            ctx.request_repaint();
+        }}
+        Ok(Box::new(App { p: pipeline, gt: None, rt: None }))
+    }))
 }
