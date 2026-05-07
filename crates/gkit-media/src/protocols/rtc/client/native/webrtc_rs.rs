@@ -35,7 +35,7 @@ mod real {
         pub fn with_sync_mode(sync: bool) -> Self { Self { sync_mode: sync } }
     }
 
-    fn rt() -> &'static tokio::runtime::Runtime {
+    pub fn rt() -> &'static tokio::runtime::Runtime {
         static RT: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
         RT.get_or_init(|| tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap())
     }
@@ -88,26 +88,59 @@ mod real {
             use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
             use crate::video::source_sink::VideoSinkWants;
             use std::sync::Mutex as StdMutex;
+            use openh264::encoder::Encoder;
+            use openh264::formats::YUVSource;
 
-            eprintln!("[gkit] create_video_track: creating track (VP8)");
+            eprintln!("[gkit] create_video_track: creating track (H264)");
 
             let tls = Arc::new(TrackLocalStaticSample::new(
-                webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability { mime_type: webrtc::api::media_engine::MIME_TYPE_VP8.to_string(), ..Default::default() },
+                webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability {
+                    mime_type: "video/H264".to_string(),
+                    clock_rate: 90000,
+                    channels: 0,
+                    sdp_fmtp_line: "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f".to_string(),
+                    rtcp_feedback: vec![],
+                },
                 "video0".into(), "gkit".into(),
             ));
 
             let tls_w = tls.clone();
             let frame_count = Arc::new(std::sync::atomic::AtomicU64::new(0)); let fc = frame_count.clone();
-            source.add_or_update_sink(Box::new(EncoderSink { tls: tls_w, count: fc }), VideoSinkWants { is_active: true, ..Default::default() });
+            let mut encoder: Encoder = Encoder::new().unwrap();
+            encoder.force_intra_frame();
+            let encoder_rc: Arc<StdMutex<Encoder>> = Arc::new(StdMutex::new(encoder));
 
-            struct EncoderSink { tls: Arc<webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample>, count: Arc<std::sync::atomic::AtomicU64> }
+            source.add_or_update_sink(Box::new(EncoderSink { tls: tls_w, count: fc, encoder: encoder_rc }), VideoSinkWants { is_active: true, ..Default::default() });
+
+            struct SrfYuv<'a> { y: &'a [u8], u: &'a [u8], v: &'a [u8], w: usize, h: usize }
+            impl YUVSource for SrfYuv<'_> {
+                fn y(&self) -> &[u8] { self.y } fn u(&self) -> &[u8] { self.u } fn v(&self) -> &[u8] { self.v }
+                fn dimensions(&self) -> (usize, usize) { (self.w, self.h) }
+                fn strides(&self) -> (usize, usize, usize) { (self.w, self.w / 2, self.w / 2) }
+            }
+
+            struct EncoderSink { tls: Arc<webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample>, count: Arc<std::sync::atomic::AtomicU64>, encoder: Arc<StdMutex<Encoder>> }
             impl crate::video::source_sink::VideoSink<crate::video::frame::BoxVideoFrame> for EncoderSink {
                 fn on_frame(&self, frame: &crate::video::frame::BoxVideoFrame) {
                     let n = self.count.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
-                    if n % 30 == 1 { eprintln!("[gkit] Sink frame #{}", n); }
+                    if n % 30 == 1 { eprintln!("[gkit] EncSink frame #{}", n); }
                     if let Ok(i420) = frame.buffer.to_i420() {
-                        let raw: Vec<u8> = i420.data_y.iter().chain(&i420.data_u).chain(&i420.data_v).copied().collect();
-                        let _ = rt().block_on(self.tls.write_sample(&webrtc::media::Sample { data: bytes::Bytes::from(raw), duration: std::time::Duration::from_micros(66_666), timestamp: std::time::SystemTime::now(), ..Default::default() }));
+                        let src = SrfYuv { y: &i420.data_y, u: &i420.data_u, v: &i420.data_v, w: i420.width as usize, h: i420.height as usize };
+                        let mut enc = self.encoder.lock().unwrap();
+                        match enc.encode(&src) {
+                            Ok(bitstream) => {
+                                let encoded = bitstream.to_vec();
+                                if encoded.is_empty() { return; }
+                                if n == 1 { eprintln!("[gkit] H264 encoded: {} bytes, first 20: {:02x?}", encoded.len(), &encoded[..encoded.len().min(20)]); }
+                                if n % 30 == 1 { eprintln!("[gkit] H264 encoded: {} bytes", encoded.len()); }
+                                let s = webrtc::media::Sample { data: bytes::Bytes::from(encoded), duration: std::time::Duration::from_micros(66_666), timestamp: std::time::SystemTime::now(), ..Default::default() };
+                                match rt().block_on(self.tls.write_sample(&s)) {
+                                    Ok(()) => { if n <= 3 || n % 30 == 1 { eprintln!("[gkit] write OK #{}", n); } }
+                                    Err(e) => { eprintln!("[gkit] write ERR #{n}: {e}"); }
+                                }
+                            }
+                            Err(e) => { eprintln!("[gkit] H264 encode ERR #{n}: {e}"); }
+                        }
                     }
                 }
             }
@@ -117,11 +150,15 @@ mod real {
                 fn add_sink(&self, sink: Box<dyn crate::video::source_sink::VideoSink<crate::video::frame::BoxVideoFrame>>) { self.sinks.lock().unwrap().push(sink); }
             }
             let pc = self.pc.clone(); let tls_for_add = tls.clone();
-            rt().block_on(async move { pc.add_track(tls_for_add).await.map(|_| ()).map_err(|e| MediaError::new(format!("{e}"))) })?;
+            match rt().block_on(async move { pc.add_track(tls_for_add).await }) {
+                Ok(_rtp_sender) => { eprintln!("[gkit] add_track OK"); }
+                Err(e) => { eprintln!("[gkit] add_track FAIL: {e}"); return Err(MediaError::new(format!("add_track: {e}"))); }
+            }
             Ok(Box::new(WrtcVideoTrack { id: "video0".into(), sinks: std::sync::Mutex::new(Vec::new()), _source: StdMutex::new(Some(source)), _tls: Some(tls) }))
         }
 
         fn set_on_track(&self, cb: Box<dyn Fn(Box<dyn VideoTrack>) + Send>) {
+            eprintln!("[gkit] set_on_track registered");
             use crate::video::buffer::I420Buffer;
             use openh264::formats::YUVSource;
             let cb = Arc::new(std::sync::Mutex::new(Some(cb)));
@@ -135,7 +172,27 @@ mod real {
                 let dec = decoder.clone(); let dec_sinks = sinks.clone();
                 tokio::spawn(async move {
                     let mut pkt_count = 0u64;
-                    loop { match track.read_rtp().await { Ok((pkt, _)) => { pkt_count += 1; if pkt_count % 30 == 1 { eprintln!("[gkit] decoder RTP pkt #{}", pkt_count); } let mut d = dec.lock().unwrap(); if let Ok(Some(yuv)) = d.decode(&pkt.payload) { let w = yuv.dimensions().0 as u32; let h = yuv.dimensions().1 as u32; let mut i420 = I420Buffer::new(w, h); i420.data_y.copy_from_slice(yuv.y()); i420.data_u.copy_from_slice(yuv.u()); i420.data_v.copy_from_slice(yuv.v()); let frame = crate::video::frame::BoxVideoFrame::new(Box::new(i420)); for sink in dec_sinks.lock().unwrap().iter() { sink.on_frame(&frame); } } } Err(e) => { eprintln!("[gkit] decoder read_rtp err: {e}"); break; } } }
+                    const NAL_START: &[u8] = &[0u8, 0, 0, 1];
+                    loop { match track.read_rtp().await { Ok((pkt, _)) => { pkt_count += 1; if pkt_count % 30 == 1 { eprintln!("[gkit] decoder RTP pkt #{} ({} bytes)", pkt_count, pkt.payload.len()); }                 let mut d = dec.lock().unwrap(); 
+                let need_start = pkt.payload.len() < 4 || (&pkt.payload[..4.min(pkt.payload.len())] != &[0, 0, 0, 1] && &pkt.payload[..3.min(pkt.payload.len())] != &[0, 0, 1]);
+                if pkt_count <= 5 { eprintln!("[gkit] pkt {}: {} bytes, need_start={}, first_byte=0x{:02x}", pkt_count, pkt.payload.len(), need_start, pkt.payload.first().unwrap_or(&0)); }
+                let input: std::borrow::Cow<[u8]> = if need_start { [NAL_START, &pkt.payload[..]].concat().into() } else { (&pkt.payload[..]).into() };
+                let input: std::borrow::Cow<[u8]> = if need_start { [NAL_START, &pkt.payload[..]].concat().into() } else { (&pkt.payload[..]).into() };
+                match d.decode(&input) {
+                    Ok(Some(yuv)) => {
+                        let w = yuv.dimensions().0 as u32; let h = yuv.dimensions().1 as u32; 
+                        let mut i420 = I420Buffer::new(w, h); 
+                        i420.data_y.copy_from_slice(yuv.y()); 
+                        i420.data_u.copy_from_slice(yuv.u()); 
+                        i420.data_v.copy_from_slice(yuv.v()); 
+                        let frame = crate::video::frame::BoxVideoFrame::new(Box::new(i420)); 
+                        let sinks = dec_sinks.lock().unwrap();
+                        if pkt_count % 30 == 1 { eprintln!("[gkit] decoded frame {}x{} for {} sinks", w, h, sinks.len()); }
+                        for sink in sinks.iter() { sink.on_frame(&frame); }
+                    }
+                    Ok(None) => { if pkt_count % 30 == 1 { eprintln!("[gkit] decoder no frame yet (pkt={})", pkt_count); } }
+                    Err(e) => { eprintln!("[gkit] decoder error pkt={}: {e}", pkt_count); }
+                } } Err(e) => { eprintln!("[gkit] decoder read_rtp err: {e}"); break; } } }
                     eprintln!("[gkit] decoder loop ended after {} pkts", pkt_count);
                 });
                 Box::pin(async {})

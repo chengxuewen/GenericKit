@@ -15,17 +15,21 @@ const W: u32 = 320; const H: u32 = 240; const FPS: u32 = 15;
 
 #[test]
 fn p2p_vnet() {
-    let rt = tokio::runtime::Runtime::new().unwrap();
-    let (se1, se2, _n1, _n2, _wan) = rt.block_on(async {
+    // Use the same tokio runtime as NativePeerConnection (global singleton)
+    let rt = gkit_media::protocols::rtc::client::native::rt();
+    let (se1, se2, _wan) = rt.block_on(async {
         let wan = Arc::new(tokio::sync::Mutex::new(Router::new(RouterConfig { cidr: "1.2.3.0/24".to_string(), ..Default::default() }).unwrap()));
         let net1 = Arc::new(Net::new(Some(NetConfig { static_ips: vec!["1.2.3.4".to_string()], ..Default::default() })));
         let net2 = Arc::new(Net::new(Some(NetConfig { static_ips: vec!["1.2.3.5".to_string()], ..Default::default() })));
-        { let mut w = wan.lock().await; w.add_net(net1.get_nic().unwrap()).await.unwrap(); w.add_net(net2.get_nic().unwrap()).await.unwrap(); }
-        { net1.get_nic().unwrap().lock().await.set_router(wan.clone()).await.unwrap(); }
-        { net2.get_nic().unwrap().lock().await.set_router(wan.clone()).await.unwrap(); }
+        let nic1 = net1.get_nic().unwrap(); let nic2 = net2.get_nic().unwrap();
+        { let mut w = wan.lock().await; w.add_net(Arc::clone(&nic1)).await.unwrap(); w.add_net(Arc::clone(&nic2)).await.unwrap(); }
+        { nic1.lock().await.set_router(Arc::clone(&wan)).await.unwrap(); }
+        { nic2.lock().await.set_router(Arc::clone(&wan)).await.unwrap(); }
+        // CRITICAL: start the virtual network
+        { wan.lock().await.start().await.unwrap(); }
         let mut se1 = SettingEngine::default(); se1.set_vnet(Some(net1.clone())); se1.set_ice_timeouts(Some(Duration::from_secs(5)), Some(Duration::from_secs(5)), Some(Duration::from_millis(200)));
         let mut se2 = SettingEngine::default(); se2.set_vnet(Some(net2.clone())); se2.set_ice_timeouts(Some(Duration::from_secs(5)), Some(Duration::from_secs(5)), Some(Duration::from_millis(200)));
-        (se1, se2, net1, net2, wan)
+        (se1, se2, wan)
     });
 
     let mut pc1 = NativePeerConnection::with_setting_engine(Some(se1)).expect("pc1");
@@ -43,10 +47,13 @@ fn p2p_vnet() {
     pc2.set_on_ice_connection_state_change(Box::new(move |s| { *s2.lock().unwrap() = s; }));
 
     let mut g = VideoFrameGenerator::new(W, H, FPS); g.start();
-    pc1.create_video_track(Box::new(g)).expect("create_video_track");
+    let _track = pc1.create_video_track(Box::new(g)).expect("create_video_track");
 
     let received = Arc::new(Mutex::new(0u32)); let rf = received.clone();
+    let on_track_triggered = Arc::new(Mutex::new(false));
+    let ot = on_track_triggered.clone();
     pc2.set_on_track(Box::new(move |track: Box<dyn VideoTrack>| {
+        *ot.lock().unwrap() = true;
         let r = rf.clone();
         struct Sink { count: Arc<Mutex<u32>> }
         impl VideoSink<gkit_media::video::frame::BoxVideoFrame> for Sink {
@@ -71,18 +78,25 @@ fn p2p_vnet() {
     eprintln!("[test] answer SDP size={}", answer_with_cands.sdp.len());
     pc1.set_remote_description(&answer_with_cands).expect("set remote1");
 
+    // Check if any tracks were received
+    let _ = &answer;
+    let _ = &answer_with_cands;
+
+    eprintln!("[test] post-exchange: pc1_ice={:?} pc2_ice={:?} pc2_signaling={:?} pc2_connection={:?}", pc1.ice_connection_state(), pc2.ice_connection_state(), pc2.signaling_state(), pc2.connection_state());
+
     // Also exchange explicit candidates for trickle fallback
     for c in rx2.try_iter() { pc2.add_ice_candidate(&c.candidate, c.sdp_mid.as_deref().unwrap_or("")).ok(); }
     for c in rx1.try_iter() { pc1.add_ice_candidate(&c.candidate, c.sdp_mid.as_deref().unwrap_or("")).ok(); }
 
-    eprintln!("[test] non-trickle SDP exchanged, checking ICE...");
+    eprintln!("[test] offer SDP:\n{}", &offer_with_cands.sdp[..offer_with_cands.sdp.len().min(2000)]);
+    eprintln!("[test] answer SDP:\n{}", &answer_with_cands.sdp[..answer_with_cands.sdp.len().min(2000)]);
 
     let start = Instant::now();
     loop {
         let frames = *received.lock().unwrap();
         if frames >= 5 { break; }
         if start.elapsed() > Duration::from_secs(30) {
-            panic!("timeout: pc1={:?} pc2={:?} frames={}", *pc1_state.lock().unwrap(), *pc2_state.lock().unwrap(), frames);
+            panic!("timeout: pc1={:?} pc2={:?} track={:?} frames={}", *pc1_state.lock().unwrap(), *pc2_state.lock().unwrap(), *on_track_triggered.lock().unwrap(), frames);
         }
         std::thread::sleep(Duration::from_millis(200));
     }
