@@ -77,8 +77,10 @@ fn main() -> Result<(), eframe::Error> {
             if s == IceConnectionState::Connected { *p2.status.lock().unwrap() = "P2P connected!".into(); }
         }));
 
-        // video track on PC1
-        if let Err(e) = pc1.create_video_track(Box::new(VideoFrameGenerator::new(W, H, FPS))) {
+        // video track on PC1 — start generator before passing to create_video_track
+        let mut gen2 = VideoFrameGenerator::new(W, H, FPS);
+        gen2.start();
+        if let Err(e) = pc1.create_video_track(Box::new(gen2)) {
             let mut log = p.pc1_log.lock().unwrap(); log.push(format!("track err: {e}"));
         }
         // receiver callback on PC2 — updates receiver_frame with P2P decoded frames

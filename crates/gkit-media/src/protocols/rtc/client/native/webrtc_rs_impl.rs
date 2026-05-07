@@ -22,7 +22,7 @@ use webrtc::{
 #[cfg(feature = "backend-native-webrtc-rs")]
 fn rt() -> &'static tokio::runtime::Runtime {
     static RT: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
-    RT.get_or_init(|| tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap())
+    RT.get_or_init(|| tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap())
 }
 
 #[cfg(feature = "backend-native-webrtc-rs")]
