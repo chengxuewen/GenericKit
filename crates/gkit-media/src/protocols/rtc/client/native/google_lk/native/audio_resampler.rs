@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use cxx::UniquePtr;
-use webrtc_sys::audio_resampler as sys_ar;
+use crate::build_sys::webrtc_sys::audio_resampler as sys_ar;
 
 pub struct AudioResampler {
     sys_handle: UniquePtr<sys_ar::ffi::AudioResampler>,

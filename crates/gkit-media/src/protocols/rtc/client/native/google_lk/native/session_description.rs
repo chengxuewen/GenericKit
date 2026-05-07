@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use cxx::UniquePtr;
-use webrtc_sys::jsep as sys_jsep;
+use crate::build_sys::webrtc_sys::jsep as sys_jsep;
 
 use crate::session_description::{self, SdpParseError, SdpType};
 

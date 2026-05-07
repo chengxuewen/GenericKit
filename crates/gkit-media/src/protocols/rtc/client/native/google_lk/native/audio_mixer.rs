@@ -15,8 +15,8 @@
 use crate::audio_frame::AudioFrame;
 use cxx::UniquePtr;
 use std::sync::Arc;
-use webrtc_sys::audio_mixer as sys;
-use webrtc_sys::audio_mixer::ffi;
+use crate::build_sys::webrtc_sys::audio_mixer as sys;
+use crate::build_sys::webrtc_sys::audio_mixer::ffi;
 
 pub struct AudioMixer {
     sys_handle: UniquePtr<ffi::AudioMixer>,

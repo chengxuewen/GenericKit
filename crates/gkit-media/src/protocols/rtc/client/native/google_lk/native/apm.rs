@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use cxx::UniquePtr;
-use webrtc_sys::apm::ffi as sys_apm;
+use crate::build_sys::webrtc_sys::apm::ffi as sys_apm;
 
 use crate::{RtcError, RtcErrorType};
 

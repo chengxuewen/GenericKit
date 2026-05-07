@@ -160,14 +160,14 @@ impl WasmFactory {
 }
 
 impl PeerConnectionFactory for WasmFactory {
-    type PC = WasmPeerConnection;
+    fn backend_name(&self) -> &'static str { "wasm" }
 
-    fn create_peer_connection(&self) -> MediaResult<Self::PC> {
-        Ok(WasmPeerConnection::new())
+    fn create_peer_connection(&self) -> MediaResult<Box<dyn PeerConnection>> {
+        Ok(Box::new(WasmPeerConnection::new()))
     }
 
-    fn create_peer_connection_with_config(&self, _config: &RtcConfiguration) -> MediaResult<Self::PC> {
-        Ok(WasmPeerConnection::new())
+    fn create_peer_connection_with_config(&self, _config: &RtcConfiguration) -> MediaResult<Box<dyn PeerConnection>> {
+        Ok(Box::new(WasmPeerConnection::new()))
     }
 }
 
@@ -176,3 +176,6 @@ impl Default for WasmFactory {
         Self::new()
     }
 }
+
+#[cfg(feature = "backend-wasm")]
+gkit_register_rtc_backend!("wasm", WasmFactory);

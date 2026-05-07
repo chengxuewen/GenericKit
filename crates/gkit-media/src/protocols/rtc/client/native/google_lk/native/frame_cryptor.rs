@@ -16,7 +16,7 @@ use std::sync::Arc;
 
 use cxx::SharedPtr;
 use parking_lot::Mutex;
-use webrtc_sys::frame_cryptor::{self as sys_fc};
+use crate::build_sys::webrtc_sys::frame_cryptor::{self as sys_fc};
 
 use crate::{
     native::packet_trailer::PacketTrailerHandler, peer_connection_factory::PeerConnectionFactory,

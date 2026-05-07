@@ -12,7 +12,7 @@ use gkit_media::protocols::rtc::client::core::{
     PeerConnection, PeerConnectionFactory, IceCandidate, IceConnectionState,
     SessionDescription, VideoTrack,
 };
-use gkit_media::protocols::rtc::client::native::NativeFactory;
+use gkit_media::protocols::rtc::client::engine::RtcEngine;
 
 const DTLS_TIMEOUT_SECS: u64 = 15;
 
@@ -21,7 +21,7 @@ const DTLS_TIMEOUT_SECS: u64 = 15;
 /// In real mode (--features backend-native-webrtc-rs): verifies DTLS handshake.
 #[test]
 fn peer_connection_dtls_handshake() {
-    let factory = NativeFactory::default();
+    let factory = RtcEngine::create_default().expect("factory");
     let mut client = factory.create_peer_connection().expect("create client");
     let mut server = factory.create_peer_connection().expect("create server");
 
@@ -98,7 +98,7 @@ fn peer_connection_dtls_handshake() {
 /// Verify server peer generates answer after receiving offer.
 #[test]
 fn server_peer_answer_after_offer() {
-    let factory = NativeFactory::default();
+    let factory = RtcEngine::create_default().expect("factory");
     let mut server = factory.create_peer_connection().expect("server");
 
     let offer = SessionDescription { sdp_type: "offer".into(), sdp: String::new() };
@@ -110,7 +110,7 @@ fn server_peer_answer_after_offer() {
 /// Verify client peer generates offer with candidates.
 #[test]
 fn client_peer_offer_with_candidates() {
-    let factory = NativeFactory::default();
+    let factory = RtcEngine::create_default().expect("factory");
     let mut client = factory.create_peer_connection().expect("client");
 
     let candidates = Arc::new(Mutex::new(Vec::new()));
@@ -130,7 +130,7 @@ fn client_peer_offer_with_candidates() {
 /// Multiple sequential SDP exchanges should succeed.
 #[test]
 fn multiple_offer_answer_cycles() {
-    let factory = NativeFactory::default();
+    let factory = RtcEngine::create_default().expect("factory");
     for _ in 0..3 {
         let mut pc1 = factory.create_peer_connection().expect("pc1");
         let mut pc2 = factory.create_peer_connection().expect("pc2");
@@ -147,7 +147,7 @@ fn multiple_offer_answer_cycles() {
 /// Client should report ICE state transitions.
 #[test]
 fn ice_state_progression() {
-    let factory = NativeFactory::default();
+    let factory = RtcEngine::create_default().expect("factory");
     let mut client = factory.create_peer_connection().expect("client");
     let mut server = factory.create_peer_connection().expect("server");
 

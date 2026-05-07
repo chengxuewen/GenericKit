@@ -15,7 +15,7 @@
 use std::slice;
 
 use cxx::UniquePtr;
-use webrtc_sys::{video_frame as vf_sys, video_frame_buffer as vfb_sys};
+use crate::build_sys::webrtc_sys::{video_frame as vf_sys, video_frame_buffer as vfb_sys};
 
 use super::yuv_helper;
 use crate::video_frame::{self as vf, VideoFormatType, VideoRotation};

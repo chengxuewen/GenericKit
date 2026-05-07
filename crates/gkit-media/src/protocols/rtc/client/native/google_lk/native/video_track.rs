@@ -17,7 +17,7 @@ use std::sync::Arc;
 use cxx::SharedPtr;
 use parking_lot::Mutex;
 use sys_vt::ffi::video_to_media;
-use webrtc_sys::video_track as sys_vt;
+use crate::build_sys::webrtc_sys::video_track as sys_vt;
 
 use super::media_stream_track::impl_media_stream_track;
 use super::packet_trailer::PacketTrailerHandler;

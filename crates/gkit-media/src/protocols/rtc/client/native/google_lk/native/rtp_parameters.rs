@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use webrtc_sys::{rtp_parameters as sys_rp, webrtc as sys_webrtc};
+use crate::build_sys::webrtc_sys::{rtp_parameters as sys_rp, webrtc as sys_webrtc};
 
 use crate::rtp_parameters::*;
 

@@ -17,7 +17,7 @@ use std::sync::Arc;
 use cxx::SharedPtr;
 use parking_lot::Mutex;
 use tokio::sync::{mpsc, oneshot};
-use webrtc_sys::{
+use crate::build_sys::webrtc_sys::{
     data_channel as sys_dc, jsep as sys_jsep, peer_connection as sys_pc,
     peer_connection_factory as sys_pcf, rtc_error as sys_err,
 };

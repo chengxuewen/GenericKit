@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use cxx::SharedPtr;
-use webrtc_sys::{
+use crate::build_sys::webrtc_sys::{
     audio_track::ffi::media_to_audio, media_stream_track as sys_mst,
     video_track::ffi::media_to_video, MEDIA_TYPE_AUDIO, MEDIA_TYPE_VIDEO,
 };

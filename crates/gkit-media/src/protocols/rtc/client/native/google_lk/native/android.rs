@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use webrtc_sys::android::ffi as sys_android;
+use crate::build_sys::webrtc_sys::android::ffi as sys_android;
 
 pub fn initialize_android(vm: &jni::JavaVM) {
     unsafe {

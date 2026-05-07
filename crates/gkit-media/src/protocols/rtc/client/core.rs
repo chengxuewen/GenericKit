@@ -159,9 +159,9 @@ pub trait DataChannel: Send {
 }
 
 /// Factory trait for backend creation.
-pub trait PeerConnectionFactory {
-    type PC: PeerConnection;
+pub trait PeerConnectionFactory: Send {
+    fn backend_name(&self) -> &'static str;
 
-    fn create_peer_connection(&self) -> MediaResult<Self::PC>;
-    fn create_peer_connection_with_config(&self, config: &RtcConfiguration) -> MediaResult<Self::PC>;
+    fn create_peer_connection(&self) -> MediaResult<Box<dyn PeerConnection>>;
+    fn create_peer_connection_with_config(&self, config: &RtcConfiguration) -> MediaResult<Box<dyn PeerConnection>>;
 }

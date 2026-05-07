@@ -286,14 +286,14 @@ mod real {
         fn close(&mut self) -> MediaResult<()> { rt().block_on(async { self.dc.close().await.map_err(|e| MediaError::new(format!("{e}"))) }) }
     }
 
-    impl PeerConnectionFactory for NativeFactory {
-        type PC = NativePeerConnection;
-        fn create_peer_connection(&self) -> MediaResult<Self::PC> { NativePeerConnection::new() }
-        fn create_peer_connection_with_config(&self, _c: &RtcConfiguration) -> MediaResult<Self::PC> { NativePeerConnection::new() }
-    }
-
     impl NativeDataChannel {
         pub fn new(_label: &str) -> Self { panic!("NativeDataChannel must be created via PeerConnection::create_data_channel") }
+    }
+
+    impl PeerConnectionFactory for NativeFactory {
+        fn backend_name(&self) -> &'static str { "webrtc-rs" }
+        fn create_peer_connection(&self) -> MediaResult<Box<dyn PeerConnection>> { Ok(Box::new(NativePeerConnection::new()?)) }
+        fn create_peer_connection_with_config(&self, _c: &RtcConfiguration) -> MediaResult<Box<dyn PeerConnection>> { Ok(Box::new(NativePeerConnection::new()?)) }
     }
 
     struct RmtVideoTrack { id: String, sinks: Arc<std::sync::Mutex<Vec<Box<dyn crate::video::source_sink::VideoSink<crate::video::frame::BoxVideoFrame>>>>> }
@@ -344,9 +344,9 @@ mod stub {
         fn close(&mut self) -> MediaResult<()> { self.closed = true; Ok(()) }
     }
     impl PeerConnectionFactory for NativeFactory {
-        type PC = NativePeerConnection;
-        fn create_peer_connection(&self) -> MediaResult<Self::PC> { NativePeerConnection::new() }
-        fn create_peer_connection_with_config(&self, _c: &RtcConfiguration) -> MediaResult<Self::PC> { NativePeerConnection::new() }
+        fn backend_name(&self) -> &'static str { "webrtc-rs" }
+        fn create_peer_connection(&self) -> MediaResult<Box<dyn PeerConnection>> { Ok(Box::new(NativePeerConnection::new()?)) }
+        fn create_peer_connection_with_config(&self, _c: &RtcConfiguration) -> MediaResult<Box<dyn PeerConnection>> { Ok(Box::new(NativePeerConnection::new()?)) }
     }
 }
 
@@ -358,3 +358,6 @@ mod stub {
 pub use real::*;
 #[cfg(not(feature = "backend-native-webrtc-rs"))]
 pub use stub::*;
+
+#[cfg(feature = "backend-native-webrtc-rs")]
+gkit_register_rtc_backend!("webrtc-rs", NativeFactory);

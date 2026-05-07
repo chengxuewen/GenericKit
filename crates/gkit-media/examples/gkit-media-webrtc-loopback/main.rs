@@ -8,7 +8,7 @@ use gkit_media::capture::generator::VideoFrameGenerator;
 use gkit_media::protocols::rtc::client::core::{
     PeerConnection, PeerConnectionFactory, IceCandidate, IceConnectionState, VideoTrack,
 };
-use gkit_media::protocols::rtc::client::native::NativeFactory;
+use gkit_media::protocols::rtc::client::engine::RtcEngine;
 use gkit_media::video::buffer::VideoFormatType;
 use gkit_media::video::convert::i420_to_argb;
 use gkit_media::video::source_sink::{VideoSink, VideoSinkWants, VideoSource};
@@ -54,7 +54,7 @@ fn main() -> Result<(), eframe::Error> {
     // P2P negotiation in background (generator already running)
     let p = pipeline.clone();
     std::thread::spawn(move || {
-        let factory = NativeFactory::default();
+        let factory = RtcEngine::create_default().expect("factory");
         let mut pc1 = match factory.create_peer_connection() { Ok(pc) => pc, Err(e) => { *p.status.lock().unwrap() = format!("pc1 err: {e}"); return; } };
         let mut pc2 = match factory.create_peer_connection() { Ok(pc) => pc, Err(e) => { *p.status.lock().unwrap() = format!("pc2 err: {e}"); return; } };
 

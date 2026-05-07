@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use cxx::UniquePtr;
-use webrtc_sys::desktop_capturer::{self as sys_dc, ffi::new_desktop_capturer};
+use crate::build_sys::webrtc_sys::desktop_capturer::{self as sys_dc, ffi::new_desktop_capturer};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub(crate) enum SourceType {

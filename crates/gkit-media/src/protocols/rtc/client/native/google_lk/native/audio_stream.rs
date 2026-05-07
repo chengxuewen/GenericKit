@@ -26,7 +26,7 @@ use cxx::SharedPtr;
 use livekit_runtime::Stream;
 use parking_lot::Mutex;
 use rtrb::{Consumer, Producer, PushError, RingBuffer};
-use webrtc_sys::audio_track as sys_at;
+use crate::build_sys::webrtc_sys::audio_track as sys_at;
 
 use crate::{audio_frame::AudioFrame, audio_track::RtcAudioTrack};
 

@@ -14,7 +14,7 @@
 
 use cxx::SharedPtr;
 use sys_at::ffi::audio_to_media;
-use webrtc_sys::audio_track as sys_at;
+use crate::build_sys::webrtc_sys::audio_track as sys_at;
 
 use super::media_stream_track::impl_media_stream_track;
 use crate::media_stream_track::RtcTrackState;

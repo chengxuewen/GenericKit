@@ -16,7 +16,7 @@ use std::{str, sync::Arc};
 
 use cxx::SharedPtr;
 use parking_lot::Mutex;
-use webrtc_sys::data_channel as sys_dc;
+use crate::build_sys::webrtc_sys::data_channel as sys_dc;
 
 use crate::data_channel::{
     DataBuffer, DataChannelError, DataChannelInit, DataChannelState, OnBufferedAmountChange,

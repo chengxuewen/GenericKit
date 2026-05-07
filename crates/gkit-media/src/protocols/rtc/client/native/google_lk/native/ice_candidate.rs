@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use cxx::SharedPtr;
-use webrtc_sys::jsep as sys_jsep;
+use crate::build_sys::webrtc_sys::jsep as sys_jsep;
 
 use crate::{ice_candidate as ic, session_description::SdpParseError};
 

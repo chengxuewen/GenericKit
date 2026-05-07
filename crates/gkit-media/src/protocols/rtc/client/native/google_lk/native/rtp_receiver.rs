@@ -14,7 +14,7 @@
 
 use cxx::SharedPtr;
 use tokio::sync::oneshot;
-use webrtc_sys::rtp_receiver as sys_rr;
+use crate::build_sys::webrtc_sys::rtp_receiver as sys_rr;
 
 use crate::{
     imp::media_stream_track::new_media_stream_track, media_stream_track::MediaStreamTrack,

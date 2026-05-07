@@ -26,7 +26,7 @@ use cxx::{SharedPtr, UniquePtr};
 use livekit_runtime::Stream;
 use parking_lot::Mutex;
 use rtrb::{Consumer, Producer, PushError, RingBuffer};
-use webrtc_sys::video_track as sys_vt;
+use crate::build_sys::webrtc_sys::video_track as sys_vt;
 
 use super::video_frame::new_video_frame_buffer;
 use crate::{

@@ -20,7 +20,7 @@ use std::{
 use cxx::SharedPtr;
 use livekit_runtime::interval;
 use parking_lot::Mutex;
-use webrtc_sys::{video_frame as vf_sys, video_frame::ffi::VideoRotation, video_track as vt_sys};
+use crate::build_sys::webrtc_sys::{video_frame as vf_sys, video_frame::ffi::VideoRotation, video_track as vt_sys};
 
 use crate::{
     native::packet_trailer::PacketTrailerHandler,

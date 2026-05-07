@@ -9,31 +9,19 @@ pub mod capture;
 pub mod protocols;
 pub mod video;
 
-// build-sys: LiveKit webrtc-sys FFI (requires libwebrtc C++ binary)
-// #[cfg(feature = "backend-native-google")]
-// #[path = "build-sys/mod.rs"]
-// pub mod build_sys;
-
-// --- backend-agnostic factory functions (used by C FFI) ---
-
-use protocols::rtc::client::core::{DataChannel, PeerConnection};
-
-#[cfg(all(feature = "backend-native", not(feature = "backend-native-google")))]
-pub fn make_peer_connection() -> Box<dyn PeerConnection> {
-    Box::new(protocols::rtc::client::native::NativePeerConnection::new().expect("Failed to create PeerConnection"))
-}
-
 #[cfg(feature = "backend-native-google")]
-pub fn make_peer_connection() -> Box<dyn PeerConnection> {
-    Box::new(protocols::rtc::client::native::GooglePeerConnection::new())
+#[path = "build-sys/mod.rs"]
+pub mod build_sys;
+
+pub fn make_peer_connection() -> Box<dyn protocols::rtc::client::core::PeerConnection> {
+    use protocols::rtc::client::engine::RtcEngine;
+    RtcEngine::create_default()
+        .expect("no RTC backend registered")
+        .create_peer_connection()
+        .expect("failed to create PeerConnection")
 }
 
-#[cfg(all(feature = "backend-native", not(feature = "backend-native-google")))]
-pub fn make_data_channel(label: &str) -> Box<dyn DataChannel> {
-    Box::new(protocols::rtc::client::native::NativeDataChannel::new(label))
-}
-
-#[cfg(feature = "backend-native-google")]
-pub fn make_data_channel(label: &str) -> Box<dyn DataChannel> {
-    Box::new(protocols::rtc::client::native::GoogleDataChannel::new(label))
+pub fn make_peer_connection_with_backend(name: &str) -> protocols::rtc::client::core::MediaResult<Box<dyn protocols::rtc::client::core::PeerConnection>> {
+    use protocols::rtc::client::engine::RtcEngine;
+    RtcEngine::create(name)?.create_peer_connection()
 }

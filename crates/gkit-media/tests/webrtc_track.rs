@@ -3,12 +3,12 @@ use gkit_media::capture::generator::VideoFrameGenerator;
 use gkit_media::protocols::rtc::client::core::{
     PeerConnection, PeerConnectionFactory, VideoTrack,
 };
-use gkit_media::protocols::rtc::client::native::NativeFactory;
+use gkit_media::protocols::rtc::client::engine::RtcEngine;
 use gkit_media::video::source_sink::{VideoSinkWants, VideoSource};
 
 #[test]
 fn track_create_video_track() {
-    let factory = NativeFactory::default();
+    let factory = RtcEngine::create_default().expect("factory");
     let pc = factory.create_peer_connection().expect("create pc");
     let source = Box::new(VideoFrameGenerator::new(320, 240, 30));
     let result = pc.create_video_track(source);
@@ -20,7 +20,7 @@ fn track_create_video_track() {
 
 #[test]
 fn track_set_on_track_registered() {
-    let factory = NativeFactory::default();
+    let factory = RtcEngine::create_default().expect("factory");
     let pc = factory.create_peer_connection().expect("create pc");
     let called = std::sync::atomic::AtomicBool::new(false);
     let flag = &called as *const _ as usize;

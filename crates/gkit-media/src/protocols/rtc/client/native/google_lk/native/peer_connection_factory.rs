@@ -17,7 +17,7 @@ use std::sync::Arc;
 use cxx::{SharedPtr, UniquePtr};
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
-use webrtc_sys::{peer_connection_factory as sys_pcf, rtc_error as sys_err, webrtc as sys_rtc};
+use crate::build_sys::webrtc_sys::{peer_connection_factory as sys_pcf, rtc_error as sys_err, webrtc as sys_rtc};
 
 use crate::{
     audio_source::native::NativeAudioSource,

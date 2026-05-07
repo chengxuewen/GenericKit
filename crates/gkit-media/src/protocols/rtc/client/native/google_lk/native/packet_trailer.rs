@@ -27,7 +27,7 @@
 //! metadata via lookup_frame_metadata(rtp_timestamp).
 
 use cxx::SharedPtr;
-use webrtc_sys::packet_trailer::ffi as sys_pt;
+use crate::build_sys::webrtc_sys::packet_trailer::ffi as sys_pt;
 
 use crate::{
     peer_connection_factory::PeerConnectionFactory, rtp_receiver::RtpReceiver,

@@ -14,7 +14,7 @@
 
 #![allow(clippy::too_many_arguments)]
 
-use webrtc_sys::yuv_helper as yuv_sys;
+use crate::build_sys::webrtc_sys::yuv_helper as yuv_sys;
 
 fn argb_assert_safety(src: &[u8], src_stride: u32, _width: i32, height: i32) {
     let height_abs = height.unsigned_abs();
