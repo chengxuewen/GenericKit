@@ -20,6 +20,7 @@ struct Pipeline {
     sender_frame: Mutex<Option<Vec<u8>>>,
     sender_count: Mutex<u64>,
     pc1_ice: Mutex<String>, pc2_ice: Mutex<String>,
+    pc1_log: Mutex<Vec<String>>, pc2_log: Mutex<Vec<String>>,
     status: Mutex<String>,
 }
 
@@ -27,6 +28,7 @@ fn main() -> Result<(), eframe::Error> {
     let pipeline = Arc::new(Pipeline {
         sender_frame: Mutex::new(None), sender_count: Mutex::new(0),
         pc1_ice: Mutex::new("—".into()), pc2_ice: Mutex::new("—".into()),
+        pc1_log: Mutex::new(Vec::new()), pc2_log: Mutex::new(Vec::new()),
         status: Mutex::new("Creating gkit P2P...".into()),
     });
 
@@ -58,8 +60,25 @@ fn main() -> Result<(), eframe::Error> {
 
         let (tx1, rx1) = std::sync::mpsc::channel::<IceCandidate>();
         let (tx2, rx2) = std::sync::mpsc::channel::<IceCandidate>();
-        pc1.set_on_ice_candidate(Box::new(move |c| { let _ = tx2.send(c); }));
-        pc2.set_on_ice_candidate(Box::new(move |c| { let _ = tx1.send(c); }));
+        pc1.set_on_ice_candidate(Box::new(move |c| {
+            let _ = tx2.send(c);
+        }));
+        pc2.set_on_ice_candidate(Box::new(move |c| {
+            let _ = tx1.send(c);
+        }));
+
+        // Log ICE state changes
+        let plog1 = p.clone(); let plog2 = p.clone();
+        pc1.set_on_ice_connection_state_change(Box::new(move |s| {
+            let msg = format!("{:?}", s);
+            let mut log = plog1.pc1_log.lock().unwrap();
+            if log.last() != Some(&msg) { log.push(msg); }
+        }));
+        pc2.set_on_ice_connection_state_change(Box::new(move |s| {
+            let msg = format!("{:?}", s);
+            let mut log = plog2.pc2_log.lock().unwrap();
+            if log.last() != Some(&msg) { log.push(msg); }
+        }));
 
         let offer = pc1.create_offer().expect("offer");
         pc1.set_local_description(&offer).expect("set local");
@@ -72,8 +91,11 @@ fn main() -> Result<(), eframe::Error> {
         pc1.gather_complete().expect("gather1");
         pc2.gather_complete().expect("gather2");
 
-        for c in rx2.try_iter() { pc1.add_ice_candidate(&c.candidate, c.sdp_mid.as_deref().unwrap_or("")).ok(); }
-        for c in rx1.try_iter() { pc2.add_ice_candidate(&c.candidate, c.sdp_mid.as_deref().unwrap_or("")).ok(); }
+        let mut c1 = 0u32; let mut c2 = 0u32;
+        for c in rx2.try_iter() { pc1.add_ice_candidate(&c.candidate, c.sdp_mid.as_deref().unwrap_or("")).ok(); c1 += 1; }
+        for c in rx1.try_iter() { pc2.add_ice_candidate(&c.candidate, c.sdp_mid.as_deref().unwrap_or("")).ok(); c2 += 1; }
+        p.pc1_log.lock().unwrap().push(format!("{} candidates added", c1));
+        p.pc2_log.lock().unwrap().push(format!("{} candidates added", c2));
 
         *p.status.lock().unwrap() = format!("gkit P2P negotiated — {}x{} {}fps", W, H, FPS);
 
@@ -106,10 +128,14 @@ fn main() -> Result<(), eframe::Error> {
                         }
                         ui.separator();
                         ui.label(format!("ICE: {}", self.p.pc1_ice.lock().unwrap()));
+                        let log = self.p.pc1_log.lock().unwrap();
+                        for line in log.iter().rev().take(8) {
+                            ui.label(line);
+                        }
                     });
                     cols[1].vertical_centered(|ui| {
                         ui.heading(format!("PC2 Receiver ({})", sc));
-                        // Loopback: same frame as sender (video track needs add_track trait method)
+                        ui.label("(loopback display; RTP needs add_track API)");
                         if let Some(ref rgba) = *self.p.sender_frame.lock().unwrap() {
                             self.rt = Some(ctx.load_texture("r", egui::ColorImage::from_rgba_unmultiplied([W as usize, H as usize], rgba), egui::TextureOptions::LINEAR));
                         }
@@ -119,6 +145,10 @@ fn main() -> Result<(), eframe::Error> {
                         }
                         ui.separator();
                         ui.label(format!("ICE: {}", self.p.pc2_ice.lock().unwrap()));
+                        let log = self.p.pc2_log.lock().unwrap();
+                        for line in log.iter().rev().take(8) {
+                            ui.label(line);
+                        }
                     });
                 });
             });
