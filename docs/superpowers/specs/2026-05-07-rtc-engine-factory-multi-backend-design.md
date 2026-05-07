@@ -190,8 +190,7 @@ pub fn make_peer_connection_with_backend(name: &str) -> MediaResult<Box<dyn Peer
 
 ```toml
 [features]
-default = ["backend-native-all"]
-
+default = ["backend-native-google"]
 backend-native = ["dep:ctor"]
 backend-native-all = ["backend-native", "backend-native-webrtc-rs", "backend-native-google"]
 backend-native-webrtc-rs = ["backend-native", "dep:webrtc", "dep:tokio", "dep:bytes", "dep:openh264", "dep:rtp"]
@@ -205,8 +204,9 @@ ctor = { version = "0.2", optional = true }
 
 | 变化 | 说明 |
 |------|------|
+| **default = "backend-native-google"** | google_lk 优先作为默认后端；webrtc-rs/wasm 默认关闭 |
 | 移除 `compile_error!` 互斥守卫 | 两个后端可同时编译 |
-| 新增 `backend-native-all` umbrella | default 一键启用所有 native |
+| 新增 `backend-native-all` umbrella | 一键启用所有 native |
 | google feature 新增依赖 | cxx, parking_lot, thiserror, log, enum_dispatch, scoped-tls, futures |
 | 保留单独 feature | `--no-default-features --features backend-native-webrtc-rs` 只编译一个后端 |
 
@@ -375,6 +375,73 @@ sed -i 's/use webrtc_sys::/use crate::build_sys::webrtc_sys::/g' \
 
 同时确认 `native/peer_connection_factory.rs` 能通过 `crate::build_sys::webrtc_sys` 访问 sys FFI。
 
+### build.rs — LibWebRTC 预编译库下载与缓存
+
+参考 [LiveKit rust-sdks](https://github.com/livekit/rust-sdks) 的打包方式，使用 LiveKit 预编译的 libwebrtc。
+
+**文件**: `crates/gkit-media/build.rs`
+
+**流程**:
+
+```
+GKIT_CUSTOM_WEBRTC 设置?
+  ├─ 是 → 使用指定路径，跳过下载
+  └─ 否 → 检查本地缓存 (.gkit-cache/libwebrtc-<platform>.tar.gz)
+              ├─ 存在 → 解压使用
+              └─ 不存在 → 下载 LiveKit release → 存入缓存 → 解压
+```
+
+**下载源**: `https://github.com/livekit/rust-sdks/releases/download/livekit-ffi-v0.14.0/libwebrtc-<platform>.tar.gz`
+
+**平台映射**:
+
+| 目标 | 文件 tag |
+|------|---------|
+| `x86_64-unknown-linux-gnu` | `linux-x86_64` |
+| `aarch64-unknown-linux-gnu` | `linux-aarch64` |
+| `x86_64-apple-darwin` | `macos-x86_64` |
+| `aarch64-apple-darwin` | `macos-aarch64` |
+| `x86_64-pc-windows-msvc` | `windows-x86_64` |
+
+**环境变量**:
+
+| 变量 | 说明 |
+|------|------|
+| `GKIT_CUSTOM_WEBRTC` | 自定义 libwebrtc 路径（跳过下载） |
+| `GKIT_SKIP_WEBRTC_DOWNLOAD` | 跳过下载，仅使用缓存 |
+| `GKIT_WEBRTC_CACHE_DIR` | 缓存目录（默认 `.gkit-cache`） |
+
+**编译步骤**（在解压后）:
+
+```rust
+// build.rs (仅 backend-native-google 时执行)
+fn main() {
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let out_dir = std::env::var("OUT_DIR").unwrap();
+    let lib_dir = download_or_cache_libwebrtc(manifest_dir);
+
+    // 编译 webrtc-sys C++ 源文件
+    cc::Build::new()
+        .cpp(true)
+        .std("c++17")
+        .include("src/build-sys/webrtc-sys/include")
+        .include(format!("{lib_dir}/include"))
+        .files(webrtc_sys_cpp_files())
+        .compile("gkit_webrtc_sys");
+
+    // 链接 libwebrtc
+    println!("cargo:rustc-link-search=native={lib_dir}/lib");
+    println!("cargo:rustc-link-lib=static=webrtc");
+
+    // 平台特定链接
+    #[cfg(target_os = "linux")]
+    {
+        println!("cargo:rustc-link-lib=dylib=dl");
+        println!("cargo:rustc-link-lib=dylib=pthread");
+    }
+}
+```
+
 ---
 
 ## 8. Rust 设计决策与注意事项
@@ -463,23 +530,29 @@ fn test_engine() {
 
 ## 9. 测试策略
 
+### 当前默认
+
+- **默认后端**: `google_lk`（`backend-native-google`）
+- **webrtc-rs/wasm**: 默认关闭，按需 `--features` 启用
+- 所有测试通过 `RtcEngine::create_default()` 创建后端
+
 ### 受影响需修改的现有代码
 
 | 文件 | 处理 |
 |------|------|
-| `tests/webrtc_p2p.rs`, `webrtc_track.rs`, `webrtc_ice.rs`, `webrtc_p2p_conn.rs` | `NativePeerConnection::new()` → `RtcEngine::create("webrtc-rs")?.create_peer_connection()?` |
-| `examples/gkit-media-webrtc-loopback/main.rs` | 同样改为 RtcEngine 创建 |
-| C 测试 `test_basic.c` 等 | 现有 API 兼容，无需改动 |
+| `tests/webrtc_*.rs` | `NativeFactory::default()` → `RtcEngine::create_default()?` |
+| `examples/gkit-media-webrtc-loopback/main.rs` | 改为 RtcEngine 创建（使用 `gkit_media::make_peer_connection()` 或 factory） |
+| C 测试 | 现有 API 兼容，无需改动（内部调用 `make_peer_connection()`） |
 
 ### 新增测试
 
 | 层 | 测试 | 命令 |
 |---|---|---|
-| Rust — 注册/创建 | `rtc_engine_register`, `rtc_engine_create`, `rtc_engine_default`, `rtc_engine_platform` | `cargo test -p gkit-media` |
-| Rust — 多后端 | 同一测试中分别创建 webrtc-rs 和 google_lk PC | `cargo test --features backend-native-all` |
-| Rust — 裁剪 | 只编译 webrtc-rs，验证注册表 | `cargo test --no-default-features --features backend-native-webrtc-rs` |
-| C FFI | `test_rtc_factory.c` — factory 生命周期、注册表 | `ctest -R gkit_media_c_test` |
-| C++ GTest | `test_rtc_factory.cpp` — RtcFactory RAII | `ctest -R gkit_media_cpp_test_rtc` |
+| Rust — P2P 连通性 | `p2p_ice_connectivity` — 两个 PC SDP/ICE 交换，验证连接状态 | `cargo test -p gkit-media --test webrtc_p2p_conn -- --nocapture` |
+| Rust — 引擎注册 | `rtc_engine_register`, `rtc_engine_create`, `rtc_engine_default` | `cargo test -p gkit-media` |
+| Rust — 多后端 | 同一测试中分别创建 google_lk 和 webrtc-rs PC | `cargo test --features backend-native-all` |
+| C FFI | `test_rtc_factory.c` | `ctest -R gkit_media_c_test` |
+| C++ GTest | `test_rtc_factory.cpp` | `ctest -R gkit_media_cpp_test_rtc` |
 
 ### 验证命令
 
@@ -511,5 +584,6 @@ cargo test -p gkit-media && ctest --test-dir build-auto          # full verify
 | 2 | webrtc-rs 适配新 trait | Phase 1 |
 | 3 | google.rs 重写 + google_lk 激活 | Phase 1, libwebrtc binary |
 | 4 | Feature flags 调整 + mod.rs 修改 | Phase 1 |
-| 5 | C FFI 新 API + C++ RtcFactory 封装 | Phase 1 |
-| 6 | 现有测试/示例迁移 + 新测试 | Phase 1-5 |
+| 5 | build.rs — LibWebRTC 下载/缓存/编译 | Phase 3 (需先有 google_lk 代码) |
+| 6 | C FFI 新 API + C++ RtcFactory 封装 | Phase 1 |
+| 7 | 现有测试/示例迁移 + 新测试 | Phase 1-5 |
