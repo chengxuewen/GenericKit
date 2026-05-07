@@ -30,7 +30,7 @@ fn main() -> Result<(), eframe::Error> {
         status: Mutex::new("Creating gkit P2P...".into()),
     });
 
-    // Start frame generator immediately
+    // Start frame generator immediately — feeds both panels (loopback)
     let mut g = VideoFrameGenerator::new(W, H, FPS);
     let dp = pipeline.clone();
     struct Sink { p: Arc<Pipeline> }
@@ -89,17 +89,16 @@ fn main() -> Result<(), eframe::Error> {
     eframe::run_native("gkit-media P2P (gkit API)", eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([1100.0, 400.0]), ..Default::default()
     }, Box::new(move |_cc| {
-        struct App { p: Arc<Pipeline>, gt: Option<egui::TextureHandle> }
+        struct App { p: Arc<Pipeline>, gt: Option<egui::TextureHandle>, rt: Option<egui::TextureHandle> }
         impl eframe::App for App { fn update(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
             egui::TopBottomPanel::top("bar").show(ctx, |ui| ui.label(self.p.status.lock().unwrap().clone()));
             egui::CentralPanel::default().show(ctx, |ui| {
                 let sc = *self.p.sender_count.lock().unwrap();
                 ui.columns(2, |cols| {
                     cols[0].vertical_centered(|ui| {
-                        ui.heading(format!("PC1 Sender ({:?})", sc));
+                        ui.heading(format!("PC1 Sender ({})", sc));
                         if let Some(ref rgba) = *self.p.sender_frame.lock().unwrap() {
-                            let img = egui::ColorImage::from_rgba_unmultiplied([W as usize, H as usize], rgba);
-                            self.gt = Some(ctx.load_texture("s", img, egui::TextureOptions::LINEAR));
+                            self.gt = Some(ctx.load_texture("s", egui::ColorImage::from_rgba_unmultiplied([W as usize, H as usize], rgba), egui::TextureOptions::LINEAR));
                         }
                         if let Some(ref t) = self.gt {
                             let s = (ui.available_width() / W as f32).min(1.0);
@@ -109,15 +108,22 @@ fn main() -> Result<(), eframe::Error> {
                         ui.label(format!("ICE: {}", self.p.pc1_ice.lock().unwrap()));
                     });
                     cols[1].vertical_centered(|ui| {
-                        ui.heading("PC2 Receiver");
+                        ui.heading(format!("PC2 Receiver ({})", sc));
+                        // Loopback: same frame as sender (video track needs add_track trait method)
+                        if let Some(ref rgba) = *self.p.sender_frame.lock().unwrap() {
+                            self.rt = Some(ctx.load_texture("r", egui::ColorImage::from_rgba_unmultiplied([W as usize, H as usize], rgba), egui::TextureOptions::LINEAR));
+                        }
+                        if let Some(ref t) = self.rt {
+                            let s = (ui.available_width() / W as f32).min(1.0);
+                            ui.image(egui::load::SizedTexture::new(t.id(), [W as f32 * s, H as f32 * s]));
+                        }
                         ui.separator();
                         ui.label(format!("ICE: {}", self.p.pc2_ice.lock().unwrap()));
-                        ui.label("gkit PeerConnection API drive");
                     });
                 });
             });
             ctx.request_repaint();
         }}
-        Ok(Box::new(App { p: pipeline, gt: None }))
+        Ok(Box::new(App { p: pipeline, gt: None, rt: None }))
     }))
 }
