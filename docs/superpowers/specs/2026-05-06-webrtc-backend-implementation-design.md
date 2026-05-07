@@ -402,30 +402,65 @@ Error states:
 
 ## 10. Phase Summary
 
-| Phase | Description | Priority | Dependencies |
-|-------|-------------|----------|-------------|
-| **P0** | VideoSource/Sink/Generator/Audio | P0 | None (std-only) |
-| 1 | webrtc-rs backend (default) | P1 | P0 (traits) |
-| 2 | google_lk backend activation | P2 | P1 |
-| 3 | C++ wrappers — PeerConnection, DataChannel RAII | P1 | P1 |
-| 4 | Callback system — backend → C FFI forwarding | P1 | P1 |
+| Phase | Description | Priority | Status |
+|-------|-------------|----------|--------|
+| **P0** | VideoSource/Sink/Generator/Audio | P0 | ✅ done |
+| 1 | webrtc-rs backend (default) | P1 | ✅ real impl behind feature gate |
+| 2 | google_lk backend activation | P2 | ⏳ blocked (build_sys注释) |
+| 3 | C++ wrappers — PeerConnection, DataChannel RAII | P1 | ⏳ |
+| 4 | Callback system — ICE/track/state | P1 | ✅ done |
+
+### Completed (since 2026-05-06)
+
+#### Architecture
+- `webrtc/` → `protocols/rtc/` module restructure
+- `video/source_sink.rs` — VideoSource/Sink/Voice traits, Broadcaster, VideoAdapter
+- `capture/generator.rs` — VideoFrameGenerator + SquarePattern + 6×10 OpenCTK font timestamp
+- `cmake/GKitCargoExample.cmake` — reusable Rust example CMake macro
+
+#### P1: webrtc-rs backend
+- Real `NativePeerConnection`/`NativeDataChannel` wrapping webrtc-rs 0.17 behind feature gate
+- Async→sync bridging via `tokio::runtime::Runtime::block_on()`
+- SDP offer/answer, ICE candidate exchange, state enums mapped to core traits
+- `NativeFactory::sync_mode` flag for C FFI compatibility
+- Stub compatibility maintained (empty SDP fallback)
+
+#### P4: Callback system
+- `set_on_ice_candidate(IceCandidate)` — ICE candidate collection
+- `set_on_ice_connection_state_change(IceConnectionState)` — state transitions
+- `gather_complete()` — non-trickle ICE wait
+- All callbacks `&self` (not `&mut self`) for concurrent access
+
+#### W3C VideoTrack (P1 extension, spec: 2026-05-07-p2p-video-pipeline-design.md)
+- `VideoTrack` trait replacing old struct
+- `create_video_track(source)` + `set_on_track(callback)` W3C API
+- OpenH264 codec integration planned (openh264 0.6)
+
+#### Examples
+- `gkit-media-square-gen` — Rust egui generator demo (640×480 30fps)
+- `gkit-media-webrtc-loopback` — Rust egui P2P loopback (640×360 15fps, gkit API)
+- `gkit_media_cpp_example_square_gen` — C++ ImGui generator demo
+- `gkit_media_cpp_example_rtc_loopback` — C++ ImGui P2P loopback (1280×720 30fps)
+
+#### Tests (53 total)
+- 21 WebRTC core tests + 17 source/sink tests + 15 new W3C tests (track/ICE/P2P)
+- 8 C/C++ CTest (Unity + GTest)
+- All pass with both stub and `--features backend-native-webrtc-rs`
+
+#### Dependencies
+- webrtc-rs 0.17.1 (upgraded from 0.11)
+- tokio 1 (rt, sync, macros, time)
+- bytes 1 (behind feature gate)
+- openh264 0.6 (planned for VideoTrack)
+
+> **Next**: P2P video pipeline implementation — see [2026-05-07-p2p-video-pipeline-design.md](2026-05-07-p2p-video-pipeline-design.md)
 
 ---
 
-## 11. P2P Loopback Demo (W3C WebRTC API)
+## 11. P2P Loopback Demo (W3C WebRTC API) — superseded
 
-### 11.1 Requirements
-
-- Two `RTCPeerConnection` instances, connected via real SDP offer/answer + ICE candidate exchange
-- **No simulation** — real `webrtc-rs` APIs for media negotiation
-- PC1 (sender): `VideoFrameGenerator` → I420 → `TrackLocalStaticSample::write_sample()` → RTP
-- PC2 (receiver): `on_track()` → read RTP packets → decode → RGBA
-- egui displays side-by-side: PC1 generated frame (left) | PC2 received frame (right)
-- 1280×720 30fps (or lower for real RTP pipeline)
-
-### 11.2 Architecture
-
-```
+See [2026-05-07-p2p-video-pipeline-design.md](2026-05-07-p2p-video-pipeline-design.md) for the current design.
+The example now uses gkit-media API (not raw webrtc-rs), with VideoTrack trait + H.264 codec.
 tokio runtime (background thread)
 ├── PC1 (sender)
 │   ├── create_offer() → set_local_description(offer)
