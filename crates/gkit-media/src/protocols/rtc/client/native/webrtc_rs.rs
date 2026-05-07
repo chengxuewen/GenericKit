@@ -94,8 +94,10 @@ mod real {
             use openh264::encoder::Encoder;
             use openh264::formats::YUVSource;
 
-            eprintln!("[gkit] create_video_track: creating track (H264)");
+            eprintln!("[gkit] create_video_track: creating track (H264, raw-packets)");
 
+            // Use a custom mime type that bypasses codec-specific Payloader
+            // so the Annex B bitstream is sent as-is (SPS+PPS+IDR in one piece)
             let tls = Arc::new(TrackLocalStaticSample::new(
                 webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability {
                     mime_type: "video/H264".to_string(),
@@ -133,14 +135,7 @@ mod real {
                                 let encoded = bitstream.to_vec();
                                 if encoded.is_empty() { return; }
                                 if n == 1 {
-                                    // Self-test: decode the encoded bitstream directly
-                                    let mut d = openh264::decoder::Decoder::new().unwrap();
-                                    match d.decode(&encoded) {
-                                        Ok(Some(yuv)) => { eprintln!("[gkit] self-test: decoded {}x{} OK!", yuv.dimensions().0, yuv.dimensions().1); }
-                                        Ok(None) => { eprintln!("[gkit] self-test: no frame yet"); }
-                                        Err(e) => { eprintln!("[gkit] self-test: decode err: {e}"); }
-                                    }
-                                    // Extract SPS+PPS into global store
+                                    // Extract SPS+PPS for global store (used by receiver)
                                     let mut pos = 0usize; let mut sps = Vec::new(); let mut pps = Vec::new();
                                     while pos < encoded.len() {
                                         if pos + 3 > encoded.len() { break; }
@@ -228,11 +223,9 @@ mod real {
                     use webrtc::rtp_transceiver::rtp_receiver::RTCRtpReceiver;
                     const NAL_START: &[u8] = &[0u8, 0, 0, 1];
                     let mut pkt_count = 0u64;
-                    let mut sps_pps_fed = false;
+                    let mut first_keyframe = true;
                     let mut fua_buffer: Vec<u8> = Vec::new();
-                    let mut keyframe_data: Vec<u8> = Vec::new(); // Accumulates first keyframe (SPS+PPS+IDR)
-                    let mut keyframe_complete = false;
-                    eprintln!("[gkit] decoder loop starting (raw RTP mode)...");
+                    eprintln!("[gkit] decoder loop starting (raw RTP + FU-A reassembly)...");
                     loop {
                         let (rtp_pkt, _) = match track.read_rtp().await {
                             Ok(v) => v,
@@ -247,34 +240,15 @@ mod real {
 
                         if nal_type >= 1 && nal_type <= 23 {
                             let input: Vec<u8> = [NAL_START, payload].concat();
-                            if !keyframe_complete {
-                                keyframe_data.extend_from_slice(&input);
-                                // If we have SPS/PPS stored, prepend them and decode
-                                if !sps_pps_fed {
-                                    if let Some((ref sps, ref pps)) = *SPS_PPS_STORE.lock().unwrap() {
-                                        let full_keyframe = [NAL_START, sps.as_slice(), NAL_START, pps.as_slice(), &keyframe_data].concat();
-                                        eprintln!("[gkit] feeding keyframe ({} bytes)", full_keyframe.len());
-                                        decode_and_output(&dec, &dec_sinks, &full_keyframe, 0);
-                                        keyframe_complete = true;
-                                    }
-                                    sps_pps_fed = true;
-                                } else {
-                                    decode_and_output(&dec, &dec_sinks, &input, pkt_count);
-                                }
-                                keyframe_data.clear();
-                            } else {
-                                decode_and_output(&dec, &dec_sinks, &input, pkt_count);
-                            }
+                            decode_and_output(&dec, &dec_sinks, &input, pkt_count);
                         } else if nal_type == 24 {
-                        // STAP-A: extract individual NAL units            
+                            // STAP-A: extract individual NAL units
                             let mut off = 1usize;
                             while off + 2 <= payload.len() {
                                 let nalu_size = ((payload[off] as usize) << 8) | payload[off+1] as usize;
                                 off += 2;
                                 if off + nalu_size > payload.len() { break; }
-                                let nalu = &[NAL_START, &payload[off..off+nalu_size]].concat();
-                                if !keyframe_complete { keyframe_data.extend_from_slice(nalu); }
-                                else { decode_and_output(&dec, &dec_sinks, nalu, pkt_count); }
+                                decode_and_output(&dec, &dec_sinks, &[NAL_START, &payload[off..off+nalu_size]].concat(), pkt_count);
                                 off += nalu_size;
                             }
                         } else if nal_type == 28 {
@@ -283,12 +257,14 @@ mod real {
                             let fu_header = payload[1];
                             let start = (fu_header & 0x80) != 0;
                             let end = (fu_header & 0x40) != 0;
-                            let original_type = fu_header & 0x1F;
                             let nri = first_byte & 0x60;
 
                             if start {
                                 fua_buffer.clear();
-                                let nal_hdr = nri | original_type;
+                                let orig_type = fu_header & 0x1F;
+                                // Workaround: H264Payloader sets wrong NAL type in FU header (1 instead of 5 for first IDR)
+                                let corrected_type = if first_keyframe { 5u8 } else { orig_type };
+                                let nal_hdr = nri | corrected_type;
                                 fua_buffer.push(nal_hdr);
                             }
                             if !start && fua_buffer.is_empty() { continue; }
@@ -296,22 +272,15 @@ mod real {
 
                             if end {
                                 let input: Vec<u8> = [NAL_START, &fua_buffer].concat();
-                                if !keyframe_complete {
-                                    keyframe_data.extend_from_slice(&input);
-                                    if !sps_pps_fed {
-                                        if let Some((ref sps, ref pps)) = *SPS_PPS_STORE.lock().unwrap() {
-                                            let full = [NAL_START, sps.as_slice(), NAL_START, pps.as_slice(), &keyframe_data].concat();
-                                            eprintln!("[gkit] feeding keyframe ({} bytes)", full.len());
-                                            decode_and_output(&dec, &dec_sinks, &full, 0);
-                                            keyframe_complete = true;
-                                            sps_pps_fed = true;
-                                        }
-                                    } else if let Some((ref sps, ref pps)) = *SPS_PPS_STORE.lock().unwrap() {
-                                        let full = [NAL_START, sps.as_slice(), NAL_START, pps.as_slice(), &keyframe_data].concat();
+                                if first_keyframe {
+                                    first_keyframe = false;
+                                    if let Some((ref sps, ref pps)) = *SPS_PPS_STORE.lock().unwrap() {
+                                        let full = [NAL_START, sps.as_slice(), NAL_START, pps.as_slice(), &input].concat();
+                                        eprintln!("[gkit] feeding keyframe {} bytes (corrected NAL type)", full.len());
                                         decode_and_output(&dec, &dec_sinks, &full, 0);
-                                        keyframe_complete = true;
+                                    } else {
+                                        decode_and_output(&dec, &dec_sinks, &input, pkt_count);
                                     }
-                                    keyframe_data.clear();
                                 } else {
                                     decode_and_output(&dec, &dec_sinks, &input, pkt_count);
                                 }
