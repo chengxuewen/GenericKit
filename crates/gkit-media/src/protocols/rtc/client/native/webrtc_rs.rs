@@ -33,6 +33,7 @@ mod stub {
         fn local_description(&self) -> MediaResult<SessionDescription> { Err(MediaError::new("stub")) }
         fn remote_description(&self) -> MediaResult<SessionDescription> { Err(MediaError::new("stub")) }
         fn close(&mut self) -> MediaResult<()> { self.closed = true; Ok(()) }
+        fn add_track(&self, _t: std::sync::Arc<crate::protocols::rtc::client::core::VideoTrack>) -> MediaResult<()> { Ok(()) }
     }
 
     impl DataChannel for NativeDataChannel {
