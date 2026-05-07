@@ -43,7 +43,9 @@ mod real {
     impl NativePeerConnection {
         pub fn new() -> MediaResult<Self> {
             rt().block_on(async {
-                let api = APIBuilder::new().build();
+                let mut m = webrtc::api::media_engine::MediaEngine::default();
+                m.register_default_codecs().map_err(|e| MediaError::new(format!("register codecs: {e}")))?;
+                let api = APIBuilder::new().with_media_engine(m).build();
                 let pc = api.new_peer_connection(WrtcConfig {
                     ice_servers: vec![webrtc::ice_transport::ice_server::RTCIceServer {
                         urls: vec!["stun:stun.l.google.com:19302".to_string()],
@@ -60,11 +62,19 @@ mod real {
         }
     }
 
+    fn make_sd(desc: &SessionDescription) -> MediaResult<RTCSessionDescription> {
+        if desc.sdp_type == "answer" {
+            RTCSessionDescription::answer(desc.sdp.clone()).map_err(|e| MediaError::new(format!("{e}")))
+        } else {
+            RTCSessionDescription::offer(desc.sdp.clone()).map_err(|e| MediaError::new(format!("{e}")))
+        }
+    }
+
     impl PeerConnection for NativePeerConnection {
         fn create_offer(&self) -> MediaResult<SessionDescription> { self.check_closed()?; rt().block_on(async { let o = self.pc.create_offer(None).await.map_err(|e| MediaError::new(format!("{e}")))?; Ok(SessionDescription { sdp_type: "offer".into(), sdp: o.sdp }) }) }
         fn create_answer(&self) -> MediaResult<SessionDescription> { self.check_closed()?; rt().block_on(async { match self.pc.create_answer(None).await { Ok(a) => Ok(SessionDescription { sdp_type: "answer".into(), sdp: a.sdp }), Err(_) => Ok(SessionDescription { sdp_type: "answer".into(), sdp: String::new() }) } }) }
-        fn set_local_description(&mut self, desc: &SessionDescription) -> MediaResult<()> { self.check_closed()?; if desc.sdp.is_empty() { return Ok(()); } rt().block_on(async { let sd = RTCSessionDescription::offer(desc.sdp.clone()).map_err(|e| MediaError::new(format!("{e}")))?; self.pc.set_local_description(sd).await.map_err(|e| MediaError::new(format!("{e}"))) }) }
-        fn set_remote_description(&mut self, desc: &SessionDescription) -> MediaResult<()> { self.check_closed()?; if desc.sdp.is_empty() { return Ok(()); } rt().block_on(async { let sd = RTCSessionDescription::offer(desc.sdp.clone()).map_err(|e| MediaError::new(format!("{e}")))?; self.pc.set_remote_description(sd).await.map_err(|e| MediaError::new(format!("{e}"))) }) }
+        fn set_local_description(&mut self, desc: &SessionDescription) -> MediaResult<()> { self.check_closed()?; if desc.sdp.is_empty() { return Ok(()); } rt().block_on(async { let sd = make_sd(desc)?; self.pc.set_local_description(sd).await.map_err(|e| MediaError::new(format!("{e}"))) }) }
+        fn set_remote_description(&mut self, desc: &SessionDescription) -> MediaResult<()> { self.check_closed()?; if desc.sdp.is_empty() { return Ok(()); } rt().block_on(async { let sd = make_sd(desc)?; self.pc.set_remote_description(sd).await.map_err(|e| MediaError::new(format!("{e}"))) }) }
         fn add_ice_candidate(&mut self, candidate: &str, sdp_mid: &str) -> MediaResult<()> { self.check_closed()?; if candidate.is_empty() { return Ok(()); } rt().block_on(async { self.pc.add_ice_candidate(RTCIceCandidateInit { candidate: candidate.to_string(), sdp_mid: Some(sdp_mid.to_string()), sdp_mline_index: Some(0), username_fragment: None }).await.or_else(|_| Ok(())) }) }
         fn create_data_channel(&self, label: &str) -> MediaResult<Box<dyn DataChannel>> { self.check_closed()?; rt().block_on(async { let dc = self.pc.create_data_channel(label, None).await.map_err(|e| MediaError::new(format!("{e}")))?; Ok(Box::new(NativeDataChannel { dc }) as Box<dyn DataChannel>) }) }
         fn ice_connection_state(&self) -> IceConnectionState { use webrtc::ice_transport::ice_connection_state::RTCIceConnectionState as W; match self.pc.ice_connection_state() { W::New => IceConnectionState::New, W::Checking => IceConnectionState::Checking, W::Connected => IceConnectionState::Connected, W::Completed => IceConnectionState::Completed, W::Failed => IceConnectionState::Failed, W::Disconnected => IceConnectionState::Disconnected, W::Closed => IceConnectionState::Closed, _ => IceConnectionState::New } }
@@ -80,49 +90,36 @@ mod real {
             use crate::video::source_sink::VideoSinkWants;
             use std::sync::Mutex as StdMutex;
 
-            eprintln!("[gkit] create_video_track: creating H.264 encoder + TLS");
+            eprintln!("[gkit] create_video_track: creating track (VP8)");
 
             let tls = Arc::new(TrackLocalStaticSample::new(
-                webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability { mime_type: webrtc::api::media_engine::MIME_TYPE_H264.to_string(), ..Default::default() },
+                webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability { mime_type: webrtc::api::media_engine::MIME_TYPE_VP8.to_string(), ..Default::default() },
                 "video0".into(), "gkit".into(),
             ));
 
-            let encoder = Arc::new(StdMutex::new(openh264::encoder::Encoder::new().map_err(|e| MediaError::new(format!("openh264 encoder: {e}")))?));
-
-            let tls_w = tls.clone(); let enc_w = encoder.clone();
+            let tls_w = tls.clone();
             let frame_count = Arc::new(std::sync::atomic::AtomicU64::new(0)); let fc = frame_count.clone();
-            source.add_or_update_sink(Box::new(EncoderSink { tls: tls_w, encoder: enc_w, count: fc }), VideoSinkWants { is_active: true, ..Default::default() });
+            source.add_or_update_sink(Box::new(EncoderSink { tls: tls_w, count: fc }), VideoSinkWants { is_active: true, ..Default::default() });
 
-            eprintln!("[gkit] create_video_track: EncoderSink registered, adding track to PC");
-
-            struct EncoderSink { tls: Arc<webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample>, encoder: Arc<StdMutex<openh264::encoder::Encoder>>, count: Arc<std::sync::atomic::AtomicU64> }
+            struct EncoderSink { tls: Arc<webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample>, count: Arc<std::sync::atomic::AtomicU64> }
             impl crate::video::source_sink::VideoSink<crate::video::frame::BoxVideoFrame> for EncoderSink {
                 fn on_frame(&self, frame: &crate::video::frame::BoxVideoFrame) {
                     let n = self.count.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
-                    if n % 30 == 1 { eprintln!("[gkit] EncoderSink frame #{}", n); }
+                    if n % 30 == 1 { eprintln!("[gkit] Sink frame #{}", n); }
                     if let Ok(i420) = frame.buffer.to_i420() {
-                        let src = I420Wrap(i420);
-                        let nal_data = { let mut enc = self.encoder.lock().unwrap(); enc.encode(&src).ok().map(|bs| bs.to_vec()) };
-                        if let Some(data) = nal_data {
-                            let _ = rt().block_on(self.tls.write_sample(&webrtc::media::Sample { data: bytes::Bytes::from(data), duration: std::time::Duration::from_micros(66_666), timestamp: std::time::SystemTime::now(), ..Default::default() }));
-                        }
+                        let raw: Vec<u8> = i420.data_y.iter().chain(&i420.data_u).chain(&i420.data_v).copied().collect();
+                        let _ = rt().block_on(self.tls.write_sample(&webrtc::media::Sample { data: bytes::Bytes::from(raw), duration: std::time::Duration::from_micros(66_666), timestamp: std::time::SystemTime::now(), ..Default::default() }));
                     }
                 }
             }
-            struct I420Wrap(crate::video::buffer::I420Buffer);
-            impl openh264::formats::YUVSource for I420Wrap {
-                fn dimensions(&self) -> (usize, usize) { (self.0.width as usize, self.0.height as usize) }
-                fn strides(&self) -> (usize, usize, usize) { (self.0.stride_y as usize, self.0.stride_u as usize, self.0.stride_v as usize) }
-                fn y(&self) -> &[u8] { &self.0.data_y } fn u(&self) -> &[u8] { &self.0.data_u } fn v(&self) -> &[u8] { &self.0.data_v }
-            }
-            struct WrtcVideoTrack { id: String, sinks: std::sync::Mutex<Vec<Box<dyn crate::video::source_sink::VideoSink<crate::video::frame::BoxVideoFrame>>>>, _source: StdMutex<Option<Box<dyn crate::video::source_sink::VideoSource<crate::video::frame::BoxVideoFrame>>>>, _tls: Option<Arc<webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample>>, _encoder: Option<Arc<StdMutex<openh264::encoder::Encoder>>> }
+            struct WrtcVideoTrack { id: String, sinks: std::sync::Mutex<Vec<Box<dyn crate::video::source_sink::VideoSink<crate::video::frame::BoxVideoFrame>>>>, _source: StdMutex<Option<Box<dyn crate::video::source_sink::VideoSource<crate::video::frame::BoxVideoFrame>>>>, _tls: Option<Arc<webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample>> }
             impl VideoTrack for WrtcVideoTrack {
                 fn id(&self) -> &str { &self.id } fn kind(&self) -> &str { "video" }
                 fn add_sink(&self, sink: Box<dyn crate::video::source_sink::VideoSink<crate::video::frame::BoxVideoFrame>>) { self.sinks.lock().unwrap().push(sink); }
             }
             let pc = self.pc.clone(); let tls_for_add = tls.clone();
             rt().block_on(async move { pc.add_track(tls_for_add).await.map(|_| ()).map_err(|e| MediaError::new(format!("{e}"))) })?;
-            Ok(Box::new(WrtcVideoTrack { id: "video0".into(), sinks: std::sync::Mutex::new(Vec::new()), _source: StdMutex::new(Some(source)), _tls: Some(tls), _encoder: Some(encoder) }))
+            Ok(Box::new(WrtcVideoTrack { id: "video0".into(), sinks: std::sync::Mutex::new(Vec::new()), _source: StdMutex::new(Some(source)), _tls: Some(tls) }))
         }
 
         fn set_on_track(&self, cb: Box<dyn Fn(Box<dyn VideoTrack>) + Send>) {
