@@ -42,13 +42,21 @@ mod real {
 
     impl NativePeerConnection {
         pub fn new() -> MediaResult<Self> {
+            Self::with_setting_engine(None)
+        }
+        pub fn with_setting_engine(se: Option<webrtc::api::setting_engine::SettingEngine>) -> MediaResult<Self> {
             rt().block_on(async {
                 let mut m = webrtc::api::media_engine::MediaEngine::default();
                 m.register_default_codecs().map_err(|e| MediaError::new(format!("register codecs: {e}")))?;
-                let api = APIBuilder::new().with_media_engine(m).build();
+                let mut builder = APIBuilder::new().with_media_engine(m);
+                if let Some(se) = se { builder = builder.with_setting_engine(se); }
+                let api = builder.build();
                 let pc = api.new_peer_connection(WrtcConfig {
                     ice_servers: vec![webrtc::ice_transport::ice_server::RTCIceServer {
-                        urls: vec!["stun:stun.l.google.com:19302".to_string()],
+                        urls: vec![
+                            "stun:stun.l.google.com:19302".to_string(),
+                            "stun:stun.qq.com:3478".to_string(),
+                        ],
                         ..Default::default()
                     }],
                     ..Default::default()

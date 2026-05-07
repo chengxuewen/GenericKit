@@ -5,14 +5,13 @@
   ],
   "mcp": {
     "mem0": {
+      "type": "local",
+      "enabled": true,
       "command": "npx",
-      "args": ["-y", "@mem0/mcp"],
+      "args": ["-y", "mem0ai/mem0"],
       "env": {
-        "MEM0_DIR": ".agents/GenericKit-Agent-Memory"
+        "MEMORY_DB_PATH": ".agents/GenericKit-Agent-Memory/memory.sqlite"
       }
     }
-  },
-  "mem0": {
-    "storage_dir": ".agents/GenericKit-Agent-Memory"
   }
 }
