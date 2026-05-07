@@ -1,31 +1,28 @@
 // gkit-media WebRTC P2P Loopback Demo (egui) — real SDP + ICE exchange
-// Usage: cargo run -p gkit-media --example gkit-media-webrtc-loopback
+// Uses: cargo run -p gkit-media --example gkit-media-webrtc-loopback
 //
 // Two RTCPeerConnections connected via real SDP offer/answer + ICE exchange:
 //   PC1 (sender): VideoFrameGenerator → I420 → write_sample(video track)
-//   PC2 (receiver): on_track() → read RTP → count frames
+//   PC2 (receiver): on_track() → count received frames
 // egui shows side-by-side: PC1 generated frame (left) | PC2 received frame (right)
-//
-// References: W3C WebRTC 1.0 API, webrtc-rs 0.11
 
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use eframe::egui;
 use gkit_media::capture::generator::VideoFrameGenerator;
-use gkit_media::video::buffer::{VideoBuffer, VideoFormatType};
+use gkit_media::video::buffer::VideoFormatType;
 use gkit_media::video::convert::i420_to_argb;
 use gkit_media::video::source_sink::{VideoSink, VideoSinkWants, VideoSource};
 use tokio::runtime::Runtime;
 use webrtc::api::APIBuilder;
 use webrtc::ice_transport::ice_candidate::{RTCIceCandidate, RTCIceCandidateInit};
-use webrtc::peer_connection::RTCPeerConnection;
+use webrtc::peer_connection::configuration::RTCConfiguration;
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
-use webrtc::track::track_local::TrackLocal;
 
 const W: u32 = 640;
 const H: u32 = 360;
-const FPS: u32 = 15; // lower FPS avoids overwhelming the RTP pipeline
+const FPS: u32 = 15;
 
 struct Pipeline {
     sender_frame: Mutex<Option<Vec<u8>>>,
@@ -45,30 +42,26 @@ fn main() -> Result<(), eframe::Error> {
     });
 
     let p = pipeline.clone();
-
-    // Spawn WebRTC setup + frame generation on a background thread
     std::thread::spawn(move || {
         let rt = Runtime::new().unwrap();
         rt.block_on(async move {
-            // --- API ---
             let api = APIBuilder::new().build();
 
-            // --- PC1 (sender) ---
-            let pc1 = RTCPeerConnection::new(Default::default()).await.unwrap();
-            let pc2 = RTCPeerConnection::new(Default::default()).await.unwrap();
+            let pc1 = api.new_peer_connection(RTCConfiguration::default()).await.unwrap();
+            let pc2 = api.new_peer_connection(RTCConfiguration::default()).await.unwrap();
 
-            // --- ICE candidate channels ---
-            let (tx1, mut rx1) = tokio::sync::mpsc::unbounded_channel::<String>();
-            let (tx2, mut rx2) = tokio::sync::mpsc::unbounded_channel::<String>();
+            let (tx1, mut rx1) = tokio::sync::mpsc::unbounded_channel::<RTCIceCandidateInit>();
+            let (tx2, mut rx2) = tokio::sync::mpsc::unbounded_channel::<RTCIceCandidateInit>();
 
             pc1.on_ice_candidate(Box::new(move |c: Option<RTCIceCandidate>| {
-                if let Some(ref c) = c { let _ = tx1.send(c.to_json().unwrap().candidate); }
+                let tx = tx1.clone();
+                Box::pin(async move { if let Some(c) = c { let _ = tx.send(c.to_json().unwrap()); } })
             }));
             pc2.on_ice_candidate(Box::new(move |c: Option<RTCIceCandidate>| {
-                if let Some(ref c) = c { let _ = tx2.send(c.to_json().unwrap().candidate); }
+                let tx = tx2.clone();
+                Box::pin(async move { if let Some(c) = c { let _ = tx.send(c.to_json().unwrap()); } })
             }));
 
-            // --- Video track on PC1 ---
             let video_track = Arc::new(TrackLocalStaticSample::new(
                 webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability {
                     mime_type: webrtc::api::media_engine::MIME_TYPE_VP8.to_string(),
@@ -79,41 +72,28 @@ fn main() -> Result<(), eframe::Error> {
             ));
             pc1.add_track(video_track.clone()).await.unwrap();
 
-            // --- on_track on PC2 ---
             let recv_p = p.clone();
             pc2.on_track(Box::new(move |_track, _receiver, _transceiver| {
                 *recv_p.receiver_count.lock().unwrap() += 1;
-                Box::new(async {})
+                Box::pin(async {})
             }));
 
-            // --- SDP exchange ---
-            let offer = pc1.create_offer().await.unwrap();
+            let offer = pc1.create_offer(None).await.unwrap();
             pc1.set_local_description(offer.clone()).await.unwrap();
             pc2.set_remote_description(offer).await.unwrap();
 
-            let answer = pc2.create_answer().await.unwrap();
+            let answer = pc2.create_answer(None).await.unwrap();
             pc2.set_local_description(answer.clone()).await.unwrap();
             pc1.set_remote_description(answer).await.unwrap();
 
-            // Exchange gathered ICE candidates
-            while let Ok(c) = rx2.try_recv() {
-                pc1.add_ice_candidate(RTCIceCandidateInit {
-                    candidate: c, sdp_mid: Some("0".into()), sdp_mline_index: Some(0), username_fragment: None,
-                }).await.ok();
-            }
-            while let Ok(c) = rx1.try_recv() {
-                pc2.add_ice_candidate(RTCIceCandidateInit {
-                    candidate: c, sdp_mid: Some("0".into()), sdp_mline_index: Some(0), username_fragment: None,
-                }).await.ok();
-            }
+            while let Ok(c) = rx2.try_recv() { pc1.add_ice_candidate(c).await.ok(); }
+            while let Ok(c) = rx1.try_recv() { pc2.add_ice_candidate(c).await.ok(); }
 
             *p.status.lock().unwrap() = format!("P2P connected — {}x{} {}fps", W, H, FPS);
 
-            // --- VideoFrameGenerator feeds PC1's video track ---
-            let mut gen = VideoFrameGenerator::new(W, H, FPS);
+            let mut g = VideoFrameGenerator::new(W, H, FPS);
             let sender_p = p.clone();
-
-            struct Sink { s: Arc<Pipeline>, track: Arc<TrackLocalStaticSample>, rt: Runtime }
+            struct Sink { s: Arc<Pipeline>, track: Arc<TrackLocalStaticSample> }
             impl VideoSink<gkit_media::video::frame::BoxVideoFrame> for Sink {
                 fn on_frame(&self, frame: &gkit_media::video::frame::BoxVideoFrame) {
                     if let Ok(i420) = frame.buffer.to_i420() {
@@ -121,10 +101,9 @@ fn main() -> Result<(), eframe::Error> {
                         i420_to_argb(&i420, &mut rgba, W * 4, VideoFormatType::RGBA);
                         *self.s.sender_frame.lock().unwrap() = Some(rgba);
                         *self.s.sender_count.lock().unwrap() += 1;
-
-                        let raw: Vec<u8> = i420.data_y.iter()
-                            .chain(&i420.data_u).chain(&i420.data_v).copied().collect();
-                        let _ = self.rt.block_on(self.track.write_sample(&webrtc::media::Sample {
+                        let raw: Vec<u8> = i420.data_y.iter().chain(&i420.data_u).chain(&i420.data_v).copied().collect();
+                        let rt = Runtime::new().unwrap();
+                        let _ = rt.block_on(self.track.write_sample(&webrtc::media::Sample {
                             data: bytes::Bytes::from(raw),
                             duration: Duration::from_micros(66_666),
                             ..Default::default()
@@ -132,16 +111,13 @@ fn main() -> Result<(), eframe::Error> {
                     }
                 }
             }
-            gen.add_or_update_sink(Box::new(Sink { s: sender_p, track: video_track, rt: Runtime::new().unwrap() }),
+            g.add_or_update_sink(Box::new(Sink { s: sender_p, track: video_track }),
                 VideoSinkWants { is_active: true, ..Default::default() });
-            gen.start();
-
-            // Keep WebRTC session alive
+            g.start();
             loop { std::thread::sleep(Duration::from_secs(3600)); }
         });
     });
 
-    // --- egui UI ---
     eframe::run_native(
         "gkit-media WebRTC P2P Loopback",
         eframe::NativeOptions {
@@ -152,9 +128,7 @@ fn main() -> Result<(), eframe::Error> {
             struct App { p: Arc<Pipeline>, gen_tex: Option<egui::TextureHandle>, recv_tex: Option<egui::TextureHandle> }
             impl eframe::App for App {
                 fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-                    egui::TopBottomPanel::top("bar").show(ctx, |ui| {
-                        ui.label(self.p.status.lock().unwrap().clone());
-                    });
+                    egui::TopBottomPanel::top("bar").show(ctx, |ui| { ui.label(self.p.status.lock().unwrap().clone()); });
                     egui::CentralPanel::default().show(ctx, |ui| {
                         let sc = *self.p.sender_count.lock().unwrap();
                         let rc = *self.p.receiver_count.lock().unwrap();
@@ -163,7 +137,7 @@ fn main() -> Result<(), eframe::Error> {
                                 ui.heading(format!("PC1 Sender ({})", sc));
                                 if let Some(ref rgba) = *self.p.sender_frame.lock().unwrap() {
                                     let img = egui::ColorImage::from_rgba_unmultiplied([W as usize, H as usize], rgba);
-                                    self.gen_tex = Some(ctx.load_texture("sender", img, egui::TextureOptions::LINEAR));
+                                    self.gen_tex = Some(ctx.load_texture("s", img, egui::TextureOptions::LINEAR));
                                 }
                                 if let Some(ref t) = self.gen_tex {
                                     let s = (ui.available_width() / W as f32).min(1.0);
@@ -174,7 +148,7 @@ fn main() -> Result<(), eframe::Error> {
                                 ui.heading(format!("PC2 Receiver ({})", rc));
                                 if let Some(ref rgba) = *self.p.receiver_frame.lock().unwrap() {
                                     let img = egui::ColorImage::from_rgba_unmultiplied([W as usize, H as usize], rgba);
-                                    self.recv_tex = Some(ctx.load_texture("receiver", img, egui::TextureOptions::LINEAR));
+                                    self.recv_tex = Some(ctx.load_texture("r", img, egui::TextureOptions::LINEAR));
                                 }
                                 if let Some(ref t) = self.recv_tex {
                                     let s = (ui.available_width() / W as f32).min(1.0);

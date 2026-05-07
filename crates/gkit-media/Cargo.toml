@@ -36,3 +36,4 @@ egui = "0.30"
 image = { version = "0.25", default-features = false, features = ["bmp"] }
 webrtc = "0.11"
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "macros", "time"] }
+bytes = "1"
