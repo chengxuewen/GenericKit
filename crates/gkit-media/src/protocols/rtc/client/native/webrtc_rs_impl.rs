@@ -255,17 +255,36 @@ impl PeerConnection for NativePeerConnection {
     }
 
     fn set_on_track(&self, cb: Box<dyn Fn(Box<dyn VideoTrack>) + Send>) {
+        use crate::video::buffer::I420Buffer;
+        use openh264::formats::YUVSource;
         let cb = Arc::new(std::sync::Mutex::new(Some(cb)));
         self.pc.on_track(Box::new(move |track, _receiver, _transceiver| {
-            if let Ok(lock) = cb.lock() { if let Some(ref f) = *lock {
-                struct RmtTrack { id: String }
-                impl VideoTrack for RmtTrack {
-                    fn id(&self) -> &str { &self.id }
-                    fn kind(&self) -> &str { "video" }
-                    fn add_sink(&self, _sink: Box<dyn crate::video::source_sink::VideoSink<crate::video::frame::BoxVideoFrame>>) {}
+            let decoder = Arc::new(std::sync::Mutex::new(
+                openh264::decoder::Decoder::new().unwrap()));
+            let sinks: Arc<std::sync::Mutex<Vec<Box<dyn crate::video::source_sink::VideoSink<crate::video::frame::BoxVideoFrame>>>>> = Arc::new(std::sync::Mutex::new(Vec::new()));
+            let track_id = track.id().to_string();
+
+            let rmt_sinks = sinks.clone();
+            let gkit_track: Box<dyn VideoTrack> = Box::new(RmtVideoTrack { id: track_id, sinks: rmt_sinks });
+            if let Ok(lock) = cb.lock() { if let Some(ref f) = *lock { f(gkit_track); } }
+
+            let dec = decoder.clone();
+            let dec_sinks = sinks.clone();
+            tokio::spawn(async move {
+                while let Ok((pkt, _)) = track.read_rtp().await {
+                    let mut d = dec.lock().unwrap();
+                    if let Ok(Some(yuv)) = d.decode(&pkt.payload) {
+                        let w = yuv.dimensions().0 as u32;
+                        let h = yuv.dimensions().1 as u32;
+                        let mut i420 = I420Buffer::new(w, h);
+                        i420.data_y.copy_from_slice(yuv.y());
+                        i420.data_u.copy_from_slice(yuv.u());
+                        i420.data_v.copy_from_slice(yuv.v());
+                        let frame = crate::video::frame::BoxVideoFrame::new(Box::new(i420));
+                        for sink in dec_sinks.lock().unwrap().iter() { sink.on_frame(&frame); }
+                    }
                 }
-                f(Box::new(RmtTrack { id: track.id().to_string() }));
-            }}
+            });
             Box::pin(async {})
         }));
     }
@@ -337,6 +356,18 @@ impl PeerConnectionFactory for NativeFactory {
     type PC = NativePeerConnection;
     fn create_peer_connection(&self) -> MediaResult<Self::PC> { NativePeerConnection::new() }
     fn create_peer_connection_with_config(&self, _c: &RtcConfiguration) -> MediaResult<Self::PC> { NativePeerConnection::new() }
+}
+
+struct RmtVideoTrack {
+    id: String,
+    sinks: Arc<std::sync::Mutex<Vec<Box<dyn crate::video::source_sink::VideoSink<crate::video::frame::BoxVideoFrame>>>>>,
+}
+impl VideoTrack for RmtVideoTrack {
+    fn id(&self) -> &str { &self.id }
+    fn kind(&self) -> &str { "video" }
+    fn add_sink(&self, sink: Box<dyn crate::video::source_sink::VideoSink<crate::video::frame::BoxVideoFrame>>) {
+        self.sinks.lock().unwrap().push(sink);
+    }
 }
 
 #[cfg(feature = "backend-native-webrtc-rs")]
