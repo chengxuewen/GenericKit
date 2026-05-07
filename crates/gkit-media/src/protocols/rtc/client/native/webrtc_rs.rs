@@ -51,16 +51,7 @@ mod real {
                 let mut builder = APIBuilder::new().with_media_engine(m);
                 if let Some(se) = se { builder = builder.with_setting_engine(se); }
                 let api = builder.build();
-                let pc = api.new_peer_connection(WrtcConfig {
-                    ice_servers: vec![webrtc::ice_transport::ice_server::RTCIceServer {
-                        urls: vec![
-                            "stun:stun.l.google.com:19302".to_string(),
-                            "stun:stun.qq.com:3478".to_string(),
-                        ],
-                        ..Default::default()
-                    }],
-                    ..Default::default()
-                }).await.map_err(|e| MediaError::new(format!("{e}")))?;
+                let pc = api.new_peer_connection(WrtcConfig::default()).await.map_err(|e| MediaError::new(format!("{e}")))?;
                 Ok(Self { pc: Arc::new(pc) })
             })
         }

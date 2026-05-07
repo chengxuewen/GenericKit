@@ -120,15 +120,15 @@ fn main() -> Result<(), eframe::Error> {
             let mut log = p.pc1_log.lock().unwrap(); log.push(format!("SDP err: {e}"));
         }
 
-        for c in rx2.try_iter() { pc1.add_ice_candidate(&c.candidate, c.sdp_mid.as_deref().unwrap_or("")).ok(); }
-        for c in rx1.try_iter() { pc2.add_ice_candidate(&c.candidate, c.sdp_mid.as_deref().unwrap_or("")).ok(); }
+        for c in rx2.try_iter() { pc2.add_ice_candidate(&c.candidate, c.sdp_mid.as_deref().unwrap_or("")).ok(); }
+        for c in rx1.try_iter() { pc1.add_ice_candidate(&c.candidate, c.sdp_mid.as_deref().unwrap_or("")).ok(); }
 
         *p.status.lock().unwrap() = format!("P2P active — {}x{} {}fps", W, H, FPS);
 
         // Polling loop
         loop {
-            for c in rx2.try_iter() { pc1.add_ice_candidate(&c.candidate, c.sdp_mid.as_deref().unwrap_or("")).ok(); }
-            for c in rx1.try_iter() { pc2.add_ice_candidate(&c.candidate, c.sdp_mid.as_deref().unwrap_or("")).ok(); }
+            for c in rx2.try_iter() { pc2.add_ice_candidate(&c.candidate, c.sdp_mid.as_deref().unwrap_or("")).ok(); }
+            for c in rx1.try_iter() { pc1.add_ice_candidate(&c.candidate, c.sdp_mid.as_deref().unwrap_or("")).ok(); }
             if p.pc1_log.lock().unwrap().len() < 20 {
                 p.pc1_log.lock().unwrap().push(format!("{}", p.status.lock().unwrap()));
             }
