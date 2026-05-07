@@ -47,8 +47,8 @@ fn main() -> Result<(), eframe::Error> {
         rt.block_on(async move {
             let api = APIBuilder::new().build();
 
-            let pc1 = api.new_peer_connection(RTCConfiguration::default()).await.unwrap();
-            let pc2 = api.new_peer_connection(RTCConfiguration::default()).await.unwrap();
+            let pc1 = Arc::new(api.new_peer_connection(RTCConfiguration::default()).await.unwrap());
+            let pc2 = Arc::new(api.new_peer_connection(RTCConfiguration::default()).await.unwrap());
 
             let (tx1, mut rx1) = tokio::sync::mpsc::unbounded_channel::<RTCIceCandidateInit>();
             let (tx2, mut rx2) = tokio::sync::mpsc::unbounded_channel::<RTCIceCandidateInit>();
@@ -80,14 +80,28 @@ fn main() -> Result<(), eframe::Error> {
 
             let offer = pc1.create_offer(None).await.unwrap();
             pc1.set_local_description(offer.clone()).await.unwrap();
-            pc2.set_remote_description(offer).await.unwrap();
 
+            let mut offer_gather = pc1.gathering_complete_promise().await;
+            let _ = offer_gather.recv().await;
+
+            pc2.set_remote_description(offer).await.unwrap();
             let answer = pc2.create_answer(None).await.unwrap();
             pc2.set_local_description(answer.clone()).await.unwrap();
+
+            let mut answer_gather = pc2.gathering_complete_promise().await;
+            let _ = answer_gather.recv().await;
+
             pc1.set_remote_description(answer).await.unwrap();
 
+            // Exchange all gathered ICE candidates
             while let Ok(c) = rx2.try_recv() { pc1.add_ice_candidate(c).await.ok(); }
             while let Ok(c) = rx1.try_recv() { pc2.add_ice_candidate(c).await.ok(); }
+
+            // Continue forwarding trickle candidates
+            let pc1c = pc1.clone();
+            let pc2c = pc2.clone();
+            tokio::spawn(async move { while let Some(c) = rx2.recv().await { pc1c.add_ice_candidate(c).await.ok(); } });
+            tokio::spawn(async move { while let Some(c) = rx1.recv().await { pc2c.add_ice_candidate(c).await.ok(); } });
 
             *p.status.lock().unwrap() = format!("P2P connected — {}x{} {}fps", W, H, FPS);
 
