@@ -9,7 +9,7 @@ use gkit_media::protocols::rtc::client::native::NativeFactory;
 #[test]
 fn ice_candidate_callback_registered() {
     let factory = NativeFactory::default();
-    let mut pc = factory.create_peer_connection().expect("create pc");
+    let pc = factory.create_peer_connection().expect("create pc");
     let candidates = Arc::new(Mutex::new(Vec::new()));
     let c = candidates.clone();
     pc.set_on_ice_candidate(Box::new(move |cand: IceCandidate| {
@@ -22,7 +22,7 @@ fn ice_candidate_callback_registered() {
 #[test]
 fn ice_state_callback_registered() {
     let factory = NativeFactory::default();
-    let mut pc = factory.create_peer_connection().expect("create pc");
+    let pc = factory.create_peer_connection().expect("create pc");
     let states = Arc::new(Mutex::new(Vec::new()));
     let s = states.clone();
     pc.set_on_ice_connection_state_change(Box::new(move |state: IceConnectionState| {
@@ -34,7 +34,7 @@ fn ice_state_callback_registered() {
 #[test]
 fn ice_gathering_complete_returns_ok() {
     let factory = NativeFactory::default();
-    let mut pc = factory.create_peer_connection().expect("create pc");
+    let pc = factory.create_peer_connection().expect("create pc");
     // Stub: instant; Real: may need SDP first, but shouldn't panic
     let _ = pc.gather_complete();
 }
@@ -49,7 +49,7 @@ fn ice_state_starts_new() {
 #[test]
 fn ice_state_closed_after_close() {
     let factory = NativeFactory::default();
-    let mut pc = factory.create_peer_connection().expect("create pc");
+    let pc = factory.create_peer_connection().expect("create pc");
     pc.close().expect("close");
     assert_eq!(pc.ice_connection_state(), IceConnectionState::Closed);
 }

@@ -33,7 +33,7 @@ fn track_add_without_feature_is_err() {
 #[test]
 fn track_on_track_callback_registered() {
     let factory = NativeFactory::default();
-    let mut pc = factory.create_peer_connection().expect("create pc");
+    let pc = factory.create_peer_connection().expect("create pc");
     let called = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let flag = called.clone();
     pc.set_on_track(Box::new(move |_t| { flag.store(true, std::sync::atomic::Ordering::Relaxed); }));

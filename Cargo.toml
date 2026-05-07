@@ -32,6 +32,6 @@ napi = { version = "2", features = ["napi4"] }
 napi-derive = { version = "2" }
 napi-build = { version = "2" }
 flutter_rust_bridge = "2"
-webrtc = "0.11"
+webrtc = "0.17"
 tokio = { version = "1", features = ["rt", "sync", "macros", "time"] }
 bytes = "1"

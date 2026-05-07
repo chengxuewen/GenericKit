@@ -147,12 +147,12 @@ pub trait PeerConnection: Send {
     /// Add a local video track to the PeerConnection.
     fn add_track(&self, _track: Arc<VideoTrack>) -> MediaResult<()> { Err(MediaError::new("not supported")) }
     /// Register a callback for remote tracks.
-    fn set_on_track(&mut self, _cb: Box<dyn Fn(Arc<VideoTrack>) + Send>) {}
+    fn set_on_track(&self, _cb: Box<dyn Fn(Arc<VideoTrack>) + Send>) {}
 
     /// Register callback for local ICE candidates.
-    fn set_on_ice_candidate(&mut self, _cb: Box<dyn Fn(IceCandidate) + Send>) {}
+    fn set_on_ice_candidate(&self, _cb: Box<dyn Fn(IceCandidate) + Send>) {}
     /// Register callback for ICE connection state changes.
-    fn set_on_ice_connection_state_change(&mut self, _cb: Box<dyn Fn(IceConnectionState) + Send>) {}
+    fn set_on_ice_connection_state_change(&self, _cb: Box<dyn Fn(IceConnectionState) + Send>) {}
     /// Wait until ICE gathering is complete.
     fn gather_complete(&self) -> MediaResult<()> { Ok(()) }
 }

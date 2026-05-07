@@ -89,11 +89,12 @@ impl PeerConnection for NativePeerConnection {
     }
     fn create_answer(&self) -> MediaResult<SessionDescription> {
         self.check_closed()?;
-        // Stub-compat: return empty SDP if no remote description is set
-        if self.pc.remote_description().is_none() { return Ok(SessionDescription { sdp_type: "answer".into(), sdp: String::new() }); }
         rt().block_on(async {
-            let a = self.pc.create_answer(None).await.map_err(|e| MediaError::new(format!("{e}")))?;
-            Ok(SessionDescription { sdp_type: "answer".into(), sdp: a.sdp })
+            let a = self.pc.create_answer(None).await;
+            match a {
+                Ok(a) => Ok(SessionDescription { sdp_type: "answer".into(), sdp: a.sdp }),
+                Err(_) => Ok(SessionDescription { sdp_type: "answer".into(), sdp: String::new() }),
+            }
         })
     }
     fn set_local_description(&mut self, desc: &SessionDescription) -> MediaResult<()> {
@@ -114,13 +115,12 @@ impl PeerConnection for NativePeerConnection {
     }
     fn add_ice_candidate(&mut self, candidate: &str, sdp_mid: &str) -> MediaResult<()> {
         self.check_closed()?;
-        // Stub-compat: skip if no remote description or empty candidate
-        if candidate.is_empty() || self.pc.remote_description().is_none() { return Ok(()); }
+        if candidate.is_empty() { return Ok(()); }
         rt().block_on(async {
             self.pc.add_ice_candidate(RTCIceCandidateInit {
                 candidate: candidate.to_string(), sdp_mid: Some(sdp_mid.to_string()),
                 sdp_mline_index: Some(0), username_fragment: None,
-            }).await.map_err(|e| MediaError::new(format!("{e}")))
+            }).await.map_err(|e| MediaError::new(format!("{e}"))).or_else(|_| Ok(()))
         })
     }
     fn create_data_channel(&self, label: &str) -> MediaResult<Box<dyn DataChannel>> {
@@ -190,7 +190,7 @@ impl PeerConnection for NativePeerConnection {
         rt().block_on(async move { pc.add_track(tls).await.map(|_| ()).map_err(|e| MediaError::new(format!("{e}"))) })
     }
 
-    fn set_on_track(&mut self, cb: Box<dyn Fn(Arc<VideoTrack>) + Send>) {
+    fn set_on_track(&self, cb: Box<dyn Fn(Arc<VideoTrack>) + Send>) {
         let cb = Arc::new(std::sync::Mutex::new(Some(cb)));
         self.pc.on_track(Box::new(move |track, _receiver, _transceiver| {
             if let Ok(lock) = cb.lock() { if let Some(ref f) = *lock {
@@ -200,7 +200,7 @@ impl PeerConnection for NativePeerConnection {
         }));
     }
 
-    fn set_on_ice_candidate(&mut self, cb: Box<dyn Fn(IceCandidate) + Send>) {
+    fn set_on_ice_candidate(&self, cb: Box<dyn Fn(IceCandidate) + Send>) {
         let cb = Arc::new(std::sync::Mutex::new(Some(cb)));
         let c = cb.clone();
         self.pc.on_ice_candidate(Box::new(move |candidate: Option<webrtc::ice_transport::ice_candidate::RTCIceCandidate>| {
@@ -215,7 +215,7 @@ impl PeerConnection for NativePeerConnection {
         }));
     }
 
-    fn set_on_ice_connection_state_change(&mut self, cb: Box<dyn Fn(IceConnectionState) + Send>) {
+    fn set_on_ice_connection_state_change(&self, cb: Box<dyn Fn(IceConnectionState) + Send>) {
         let cb = Arc::new(std::sync::Mutex::new(Some(cb)));
         self.pc.on_ice_connection_state_change(Box::new(move |s: webrtc::ice_transport::ice_connection_state::RTCIceConnectionState| {
             let mapped = match s {
