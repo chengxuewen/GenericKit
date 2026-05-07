@@ -6,7 +6,7 @@ edition.workspace = true
 [features]
 default = ["backend-native-webrtc-rs"]
 backend-native = []
-backend-native-webrtc-rs = ["backend-native", "dep:webrtc", "dep:tokio", "dep:bytes", "dep:openh264"]
+backend-native-webrtc-rs = ["backend-native", "dep:webrtc", "dep:tokio", "dep:bytes", "dep:openh264", "dep:rtp"]
 backend-native-google = ["backend-native"]
 
 [dependencies]
@@ -15,6 +15,7 @@ webrtc = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 bytes = { workspace = true, optional = true }
 openh264 = { workspace = true, optional = true }
+rtp = { version = "0.17", optional = true }
 
 [build-dependencies]
 ureq = { version = "2", features = ["tls"] }
