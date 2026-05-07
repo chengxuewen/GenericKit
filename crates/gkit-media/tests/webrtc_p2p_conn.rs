@@ -12,15 +12,22 @@ use gkit_media::protocols::rtc::client::core::{
     PeerConnection, PeerConnectionFactory, IceCandidate, IceConnectionState, VideoTrack,
 };
 use gkit_media::video::source_sink::{VideoSink, VideoSource};
-use gkit_media::protocols::rtc::client::native::NativeFactory;
+use gkit_media::protocols::rtc::client::native::NativePeerConnection;
+use webrtc::api::setting_engine::SettingEngine;
+use webrtc::ice::mdns::MulticastDnsMode;
 
 const W: u32 = 320; const H: u32 = 240; const FPS: u32 = 15;
 
+fn create_pc() -> gkit_media::protocols::rtc::client::core::MediaResult<impl PeerConnection> {
+    let mut se = SettingEngine::default();
+    se.set_ice_multicast_dns_mode(MulticastDnsMode::Disabled);
+    NativePeerConnection::with_setting_engine(Some(se))
+}
+
 #[test]
 fn p2p_host_only() {
-    let factory = NativeFactory::default();
-    let mut pc1 = factory.create_peer_connection().expect("pc1");
-    let mut pc2 = factory.create_peer_connection().expect("pc2");
+    let mut pc1 = create_pc().expect("pc1");
+    let mut pc2 = create_pc().expect("pc2");
 
     let (tx1, rx1) = std::sync::mpsc::channel::<IceCandidate>();
     let (tx2, rx2) = std::sync::mpsc::channel::<IceCandidate>();
