@@ -8,7 +8,7 @@ mod google;
 #[cfg(feature = "backend-native-google")]
 pub use google::*;
 
-// google_lk — ported from LiveKit, not yet integrated
+// google_lk not yet integrated (needs full port from LiveKit)
 // #[cfg(feature = "backend-native-google")]
 // mod google_lk;
 

@@ -9,8 +9,7 @@ pub mod capture;
 pub mod protocols;
 pub mod video;
 
-// build-sys: LiveKit webrtc-sys FFI (requires libwebrtc C++ binary)
-// Not yet integrated — google_lk import paths need porting
+// build-sys: LiveKit webrtc-sys FFI (requires libwebrtc C++ binary + google_lk port)
 // #[cfg(feature = "backend-native-google")]
 // #[path = "build-sys/mod.rs"]
 // pub mod build_sys;
