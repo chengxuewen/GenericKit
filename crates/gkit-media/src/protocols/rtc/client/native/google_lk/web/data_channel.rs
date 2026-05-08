@@ -18,7 +18,7 @@ use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use web_sys::{MessageEvent, RtcDataChannelEvent, RtcDataChannelState};
 
-use crate::data_channel::{
+use crate::protocols::rtc::client::native::google_lk::data_channel::{
     DataChannelError, DataChannelTrait, DataState, OnBufferedAmountChange, OnMessage, OnStateChange,
 };
 

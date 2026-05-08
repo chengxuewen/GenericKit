@@ -90,7 +90,7 @@ pub(crate) mod internal {
 
     pub trait BufferSealed: Send + Sync {
         #[cfg(not(target_arch = "wasm32"))]
-        fn sys_handle(&self) -> &webrtc_sys::video_frame_buffer::ffi::VideoFrameBuffer;
+        fn sys_handle(&self) -> &crate::build_sys::webrtc_sys::video_frame_buffer::ffi::VideoFrameBuffer;
 
         #[cfg(not(target_arch = "wasm32"))]
         fn to_i420(&self) -> I420Buffer;
@@ -150,7 +150,7 @@ macro_rules! new_buffer_type {
 
         impl $crate::video_frame::internal::BufferSealed for $type {
             #[cfg(not(target_arch = "wasm32"))]
-            fn sys_handle(&self) -> &webrtc_sys::video_frame_buffer::ffi::VideoFrameBuffer {
+            fn sys_handle(&self) -> &crate::build_sys::webrtc_sys::video_frame_buffer::ffi::VideoFrameBuffer {
                 self.handle.sys_handle()
             }
 

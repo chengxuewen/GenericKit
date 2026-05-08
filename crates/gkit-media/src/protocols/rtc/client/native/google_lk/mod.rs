@@ -68,12 +68,12 @@ pub mod video_track;
 pub mod native {
     pub use crate::build_sys::webrtc_sys::webrtc::ffi::create_random_uuid;
 
-    pub use crate::imp::{
+    pub use crate::protocols::rtc::client::native::google_lk::imp::{
         apm, audio_mixer, audio_resampler, frame_cryptor, packet_trailer, yuv_helper,
     };
 }
 
 #[cfg(target_os = "android")]
 pub mod android {
-    pub use crate::imp::android::*;
+    pub use crate::protocols::rtc::client::native::google_lk::imp::android::*;
 }

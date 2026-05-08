@@ -106,7 +106,7 @@ struct VideoTrackObserver {
 }
 
 impl sys_vt::VideoSink for VideoTrackObserver {
-    fn on_frame(&self, frame: UniquePtr<webrtc_sys::video_frame::ffi::VideoFrame>) {
+    fn on_frame(&self, frame: UniquePtr<crate::build_sys::webrtc_sys::video_frame::ffi::VideoFrame>) {
         let rtp_timestamp = frame.timestamp();
         let frame_metadata = self
             .packet_trailer_handler

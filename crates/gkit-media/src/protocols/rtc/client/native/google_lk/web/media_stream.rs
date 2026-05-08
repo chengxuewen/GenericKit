@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use super::VideoTrack;
-use crate::{
+use crate::protocols::rtc::client::native::google_lk::{
     media_stream::{
         BiplanarYuv8Buffer, BiplanarYuvBuffer, PlanarYuv16BBuffer, PlanarYuv8Buffer,
         PlanarYuvBuffer, VideoFrameBuffer,

@@ -1,3 +1,4 @@
+use enum_dispatch::enum_dispatch;
 // Copyright 2025 LiveKit, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -32,7 +33,7 @@ pub enum MediaStreamTrack {
 impl MediaStreamTrack {
     enum_dispatch!(
         [Video, Audio];
-        pub(crate) fn sys_handle(self: &Self) -> cxx::SharedPtr<webrtc_sys::media_stream::ffi::MediaStreamTrack>;
+        pub(crate) fn sys_handle(self: &Self) -> cxx::SharedPtr<crate::build_sys::webrtc_sys::media_stream::ffi::MediaStreamTrack>;
     );
 }
 
@@ -67,7 +68,7 @@ macro_rules! media_stream_track {
         #[cfg(not(target_arch = "wasm32"))]
         pub(crate) fn sys_handle(
             &self,
-        ) -> cxx::SharedPtr<webrtc_sys::media_stream::ffi::MediaStreamTrack> {
+        ) -> cxx::SharedPtr<crate::build_sys::webrtc_sys::media_stream::ffi::MediaStreamTrack> {
             self.handle.sys_handle()
         }
     };
