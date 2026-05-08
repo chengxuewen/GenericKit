@@ -8,11 +8,6 @@ mod google;
 #[cfg(feature = "backend-native-google")]
 pub use google::*;
 
-#[cfg(feature = "backend-native-google")]
-mod google;
-#[cfg(feature = "backend-native-google")]
-pub use google::*;
-
 // google_lk: port requires manual per-file `super::` → full path fixes in inline `mod native` blocks
 // #[cfg(feature = "backend-native-google")]
 // mod google_lk;
