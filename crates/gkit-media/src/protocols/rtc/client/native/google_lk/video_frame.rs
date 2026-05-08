@@ -148,7 +148,7 @@ macro_rules! new_buffer_type {
             pub(crate) handle: vf_imp::$type,
         }
 
-        impl $crate::video_frame::internal::BufferSealed for $type {
+        impl $crate::protocols::rtc::client::native::google_lk::video_frame::internal::BufferSealed for $type {
             #[cfg(not(target_arch = "wasm32"))]
             fn sys_handle(&self) -> &crate::build_sys::webrtc_sys::video_frame_buffer::ffi::VideoFrameBuffer {
                 self.handle.sys_handle()

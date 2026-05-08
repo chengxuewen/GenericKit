@@ -8,7 +8,8 @@ mod google;
 #[cfg(feature = "backend-native-google")]
 pub use google::*;
 
-// google_lk port status: 28 remaining errors (macro metavar, trait bounds)
+// google_lk: 13 remaining errors — super:: resolution conflicts in native/ files
+// Each needs individual module path correction (mechanical, ~30min work)
 // #[cfg(feature = "backend-native-google")]
 // mod google_lk;
 
