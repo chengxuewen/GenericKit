@@ -178,4 +178,4 @@ impl Default for WasmFactory {
 }
 
 #[cfg(feature = "backend-wasm")]
-gkit_register_rtc_backend!("wasm", WasmFactory);
+crate::gkit_register_rtc_backend!("wasm", WasmFactory);

@@ -8,6 +8,10 @@ mod google;
 #[cfg(feature = "backend-native-google")]
 pub use google::*;
 
+// google_lk — ported from LiveKit, not yet integrated
+// #[cfg(feature = "backend-native-google")]
+// mod google_lk;
+
 #[cfg(not(any(
     feature = "backend-native-webrtc-rs",
     feature = "backend-native-google"

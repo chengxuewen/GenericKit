@@ -360,4 +360,4 @@ pub use real::*;
 pub use stub::*;
 
 #[cfg(feature = "backend-native-webrtc-rs")]
-gkit_register_rtc_backend!("webrtc-rs", NativeFactory);
+crate::gkit_register_rtc_backend!("webrtc-rs", NativeFactory);

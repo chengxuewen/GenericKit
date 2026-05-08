@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::{OnceLock, RwLock};
 
-use super::core::{MediaError, MediaResult, PeerConnection, PeerConnectionFactory, RtcConfiguration};
+use super::core::{MediaError, MediaResult, PeerConnectionFactory};
 
 type FactoryCreator = fn() -> Box<dyn PeerConnectionFactory>;
 
@@ -18,7 +18,7 @@ impl RtcEngine {
         let creator = map
             .get(backend_name)
             .ok_or_else(|| MediaError::new(format!("unknown RTC backend: {backend_name}")))?;
-        creator()
+        Ok(creator())
     }
 
     pub fn register(name: &'static str, creator: FactoryCreator) {
