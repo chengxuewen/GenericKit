@@ -590,43 +590,57 @@ cargo test -p gkit-media && ctest --test-dir build-auto          # full verify
 
 ## 12. Implementation Status (2026-05-07)
 
-### 已完成
+### 已完成并编译验证
 
-| 文件 | 变更 |
+| 组件 | 状态 |
 |------|------|
-| `core.rs` | `PeerConnectionFactory` 去掉关联类型，返回 `Box<dyn PeerConnection>` |
-| `engine.rs` | `RtcEngine` 全局注册中心（`fn()` 指针, `RwLock`） |
-| `engine_macros.rs` | `gkit_register_rtc_backend!` 宏（`ctor` crate） |
-| `google.rs` | 完整重写：`GooglePeerConnection`/`GoogleDataChannel`/`GoogleFactory` 包装 google_lk |
-| `webrtc_rs.rs` | 适配新 trait + 注册宏 |
-| `wasm.rs` | 适配新 trait + 注册宏 |
-| `native/mod.rs` | 移除互斥编译守卫 |
-| `lib.rs` | 解除 `build_sys` 注释；`make_peer_connection()` 改为调用 `RtcEngine` |
-| `Cargo.toml` | default → `backend-native-google`；新增 google 依赖；新增 umbrella feature |
-| `build.rs` | LibWebRTC 下载/缓存/编译脚本（LiveKit 预编译 release） |
-| `tests/*.rs` | `NativeFactory` → `RtcEngine::create_default()` |
-| `example/*loopback*` | 引擎模式 |
-| `google_lk/native/*.rs` | 29 处 `use webrtc_sys::` → `use crate::build_sys::webrtc_sys::` |
+| `RtcEngine` + `gkit_register_rtc_backend!` | ✅ 编译 + 测试 |
+| `PeerConnectionFactory` trait 对象安全化 | ✅ |
+| `google_lk` stub 后端 (默认) | ✅ 编译 + 测试 |
+| `webrtc_rs` / `wasm` 适配新 trait | ✅ 编译 |
+| **build-sys/webrtc-sys** | ✅ **编译通过 (0 errors)** |
+| `build.rs` LibWebRTC 下载/缓存 | ✅ 已编写 |
+| C FFI factory API + C test + CMake | ✅ |
+| 全部 36 个 WebRTC 测试 | ✅ 通过 |
 
-### 待编译验证
+### 待完成
 
-由于 cargo 依赖下载超时（crates.io 网络），尚未完成 `cargo check` 编译验证。
+| 任务 | 说明 |
+|------|------|
+| `google.rs` 直接 build_sys 适配器 | 需围绕 `cxx::SharedPtr` 写 ~50 个文件的 Rust wrapper（复制 google_lk 的适配逻辑） |
+| `google_lk/` 模块路径移植 | `crate::` → 全限定路径，外加 `lazy_static`/`serde`/`serde_json` 依赖 |
+| LibWebRTC 二进制下载 | GitHub 130MB 大文件，需网络可达 |
+| C++ 编译 (build.rs) | 需 `unzip`/`tar` + `cc` 编译 webrtc-sys/*.cpp |
+| `VideoTrack` google 适配 | 帧格式转换 (gkit BoxVideoFrame ↔ libwebrtc VideoFrame) |
 
-**编译命令**（有网络时执行）：
+### build_sys 编译关键修复
 
 ```bash
-# 默认 google_lk 后端
-cargo check -p gkit-media
-
-# 或跳过 LibWebRTC 下载（仅检查 Rust 代码）
-GKIT_SKIP_WEBRTC_DOWNLOAD=true cargo check -p gkit-media
-
-# 全后端
-cargo check -p gkit-media --features backend-native-all
+# 对 build-sys/webrtc-sys/*.rs 文件（lib.rs 除外）：
+# crate::X → crate::build_sys::webrtc_sys::X (全限定路径)
+# 保护 $crate:: 宏元变量不被替换
+# impl_thread_safety 宏引用保持原样 (继承自 lib.rs)
+for f in *.rs; do
+    sed 's/crate::/crate::build_sys::webrtc_sys::/g' | \
+    sed 's/\$crate::build_sys::/\$crate::/g'
+done
 ```
 
-**已知风险**：
-- `ctor` crate 版本为 0.2，需确认没有破坏性变更
-- google_lk 的编译依赖 libwebrtc C++ 二进制，需要 LiveKit release 可访问
-- `build.rs` 中 `std("c++17")` 需要系统安装 C++17 编译器
-- 平台 link 依赖（X11, dl, pthread）仅 Linux 验证过
+### google_lk 移植修复清单
+
+1. `use webrtc_sys::` → `use crate::build_sys::webrtc_sys::` (29 处) ✅ 已修复
+2. `crate::X` → 全限定路径 (google_lk/*.rs 和 native/*.rs，各 ~25 文件)
+3. `livekit_protocol::enum_dispatch` → `enum_dispatch::enum_dispatch`
+4. `livekit_runtime::*` → `tokio::*` / `futures::*`
+5. 添加依赖: `rtrb`, `serde`, `serde_json`, `lazy_static`
+6. `$crate` 宏元变量保护 (类似 build_sys)
+
+### 验证命令
+
+```bash
+# 默认 google_lk stub (36 tests)
+GKIT_SKIP_WEBRTC_DOWNLOAD=true cargo test -p gkit-media --test webrtc_*
+
+# build_sys 编译检查
+GKIT_SKIP_WEBRTC_DOWNLOAD=true cargo check -p gkit-media --lib
+```
