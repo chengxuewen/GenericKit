@@ -14,7 +14,7 @@
 
 use std::fmt::Debug;
 
-use crate::{
+use super::{
     imp::rtp_receiver as imp_rr, media_stream_track::MediaStreamTrack,
     rtp_parameters::RtpParameters, stats::RtcStats, RtcError,
 };

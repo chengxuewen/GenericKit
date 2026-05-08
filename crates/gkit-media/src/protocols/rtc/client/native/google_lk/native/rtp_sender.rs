@@ -17,7 +17,7 @@ use tokio::sync::oneshot;
 use crate::build_sys::webrtc_sys::{rtc_error as sys_err, rtp_sender as sys_rs};
 
 use super::media_stream_track::new_media_stream_track;
-use crate::{
+use super::super::{
     media_stream_track::MediaStreamTrack, rtp_parameters::RtpParameters, stats::RtcStats, RtcError,
     RtcErrorType,
 };

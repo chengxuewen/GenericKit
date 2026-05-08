@@ -23,12 +23,12 @@ use std::{
 };
 
 use cxx::SharedPtr;
-use livekit_runtime::Stream;
+use futures::Stream;
 use parking_lot::Mutex;
 use rtrb::{Consumer, Producer, PushError, RingBuffer};
 use crate::build_sys::webrtc_sys::audio_track as sys_at;
 
-use crate::{audio_frame::AudioFrame, audio_track::RtcAudioTrack};
+use super::super::{audio_frame::AudioFrame, audio_track::RtcAudioTrack};
 
 pub struct NativeAudioStream {
     native_sink: SharedPtr<sys_at::ffi::NativeAudioSink>,
@@ -243,7 +243,7 @@ mod tests {
     use std::sync::atomic::Ordering;
 
     use super::AudioFrameQueue;
-    use crate::audio_frame::AudioFrame;
+    use super::super::audio_frame::AudioFrame;
 
     fn test_frame(marker: i16) -> AudioFrame<'static> {
         AudioFrame {

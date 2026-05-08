@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::rtp_transceiver::RtpTransceiverDirection;
+use super::rtp_transceiver::RtpTransceiverDirection;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Priority {

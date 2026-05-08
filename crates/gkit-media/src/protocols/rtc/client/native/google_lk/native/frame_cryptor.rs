@@ -18,7 +18,7 @@ use cxx::SharedPtr;
 use parking_lot::Mutex;
 use crate::build_sys::webrtc_sys::frame_cryptor::{self as sys_fc};
 
-use crate::{
+use super::super::{
     native::packet_trailer::PacketTrailerHandler, peer_connection_factory::PeerConnectionFactory,
     rtp_receiver::RtpReceiver, rtp_sender::RtpSender,
 };

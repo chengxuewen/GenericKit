@@ -15,7 +15,7 @@
 use cxx::UniquePtr;
 use crate::build_sys::webrtc_sys::apm::ffi as sys_apm;
 
-use crate::{RtcError, RtcErrorType};
+use super::super::{RtcError, RtcErrorType};
 
 pub struct AudioProcessingModule {
     sys_handle: UniquePtr<sys_apm::AudioProcessingModule>,

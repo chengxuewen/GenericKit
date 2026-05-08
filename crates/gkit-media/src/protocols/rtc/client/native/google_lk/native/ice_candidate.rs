@@ -15,7 +15,7 @@
 use cxx::SharedPtr;
 use crate::build_sys::webrtc_sys::jsep as sys_jsep;
 
-use crate::{ice_candidate as ic, session_description::SdpParseError};
+use super::super::{ice_candidate as ic, session_description::SdpParseError};
 
 #[derive(Clone)]
 pub struct IceCandidate {

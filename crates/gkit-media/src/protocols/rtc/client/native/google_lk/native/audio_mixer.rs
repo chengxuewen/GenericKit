@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::audio_frame::AudioFrame;
+use super::super::audio_frame::AudioFrame;
 use cxx::UniquePtr;
 use std::sync::Arc;
 use crate::build_sys::webrtc_sys::audio_mixer as sys;

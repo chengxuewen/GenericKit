@@ -17,7 +17,7 @@ use std::{fmt::Debug, str::Utf8Error};
 use serde::Deserialize;
 use thiserror::Error;
 
-use crate::{imp::data_channel as dc_imp, rtp_parameters::Priority};
+use super::{imp::data_channel as dc_imp, rtp_parameters::Priority};
 
 #[derive(Clone, Debug)]
 pub struct DataChannelInit {

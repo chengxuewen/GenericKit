@@ -23,13 +23,13 @@ use std::{
 };
 
 use cxx::{SharedPtr, UniquePtr};
-use livekit_runtime::Stream;
+use futures::Stream;
 use parking_lot::Mutex;
 use rtrb::{Consumer, Producer, PushError, RingBuffer};
 use crate::build_sys::webrtc_sys::video_track as sys_vt;
 
 use super::video_frame::new_video_frame_buffer;
-use crate::{
+use super::super::{
     native::packet_trailer::PacketTrailerHandler,
     video_frame::{BoxVideoFrame, FrameMetadata, VideoFrame},
     video_track::RtcVideoTrack,
@@ -275,7 +275,7 @@ mod tests {
     use std::sync::atomic::Ordering;
 
     use super::VideoFrameQueue;
-    use crate::video_frame::{BoxVideoFrame, I420Buffer, VideoFrame, VideoRotation};
+    use super::super::video_frame::{BoxVideoFrame, I420Buffer, VideoFrame, VideoRotation};
 
     fn test_frame(timestamp_us: i64) -> BoxVideoFrame {
         VideoFrame {

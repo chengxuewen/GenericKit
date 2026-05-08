@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use livekit_protocol::enum_dispatch;
+use enum_dispatch::enum_dispatch;
 
-use crate::imp::video_source as vs_imp;
+use super::imp::video_source as vs_imp;
 
 #[derive(Debug, Clone)]
 pub struct VideoResolution {
@@ -50,8 +50,8 @@ pub mod native {
     use std::fmt::{Debug, Formatter};
 
     use super::*;
-    use crate::native::packet_trailer::PacketTrailerHandler;
-    use crate::video_frame::{VideoBuffer, VideoFrame};
+    use super::native::packet_trailer::PacketTrailerHandler;
+    use super::video_frame::{VideoBuffer, VideoFrame};
 
     #[derive(Clone)]
     pub struct NativeVideoSource {

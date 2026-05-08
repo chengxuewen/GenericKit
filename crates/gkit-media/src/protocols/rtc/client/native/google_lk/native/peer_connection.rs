@@ -22,7 +22,7 @@ use crate::build_sys::webrtc_sys::{
     peer_connection_factory as sys_pcf, rtc_error as sys_err,
 };
 
-use crate::{
+use super::super::{
     data_channel::{DataChannel, DataChannelInit},
     ice_candidate::IceCandidate,
     imp::{

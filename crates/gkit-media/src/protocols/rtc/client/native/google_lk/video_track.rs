@@ -14,13 +14,13 @@
 
 use std::fmt::Debug;
 
-use crate::{
+use super::{
     imp::video_track as imp_vt,
     media_stream_track::{media_stream_track, RtcTrackState},
 };
 
 #[cfg(not(target_arch = "wasm32"))]
-use crate::native::packet_trailer::PacketTrailerHandler;
+use super::native::packet_trailer::PacketTrailerHandler;
 
 #[derive(Clone)]
 pub struct RtcVideoTrack {

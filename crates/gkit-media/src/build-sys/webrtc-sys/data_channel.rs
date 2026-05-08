@@ -14,7 +14,7 @@
 
 use std::sync::Arc;
 
-use crate::impl_thread_safety;
+use crate::build_sys::webrtc_sys::impl_thread_safety;
 
 #[cxx::bridge(namespace = "livekit_ffi")]
 pub mod ffi {

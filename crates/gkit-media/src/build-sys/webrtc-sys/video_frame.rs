@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::impl_thread_safety;
+use crate::build_sys::webrtc_sys::impl_thread_safety;
 
 #[cxx::bridge(namespace = "livekit_ffi")]
 pub mod ffi {
@@ -28,7 +28,7 @@ pub mod ffi {
     extern "C++" {
         include!("livekit/video_frame_buffer.h");
 
-        type VideoFrameBuffer = crate::video_frame_buffer::ffi::VideoFrameBuffer;
+        type VideoFrameBuffer = crate::build_sys::webrtc_sys::video_frame_buffer::ffi::VideoFrameBuffer;
     }
 
     unsafe extern "C++" {

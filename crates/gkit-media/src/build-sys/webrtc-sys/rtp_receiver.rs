@@ -14,7 +14,7 @@
 
 use std::any::Any;
 
-use crate::impl_thread_safety;
+use crate::build_sys::webrtc_sys::impl_thread_safety;
 
 #[cxx::bridge(namespace = "livekit_ffi")]
 pub mod ffi {
@@ -25,11 +25,11 @@ pub mod ffi {
         include!("livekit/helper.h");
         include!("livekit/media_stream.h");
 
-        type MediaType = crate::webrtc::ffi::MediaType;
-        type RtpParameters = crate::rtp_parameters::ffi::RtpParameters;
-        type MediaStreamPtr = crate::helper::ffi::MediaStreamPtr;
-        type MediaStreamTrack = crate::media_stream::ffi::MediaStreamTrack;
-        type MediaStream = crate::media_stream::ffi::MediaStream;
+        type MediaType = crate::build_sys::webrtc_sys::webrtc::ffi::MediaType;
+        type RtpParameters = crate::build_sys::webrtc_sys::rtp_parameters::ffi::RtpParameters;
+        type MediaStreamPtr = crate::build_sys::webrtc_sys::helper::ffi::MediaStreamPtr;
+        type MediaStreamTrack = crate::build_sys::webrtc_sys::media_stream::ffi::MediaStreamTrack;
+        type MediaStream = crate::build_sys::webrtc_sys::media_stream::ffi::MediaStream;
     }
 
     unsafe extern "C++" {

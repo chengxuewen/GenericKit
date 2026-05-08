@@ -16,7 +16,7 @@ use std::sync::Arc;
 
 use cxx::SharedPtr;
 
-use crate::{
+use crate::build_sys::webrtc_sys::{
     candidate::ffi::Candidate, data_channel::ffi::DataChannel, impl_thread_safety,
     jsep::ffi::IceCandidate, media_stream::ffi::MediaStream, rtp_receiver::ffi::RtpReceiver,
     rtp_transceiver::ffi::RtpTransceiver,
@@ -51,40 +51,40 @@ pub mod ffi {
         include!("livekit/peer_connection.h");
         include!("livekit/audio_track.h");
 
-        type RtcConfiguration = crate::peer_connection::ffi::RtcConfiguration;
-        type PeerConnectionState = crate::peer_connection::ffi::PeerConnectionState;
-        type SignalingState = crate::peer_connection::ffi::SignalingState;
-        type IceConnectionState = crate::peer_connection::ffi::IceConnectionState;
-        type IceGatheringState = crate::peer_connection::ffi::IceGatheringState;
-        type AudioTrackSource = crate::audio_track::ffi::AudioTrackSource;
-        type VideoTrackSource = crate::video_track::ffi::VideoTrackSource;
-        type RtpCapabilities = crate::rtp_parameters::ffi::RtpCapabilities;
-        type AudioTrack = crate::audio_track::ffi::AudioTrack;
-        type VideoTrack = crate::video_track::ffi::VideoTrack;
-        type MediaStreamPtr = crate::helper::ffi::MediaStreamPtr;
-        type CandidatePtr = crate::helper::ffi::CandidatePtr;
-        type RtpSenderPtr = crate::helper::ffi::RtpSenderPtr;
-        type RtpReceiverPtr = crate::helper::ffi::RtpReceiverPtr;
-        type RtpTransceiverPtr = crate::helper::ffi::RtpTransceiverPtr;
-        type RtcError = crate::rtc_error::ffi::RtcError;
-        type Candidate = crate::candidate::ffi::Candidate;
-        type IceCandidate = crate::jsep::ffi::IceCandidate;
-        type DataChannel = crate::data_channel::ffi::DataChannel;
-        type DataChannelInit = crate::data_channel::ffi::DataChannelInit;
-        type RtpSender = crate::rtp_sender::ffi::RtpSender;
-        type RtpReceiver = crate::rtp_receiver::ffi::RtpReceiver;
-        type RtpTransceiver = crate::rtp_transceiver::ffi::RtpTransceiver;
-        type RtpTransceiverInit = crate::rtp_transceiver::ffi::RtpTransceiverInit;
-        type MediaStream = crate::media_stream::ffi::MediaStream;
-        type MediaStreamTrack = crate::media_stream::ffi::MediaStreamTrack;
-        type SessionDescription = crate::jsep::ffi::SessionDescription;
-        type MediaType = crate::webrtc::ffi::MediaType;
+        type RtcConfiguration = crate::build_sys::webrtc_sys::peer_connection::ffi::RtcConfiguration;
+        type PeerConnectionState = crate::build_sys::webrtc_sys::peer_connection::ffi::PeerConnectionState;
+        type SignalingState = crate::build_sys::webrtc_sys::peer_connection::ffi::SignalingState;
+        type IceConnectionState = crate::build_sys::webrtc_sys::peer_connection::ffi::IceConnectionState;
+        type IceGatheringState = crate::build_sys::webrtc_sys::peer_connection::ffi::IceGatheringState;
+        type AudioTrackSource = crate::build_sys::webrtc_sys::audio_track::ffi::AudioTrackSource;
+        type VideoTrackSource = crate::build_sys::webrtc_sys::video_track::ffi::VideoTrackSource;
+        type RtpCapabilities = crate::build_sys::webrtc_sys::rtp_parameters::ffi::RtpCapabilities;
+        type AudioTrack = crate::build_sys::webrtc_sys::audio_track::ffi::AudioTrack;
+        type VideoTrack = crate::build_sys::webrtc_sys::video_track::ffi::VideoTrack;
+        type MediaStreamPtr = crate::build_sys::webrtc_sys::helper::ffi::MediaStreamPtr;
+        type CandidatePtr = crate::build_sys::webrtc_sys::helper::ffi::CandidatePtr;
+        type RtpSenderPtr = crate::build_sys::webrtc_sys::helper::ffi::RtpSenderPtr;
+        type RtpReceiverPtr = crate::build_sys::webrtc_sys::helper::ffi::RtpReceiverPtr;
+        type RtpTransceiverPtr = crate::build_sys::webrtc_sys::helper::ffi::RtpTransceiverPtr;
+        type RtcError = crate::build_sys::webrtc_sys::rtc_error::ffi::RtcError;
+        type Candidate = crate::build_sys::webrtc_sys::candidate::ffi::Candidate;
+        type IceCandidate = crate::build_sys::webrtc_sys::jsep::ffi::IceCandidate;
+        type DataChannel = crate::build_sys::webrtc_sys::data_channel::ffi::DataChannel;
+        type DataChannelInit = crate::build_sys::webrtc_sys::data_channel::ffi::DataChannelInit;
+        type RtpSender = crate::build_sys::webrtc_sys::rtp_sender::ffi::RtpSender;
+        type RtpReceiver = crate::build_sys::webrtc_sys::rtp_receiver::ffi::RtpReceiver;
+        type RtpTransceiver = crate::build_sys::webrtc_sys::rtp_transceiver::ffi::RtpTransceiver;
+        type RtpTransceiverInit = crate::build_sys::webrtc_sys::rtp_transceiver::ffi::RtpTransceiverInit;
+        type MediaStream = crate::build_sys::webrtc_sys::media_stream::ffi::MediaStream;
+        type MediaStreamTrack = crate::build_sys::webrtc_sys::media_stream::ffi::MediaStreamTrack;
+        type SessionDescription = crate::build_sys::webrtc_sys::jsep::ffi::SessionDescription;
+        type MediaType = crate::build_sys::webrtc_sys::webrtc::ffi::MediaType;
     }
 
     unsafe extern "C++" {
         include!("livekit/peer_connection_factory.h");
 
-        type PeerConnection = crate::peer_connection::ffi::PeerConnection;
+        type PeerConnection = crate::build_sys::webrtc_sys::peer_connection::ffi::PeerConnection;
         type PeerConnectionFactory;
 
         fn create_peer_connection_factory() -> SharedPtr<PeerConnectionFactory>;

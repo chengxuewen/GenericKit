@@ -14,7 +14,7 @@
 
 use std::fmt::Debug;
 
-use crate::{imp::ice_candidate as imp_ic, session_description::SdpParseError};
+use super::{imp::ice_candidate as imp_ic, session_description::SdpParseError};
 
 pub struct IceCandidate {
     pub(crate) handle: imp_ic::IceCandidate,

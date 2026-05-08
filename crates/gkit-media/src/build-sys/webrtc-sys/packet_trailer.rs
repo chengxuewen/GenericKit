@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::impl_thread_safety;
+use crate::build_sys::webrtc_sys::impl_thread_safety;
 
 #[cxx::bridge(namespace = "livekit_ffi")]
 pub mod ffi {
@@ -22,9 +22,9 @@ pub mod ffi {
         include!("livekit/rtp_receiver.h");
         include!("livekit/peer_connection_factory.h");
 
-        type RtpSender = crate::rtp_sender::ffi::RtpSender;
-        type RtpReceiver = crate::rtp_receiver::ffi::RtpReceiver;
-        type PeerConnectionFactory = crate::peer_connection_factory::ffi::PeerConnectionFactory;
+        type RtpSender = crate::build_sys::webrtc_sys::rtp_sender::ffi::RtpSender;
+        type RtpReceiver = crate::build_sys::webrtc_sys::rtp_receiver::ffi::RtpReceiver;
+        type PeerConnectionFactory = crate::build_sys::webrtc_sys::peer_connection_factory::ffi::PeerConnectionFactory;
 
         /// Handler for packet trailer embedding/extraction on RTP streams.
         pub type PacketTrailerHandler;

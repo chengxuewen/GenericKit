@@ -29,7 +29,7 @@
 use cxx::SharedPtr;
 use crate::build_sys::webrtc_sys::packet_trailer::ffi as sys_pt;
 
-use crate::{
+use super::super::{
     peer_connection_factory::PeerConnectionFactory, rtp_receiver::RtpReceiver,
     rtp_sender::RtpSender,
 };

@@ -17,7 +17,7 @@ use cxx::ExternType;
 use std::any::Any;
 use std::sync::Arc;
 
-use crate::impl_thread_safety;
+use crate::build_sys::webrtc_sys::impl_thread_safety;
 
 #[cxx::bridge(namespace = "livekit_ffi")]
 pub mod ffi {
@@ -31,8 +31,8 @@ pub mod ffi {
     extern "C++" {
         include!("livekit/media_stream_track.h");
 
-        type MediaStreamTrack = crate::media_stream_track::ffi::MediaStreamTrack;
-        type CompleteCallback = crate::audio_track::CompleteCallback;
+        type MediaStreamTrack = crate::build_sys::webrtc_sys::media_stream_track::ffi::MediaStreamTrack;
+        type CompleteCallback = crate::build_sys::webrtc_sys::audio_track::CompleteCallback;
     }
 
     unsafe extern "C++" {

@@ -14,7 +14,7 @@
 
 use std::fmt::Debug;
 
-use crate::{
+use super::{
     data_channel::{DataChannel, DataChannelInit},
     ice_candidate::IceCandidate,
     imp::peer_connection as imp_pc,
@@ -276,7 +276,7 @@ mod tests {
     use log::trace;
     use tokio::sync::mpsc;
 
-    use crate::{peer_connection::*, peer_connection_factory::*};
+    use super::{peer_connection::*, peer_connection_factory::*};
 
     #[tokio::test]
     async fn create_pc() {

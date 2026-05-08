@@ -17,7 +17,7 @@ use std::{
     fmt::{Display, Formatter},
 };
 
-use crate::impl_thread_safety;
+use crate::build_sys::webrtc_sys::impl_thread_safety;
 
 #[cxx::bridge(namespace = "livekit_ffi")]
 pub mod ffi {
@@ -39,7 +39,7 @@ pub mod ffi {
     extern "C++" {
         include!("livekit/rtc_error.h");
 
-        type RtcError = crate::rtc_error::ffi::RtcError;
+        type RtcError = crate::build_sys::webrtc_sys::rtc_error::ffi::RtcError;
     }
 
     unsafe extern "C++" {
@@ -101,7 +101,7 @@ impl ffi::SdpParseError {
 mod tests {
     use log::info;
 
-    use crate::jsep::ffi;
+    use crate::build_sys::webrtc_sys::jsep::ffi;
 
     #[test]
     fn throw_error() {

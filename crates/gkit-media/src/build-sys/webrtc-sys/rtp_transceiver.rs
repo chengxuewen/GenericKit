@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::impl_thread_safety;
+use crate::build_sys::webrtc_sys::impl_thread_safety;
 
 #[cxx::bridge(namespace = "livekit_ffi")]
 pub mod ffi {
@@ -30,15 +30,15 @@ pub mod ffi {
         include!("livekit/rtp_sender.h");
         include!("livekit/rtp_receiver.h");
 
-        type MediaType = crate::webrtc::ffi::MediaType;
-        type RtpTransceiverDirection = crate::webrtc::ffi::RtpTransceiverDirection;
-        type RtpEncodingParameters = crate::rtp_parameters::ffi::RtpEncodingParameters;
-        type RtpCodecCapability = crate::rtp_parameters::ffi::RtpCodecCapability;
+        type MediaType = crate::build_sys::webrtc_sys::webrtc::ffi::MediaType;
+        type RtpTransceiverDirection = crate::build_sys::webrtc_sys::webrtc::ffi::RtpTransceiverDirection;
+        type RtpEncodingParameters = crate::build_sys::webrtc_sys::rtp_parameters::ffi::RtpEncodingParameters;
+        type RtpCodecCapability = crate::build_sys::webrtc_sys::rtp_parameters::ffi::RtpCodecCapability;
         type RtpHeaderExtensionCapability =
-            crate::rtp_parameters::ffi::RtpHeaderExtensionCapability;
-        type RtpSender = crate::rtp_sender::ffi::RtpSender;
-        type RtpReceiver = crate::rtp_receiver::ffi::RtpReceiver;
-        type RtcError = crate::rtc_error::ffi::RtcError;
+            crate::build_sys::webrtc_sys::rtp_parameters::ffi::RtpHeaderExtensionCapability;
+        type RtpSender = crate::build_sys::webrtc_sys::rtp_sender::ffi::RtpSender;
+        type RtpReceiver = crate::build_sys::webrtc_sys::rtp_receiver::ffi::RtpReceiver;
+        type RtcError = crate::build_sys::webrtc_sys::rtc_error::ffi::RtcError;
     }
 
     unsafe extern "C++" {

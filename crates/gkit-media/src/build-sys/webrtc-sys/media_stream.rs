@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::impl_thread_safety;
+use crate::build_sys::webrtc_sys::impl_thread_safety;
 
 #[cxx::bridge(namespace = "livekit_ffi")]
 pub mod ffi {
@@ -22,11 +22,11 @@ pub mod ffi {
         include!("livekit/audio_track.h");
         include!("livekit/video_track.h");
 
-        type MediaStreamTrack = crate::media_stream_track::ffi::MediaStreamTrack;
-        type AudioTrack = crate::audio_track::ffi::AudioTrack;
-        type VideoTrack = crate::video_track::ffi::VideoTrack;
-        type VideoTrackPtr = crate::helper::ffi::VideoTrackPtr;
-        type AudioTrackPtr = crate::helper::ffi::AudioTrackPtr;
+        type MediaStreamTrack = crate::build_sys::webrtc_sys::media_stream_track::ffi::MediaStreamTrack;
+        type AudioTrack = crate::build_sys::webrtc_sys::audio_track::ffi::AudioTrack;
+        type VideoTrack = crate::build_sys::webrtc_sys::video_track::ffi::VideoTrack;
+        type VideoTrackPtr = crate::build_sys::webrtc_sys::helper::ffi::VideoTrackPtr;
+        type AudioTrackPtr = crate::build_sys::webrtc_sys::helper::ffi::AudioTrackPtr;
     }
 
     unsafe extern "C++" {

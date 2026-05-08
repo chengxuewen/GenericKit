@@ -16,7 +16,7 @@ use std::sync::Arc;
 
 use cxx::UniquePtr;
 
-use crate::{impl_thread_safety, video_frame::ffi::VideoFrame};
+use crate::build_sys::webrtc_sys::{impl_thread_safety, video_frame::ffi::VideoFrame};
 
 #[cxx::bridge(namespace = "livekit_ffi")]
 pub mod ffi {
@@ -53,15 +53,15 @@ pub mod ffi {
         include!("livekit/video_frame.h");
         include!("livekit/media_stream_track.h");
 
-        type VideoFrame = crate::video_frame::ffi::VideoFrame;
-        type MediaStreamTrack = crate::media_stream_track::ffi::MediaStreamTrack;
+        type VideoFrame = crate::build_sys::webrtc_sys::video_frame::ffi::VideoFrame;
+        type MediaStreamTrack = crate::build_sys::webrtc_sys::media_stream_track::ffi::MediaStreamTrack;
     }
 
     extern "C++" {
         include!("livekit/packet_trailer.h");
         include!("livekit/video_track.h");
 
-        type PacketTrailerHandler = crate::packet_trailer::ffi::PacketTrailerHandler;
+        type PacketTrailerHandler = crate::build_sys::webrtc_sys::packet_trailer::ffi::PacketTrailerHandler;
     }
 
     unsafe extern "C++" {

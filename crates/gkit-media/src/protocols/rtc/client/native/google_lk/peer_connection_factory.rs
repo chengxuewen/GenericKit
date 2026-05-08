@@ -14,7 +14,7 @@
 
 use std::fmt::Debug;
 
-use crate::{
+use super::{
     imp::peer_connection_factory as imp_pcf, peer_connection::PeerConnection,
     rtp_parameters::RtpCapabilities, MediaType, RtcError,
 };
@@ -86,7 +86,7 @@ impl PeerConnectionFactory {
 
 pub mod native {
     use super::PeerConnectionFactory;
-    use crate::{
+    use super::{
         audio_source::native::NativeAudioSource, audio_track::RtcAudioTrack,
         video_source::native::NativeVideoSource, video_track::RtcVideoTrack,
     };

@@ -15,7 +15,7 @@
 use cxx::SharedPtr;
 use crate::build_sys::webrtc_sys::{rtc_error as sys_err, rtp_transceiver as sys_rt, webrtc as sys_webrtc};
 
-use crate::{
+use super::super::{
     imp::{rtp_receiver::RtpReceiver, rtp_sender::RtpSender},
     rtp_parameters::RtpCodecCapability,
     rtp_receiver, rtp_sender,

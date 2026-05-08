@@ -14,7 +14,7 @@
 
 use crate::build_sys::webrtc_sys::{rtp_parameters as sys_rp, webrtc as sys_webrtc};
 
-use crate::rtp_parameters::*;
+use super::super::rtp_parameters::*;
 
 impl From<sys_webrtc::ffi::Priority> for Priority {
     fn from(value: sys_webrtc::ffi::Priority) -> Self {

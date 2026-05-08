@@ -18,11 +18,11 @@ use std::{
 };
 
 use cxx::SharedPtr;
-use livekit_runtime::interval;
+use tokio::time::interval;
 use parking_lot::Mutex;
 use crate::build_sys::webrtc_sys::{video_frame as vf_sys, video_frame::ffi::VideoRotation, video_track as vt_sys};
 
-use crate::{
+use super::super::{
     native::packet_trailer::PacketTrailerHandler,
     video_frame::{I420Buffer, VideoBuffer, VideoFrame},
     video_source::VideoResolution,
@@ -60,7 +60,7 @@ impl NativeVideoSource {
             inner: Arc::new(Mutex::new(VideoSourceInner { captured_frames: 0 })),
         };
 
-        livekit_runtime::spawn({
+        tokio::spawn({
             let source = source.clone();
             let i420 = I420Buffer::new(resolution.width, resolution.height);
             async move {

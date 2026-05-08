@@ -48,13 +48,13 @@ pub mod ffi {
     unsafe extern "C++" {
         include!("livekit/helper.h");
 
-        type MediaStream = crate::media_stream::ffi::MediaStream;
-        type AudioTrack = crate::media_stream::ffi::AudioTrack;
-        type VideoTrack = crate::media_stream::ffi::VideoTrack;
-        type Candidate = crate::candidate::ffi::Candidate;
-        type RtpSender = crate::rtp_sender::ffi::RtpSender;
-        type RtpReceiver = crate::rtp_receiver::ffi::RtpReceiver;
-        type RtpTransceiver = crate::rtp_transceiver::ffi::RtpTransceiver;
+        type MediaStream = crate::build_sys::webrtc_sys::media_stream::ffi::MediaStream;
+        type AudioTrack = crate::build_sys::webrtc_sys::media_stream::ffi::AudioTrack;
+        type VideoTrack = crate::build_sys::webrtc_sys::media_stream::ffi::VideoTrack;
+        type Candidate = crate::build_sys::webrtc_sys::candidate::ffi::Candidate;
+        type RtpSender = crate::build_sys::webrtc_sys::rtp_sender::ffi::RtpSender;
+        type RtpReceiver = crate::build_sys::webrtc_sys::rtp_receiver::ffi::RtpReceiver;
+        type RtpTransceiver = crate::build_sys::webrtc_sys::rtp_transceiver::ffi::RtpTransceiver;
 
         fn _vec_media_stream_ptr() -> Vec<MediaStreamPtr>;
         fn _vec_candidate_ptr() -> Vec<CandidatePtr>;

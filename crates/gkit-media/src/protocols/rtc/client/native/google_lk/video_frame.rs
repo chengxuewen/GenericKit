@@ -16,7 +16,7 @@ use std::fmt::Debug;
 
 use thiserror::Error;
 
-use crate::imp::video_frame as vf_imp;
+use super::imp::video_frame as vf_imp;
 
 #[derive(Debug, Error)]
 pub enum SinkError {

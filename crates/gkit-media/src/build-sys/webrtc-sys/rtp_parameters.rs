@@ -191,8 +191,8 @@ pub mod ffi {
     extern "C++" {
         include!("livekit/webrtc.h");
 
-        type Priority = crate::webrtc::ffi::Priority;
-        type MediaType = crate::webrtc::ffi::MediaType;
-        type RtpTransceiverDirection = crate::webrtc::ffi::RtpTransceiverDirection;
+        type Priority = crate::build_sys::webrtc_sys::webrtc::ffi::Priority;
+        type MediaType = crate::build_sys::webrtc_sys::webrtc::ffi::MediaType;
+        type RtpTransceiverDirection = crate::build_sys::webrtc_sys::webrtc::ffi::RtpTransceiverDirection;
     }
 }

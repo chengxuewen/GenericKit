@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::imp::desktop_capturer as imp_dc;
+use super::imp::desktop_capturer as imp_dc;
 
 /// Configuration options for creating a desktop capturer.
 ///

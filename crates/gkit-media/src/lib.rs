@@ -9,10 +9,9 @@ pub mod capture;
 pub mod protocols;
 pub mod video;
 
-// build-sys: LiveKit webrtc-sys FFI (requires libwebrtc C++ binary + google_lk port)
-// #[cfg(feature = "backend-native-google")]
-// #[path = "build-sys/mod.rs"]
-// pub mod build_sys;
+#[cfg(feature = "backend-native-google")]
+#[path = "build-sys/mod.rs"]
+pub mod build_sys;
 
 pub fn make_peer_connection() -> Box<dyn protocols::rtc::client::core::PeerConnection> {
     use protocols::rtc::client::engine::RtcEngine;

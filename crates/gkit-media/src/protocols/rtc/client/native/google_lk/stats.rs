@@ -16,7 +16,7 @@ use std::collections::HashMap;
 
 use serde::Deserialize;
 
-use crate::data_channel::DataChannelState;
+use super::data_channel::DataChannelState;
 
 /// Values from https://www.w3.org/TR/webrtc-stats/ (NOTE: Some of the structs are not in the SPEC
 /// but inside libwebrtc)

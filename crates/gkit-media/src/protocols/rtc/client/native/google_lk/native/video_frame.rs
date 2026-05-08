@@ -18,7 +18,7 @@ use cxx::UniquePtr;
 use crate::build_sys::webrtc_sys::{video_frame as vf_sys, video_frame_buffer as vfb_sys};
 
 use super::yuv_helper;
-use crate::video_frame::{self as vf, VideoFormatType, VideoRotation};
+use super::super::video_frame::{self as vf, VideoFormatType, VideoRotation};
 
 /// We don't use vf::VideoFrameBuffer trait for the types inside this module to avoid confusion
 /// because directly using platform specific types is not valid (e.g user callback)

@@ -17,7 +17,7 @@ use sys_at::ffi::audio_to_media;
 use crate::build_sys::webrtc_sys::audio_track as sys_at;
 
 use super::media_stream_track::impl_media_stream_track;
-use crate::media_stream_track::RtcTrackState;
+use super::super::media_stream_track::RtcTrackState;
 
 #[derive(Clone)]
 pub struct RtcAudioTrack {

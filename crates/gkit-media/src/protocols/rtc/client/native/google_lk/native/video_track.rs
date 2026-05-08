@@ -21,7 +21,7 @@ use crate::build_sys::webrtc_sys::video_track as sys_vt;
 
 use super::media_stream_track::impl_media_stream_track;
 use super::packet_trailer::PacketTrailerHandler;
-use crate::media_stream_track::RtcTrackState;
+use super::super::media_stream_track::RtcTrackState;
 
 #[derive(Clone)]
 pub struct RtcVideoTrack {

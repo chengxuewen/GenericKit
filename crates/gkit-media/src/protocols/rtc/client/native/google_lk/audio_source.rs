@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use livekit_protocol::enum_dispatch;
+use enum_dispatch::enum_dispatch;
 
-use crate::imp::audio_source as imp_as;
+use super::imp::audio_source as imp_as;
 
 #[derive(Default, Debug)]
 pub struct AudioSourceOptions {
@@ -45,7 +45,7 @@ pub mod native {
     use std::fmt::{Debug, Formatter};
 
     use super::*;
-    use crate::{audio_frame::AudioFrame, RtcError};
+    use super::{audio_frame::AudioFrame, RtcError};
 
     #[derive(Clone)]
     pub struct NativeAudioSource {

@@ -14,7 +14,7 @@
 
 use std::sync::Arc;
 
-use crate::impl_thread_safety;
+use crate::build_sys::webrtc_sys::impl_thread_safety;
 
 #[cxx::bridge(namespace = "livekit_ffi")]
 pub mod ffi {
@@ -104,10 +104,10 @@ pub mod ffi {
         include!("livekit/peer_connection_factory.h");
         include!("livekit/packet_trailer.h");
 
-        type RtpSender = crate::rtp_sender::ffi::RtpSender;
-        type RtpReceiver = crate::rtp_receiver::ffi::RtpReceiver;
-        type PeerConnectionFactory = crate::peer_connection_factory::ffi::PeerConnectionFactory;
-        type PacketTrailerHandler = crate::packet_trailer::ffi::PacketTrailerHandler;
+        type RtpSender = crate::build_sys::webrtc_sys::rtp_sender::ffi::RtpSender;
+        type RtpReceiver = crate::build_sys::webrtc_sys::rtp_receiver::ffi::RtpReceiver;
+        type PeerConnectionFactory = crate::build_sys::webrtc_sys::peer_connection_factory::ffi::PeerConnectionFactory;
+        type PacketTrailerHandler = crate::build_sys::webrtc_sys::packet_trailer::ffi::PacketTrailerHandler;
 
         pub type FrameCryptor;
 

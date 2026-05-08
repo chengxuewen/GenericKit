@@ -15,7 +15,7 @@
 use cxx::UniquePtr;
 use ffi::CaptureResult;
 
-use crate::{desktop_capturer::ffi::DesktopFrame, impl_thread_safety};
+use crate::build_sys::webrtc_sys::{desktop_capturer::ffi::DesktopFrame, impl_thread_safety};
 
 #[cxx::bridge(namespace = "livekit_ffi")]
 pub mod ffi {

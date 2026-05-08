@@ -14,7 +14,7 @@
 
 use std::fmt::Debug;
 
-use crate::{audio_track::RtcAudioTrack, imp::media_stream as imp_ms, video_track::RtcVideoTrack};
+use super::{audio_track::RtcAudioTrack, imp::media_stream as imp_ms, video_track::RtcVideoTrack};
 
 #[derive(Clone)]
 pub struct MediaStream {

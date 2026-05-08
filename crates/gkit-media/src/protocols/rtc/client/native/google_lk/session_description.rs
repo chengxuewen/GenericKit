@@ -19,7 +19,7 @@ use std::{
 
 use thiserror::Error;
 
-use crate::imp::session_description as sd_imp;
+use super::imp::session_description as sd_imp;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum SdpType {

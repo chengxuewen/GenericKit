@@ -14,7 +14,7 @@
 
 use std::any::Any;
 
-use crate::impl_thread_safety;
+use crate::build_sys::webrtc_sys::impl_thread_safety;
 
 #[cxx::bridge(namespace = "livekit_ffi")]
 pub mod ffi {
@@ -106,22 +106,22 @@ pub mod ffi {
         include!("livekit/jsep.h");
         include!("livekit/webrtc.h");
 
-        type RtpSenderPtr = crate::helper::ffi::RtpSenderPtr;
-        type RtpReceiverPtr = crate::helper::ffi::RtpReceiverPtr;
-        type RtpTransceiverPtr = crate::helper::ffi::RtpTransceiverPtr;
-        type RtcError = crate::rtc_error::ffi::RtcError;
-        type Candidate = crate::candidate::ffi::Candidate;
-        type IceCandidate = crate::jsep::ffi::IceCandidate;
-        type DataChannel = crate::data_channel::ffi::DataChannel;
-        type DataChannelInit = crate::data_channel::ffi::DataChannelInit;
-        type RtpSender = crate::rtp_sender::ffi::RtpSender;
-        type RtpReceiver = crate::rtp_receiver::ffi::RtpReceiver;
-        type RtpTransceiver = crate::rtp_transceiver::ffi::RtpTransceiver;
-        type RtpTransceiverInit = crate::rtp_transceiver::ffi::RtpTransceiverInit;
-        type MediaStream = crate::media_stream::ffi::MediaStream;
-        type MediaStreamTrack = crate::media_stream::ffi::MediaStreamTrack;
-        type SessionDescription = crate::jsep::ffi::SessionDescription;
-        type MediaType = crate::webrtc::ffi::MediaType;
+        type RtpSenderPtr = crate::build_sys::webrtc_sys::helper::ffi::RtpSenderPtr;
+        type RtpReceiverPtr = crate::build_sys::webrtc_sys::helper::ffi::RtpReceiverPtr;
+        type RtpTransceiverPtr = crate::build_sys::webrtc_sys::helper::ffi::RtpTransceiverPtr;
+        type RtcError = crate::build_sys::webrtc_sys::rtc_error::ffi::RtcError;
+        type Candidate = crate::build_sys::webrtc_sys::candidate::ffi::Candidate;
+        type IceCandidate = crate::build_sys::webrtc_sys::jsep::ffi::IceCandidate;
+        type DataChannel = crate::build_sys::webrtc_sys::data_channel::ffi::DataChannel;
+        type DataChannelInit = crate::build_sys::webrtc_sys::data_channel::ffi::DataChannelInit;
+        type RtpSender = crate::build_sys::webrtc_sys::rtp_sender::ffi::RtpSender;
+        type RtpReceiver = crate::build_sys::webrtc_sys::rtp_receiver::ffi::RtpReceiver;
+        type RtpTransceiver = crate::build_sys::webrtc_sys::rtp_transceiver::ffi::RtpTransceiver;
+        type RtpTransceiverInit = crate::build_sys::webrtc_sys::rtp_transceiver::ffi::RtpTransceiverInit;
+        type MediaStream = crate::build_sys::webrtc_sys::media_stream::ffi::MediaStream;
+        type MediaStreamTrack = crate::build_sys::webrtc_sys::media_stream::ffi::MediaStreamTrack;
+        type SessionDescription = crate::build_sys::webrtc_sys::jsep::ffi::SessionDescription;
+        type MediaType = crate::build_sys::webrtc_sys::webrtc::ffi::MediaType;
     }
 
     unsafe extern "C++" {

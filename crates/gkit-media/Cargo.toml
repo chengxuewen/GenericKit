@@ -9,7 +9,7 @@ backend-native = ["dep:ctor"]
 backend-native-all = ["backend-native", "backend-native-webrtc-rs", "backend-native-google"]
 backend-native-webrtc-rs = ["backend-native", "dep:webrtc", "dep:tokio", "dep:bytes", "dep:openh264", "dep:rtp"]
 backend-native-google = ["backend-native", "dep:cxx", "dep:tokio", "dep:parking_lot",
-    "dep:thiserror", "dep:log", "dep:enum_dispatch", "dep:scoped-tls", "dep:futures", "dep:rtrb"]
+    "dep:thiserror", "dep:log", "dep:enum_dispatch", "dep:scoped-tls", "dep:futures", "dep:rtrb", "dep:serde", "dep:lazy_static"]
 
 [dependencies]
 gkit-core.workspace = true
@@ -27,6 +27,8 @@ enum_dispatch = { version = "0.3", optional = true }
 scoped-tls = { version = "1", optional = true }
 futures = { version = "0.3", optional = true }
 rtrb = { version = "0.3", optional = true }
+serde = { version = "1", features = ["derive"], optional = true }
+lazy_static = { version = "1", optional = true }
 
 [build-dependencies]
 ureq = { version = "2", features = ["tls"] }

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::imp::video_stream as stream_imp;
+use super::imp::video_stream as stream_imp;
 
 // There is no shared sink between native and web platforms.
 // Each platform requires different configuration (e.g: WebGlContext, ..)
@@ -26,11 +26,11 @@ pub mod native {
     };
 
     use super::stream_imp;
-    use crate::{
+    use super::{
         native::packet_trailer::PacketTrailerHandler, video_frame::BoxVideoFrame,
         video_track::RtcVideoTrack,
     };
-    use livekit_runtime::Stream;
+    use futures::Stream;
 
     const DEFAULT_QUEUE_SIZE_FRAMES: usize = 1;
 

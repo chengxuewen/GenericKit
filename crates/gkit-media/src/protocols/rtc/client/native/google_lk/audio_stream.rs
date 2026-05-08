@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::imp::audio_stream as stream_imp;
+use super::imp::audio_stream as stream_imp;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub mod native {
@@ -22,10 +22,10 @@ pub mod native {
         task::{Context, Poll},
     };
 
-    use livekit_runtime::Stream;
+    use futures::Stream;
 
     use super::stream_imp;
-    use crate::{audio_frame::AudioFrame, audio_track::RtcAudioTrack};
+    use super::{audio_frame::AudioFrame, audio_track::RtcAudioTrack};
 
     const DEFAULT_QUEUE_SIZE_FRAMES: usize = 10;
 

@@ -8,9 +8,7 @@ mod google;
 #[cfg(feature = "backend-native-google")]
 pub use google::*;
 
-// google_lk not yet integrated (needs full port from LiveKit)
-// #[cfg(feature = "backend-native-google")]
-// mod google_lk;
+// google_lk deferred: write direct build_sys adapter in google.rs instead
 
 #[cfg(not(any(
     feature = "backend-native-webrtc-rs",

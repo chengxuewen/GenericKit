@@ -98,7 +98,7 @@ impl Display for ffi::RtcError {
 
 #[cfg(test)]
 mod tests {
-    use crate::rtc_error::ffi::{RtcError, RtcErrorDetailType, RtcErrorType};
+    use crate::build_sys::webrtc_sys::rtc_error::ffi::{RtcError, RtcErrorDetailType, RtcErrorType};
 
     #[cxx::bridge(namespace = "livekit_ffi")]
     pub mod ffi {

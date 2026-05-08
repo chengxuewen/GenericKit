@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-pub use crate::{
+pub use super::{
     audio_frame::AudioFrame,
     audio_source::{AudioSourceOptions, RtcAudioSource},
     audio_track::RtcAudioTrack,

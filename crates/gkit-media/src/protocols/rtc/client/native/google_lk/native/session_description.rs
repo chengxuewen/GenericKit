@@ -15,7 +15,7 @@
 use cxx::UniquePtr;
 use crate::build_sys::webrtc_sys::jsep as sys_jsep;
 
-use crate::session_description::{self, SdpParseError, SdpType};
+use super::super::session_description::{self, SdpParseError, SdpType};
 
 impl From<sys_jsep::ffi::SdpType> for SdpType {
     fn from(sdp_type: sys_jsep::ffi::SdpType) -> Self {
