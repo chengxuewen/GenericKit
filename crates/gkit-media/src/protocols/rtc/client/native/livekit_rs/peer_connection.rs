@@ -1,8 +1,27 @@
+use std::sync::{Mutex, OnceLock};
+
+use libwebrtc::data_channel::DataChannelInit;
+use libwebrtc::peer_connection::AnswerOptions;
+use libwebrtc::peer_connection::OfferOptions;
+
 use crate::protocols::rtc::client::core::{
-    ConnectionState, DataChannel, GatheringState,
-    IceConnectionState, MediaResult, PeerConnection,
+    ConnectionState, DataChannel, DataChannelState, GatheringState,
+    IceConnectionState, MediaError, MediaResult, PeerConnection,
     SessionDescription, SignalingState,
 };
+
+use super::ice::lk_ice_from_parts;
+use super::session_description::lk_sdp_from_core;
+
+fn rt() -> &'static tokio::runtime::Runtime {
+    static RT: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
+    RT.get_or_init(|| {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("tokio runtime")
+    })
+}
 
 impl From<libwebrtc::peer_connection::PeerConnectionState> for ConnectionState {
     fn from(s: libwebrtc::peer_connection::PeerConnectionState) -> Self {
@@ -55,6 +74,53 @@ impl From<libwebrtc::peer_connection::SignalingState> for SignalingState {
     }
 }
 
+impl From<libwebrtc::data_channel::DataChannelState> for DataChannelState {
+    fn from(s: libwebrtc::data_channel::DataChannelState) -> Self {
+        match s {
+            libwebrtc::data_channel::DataChannelState::Connecting => DataChannelState::Connecting,
+            libwebrtc::data_channel::DataChannelState::Open => DataChannelState::Open,
+            libwebrtc::data_channel::DataChannelState::Closing => DataChannelState::Closing,
+            libwebrtc::data_channel::DataChannelState::Closed => DataChannelState::Closed,
+        }
+    }
+}
+
+struct LkDataChannel {
+    inner: libwebrtc::data_channel::DataChannel,
+    label: String,
+}
+
+impl DataChannel for LkDataChannel {
+    fn label(&self) -> &str {
+        &self.label
+    }
+
+    fn ready_state(&self) -> DataChannelState {
+        self.inner.state().into()
+    }
+
+    fn send_text(&self, data: &str) -> MediaResult<()> {
+        self.inner
+            .send(data.as_bytes(), false)
+            .map_err(|e| MediaError::new(format!("data channel send: {e}")))
+    }
+
+    fn send_bytes(&self, data: &[u8]) -> MediaResult<()> {
+        self.inner
+            .send(data, true)
+            .map_err(|e| MediaError::new(format!("data channel send: {e}")))
+    }
+
+    fn stream_id(&self) -> MediaResult<u32> {
+        Ok(self.inner.id() as u32)
+    }
+
+    fn close(&mut self) -> MediaResult<()> {
+        self.inner.close();
+        Ok(())
+    }
+}
+
 pub struct LiveKitPeerConnection {
     inner: libwebrtc::peer_connection::PeerConnection,
 }
@@ -67,27 +133,68 @@ impl LiveKitPeerConnection {
 
 impl PeerConnection for LiveKitPeerConnection {
     fn create_offer(&self) -> MediaResult<SessionDescription> {
-        todo!()
+        rt().block_on(async {
+            self.inner
+                .create_offer(OfferOptions::default())
+                .await
+                .map(Into::into)
+                .map_err(|e| MediaError::new(format!("create_offer: {e}")))
+        })
     }
 
     fn create_answer(&self) -> MediaResult<SessionDescription> {
-        todo!()
+        rt().block_on(async {
+            self.inner
+                .create_answer(AnswerOptions::default())
+                .await
+                .map(Into::into)
+                .map_err(|e| MediaError::new(format!("create_answer: {e}")))
+        })
     }
 
-    fn set_local_description(&mut self, _desc: &SessionDescription) -> MediaResult<()> {
-        todo!()
+    fn set_local_description(&mut self, desc: &SessionDescription) -> MediaResult<()> {
+        let lk_sdp = lk_sdp_from_core(desc)
+            .map_err(|e| MediaError::new(format!("set_local_description: {e}")))?;
+        rt().block_on(async {
+            self.inner
+                .set_local_description(lk_sdp)
+                .await
+                .map_err(|e| MediaError::new(format!("set_local_description: {e}")))
+        })
     }
 
-    fn set_remote_description(&mut self, _desc: &SessionDescription) -> MediaResult<()> {
-        todo!()
+    fn set_remote_description(&mut self, desc: &SessionDescription) -> MediaResult<()> {
+        let lk_sdp = lk_sdp_from_core(desc)
+            .map_err(|e| MediaError::new(format!("set_remote_description: {e}")))?;
+        rt().block_on(async {
+            self.inner
+                .set_remote_description(lk_sdp)
+                .await
+                .map_err(|e| MediaError::new(format!("set_remote_description: {e}")))
+        })
     }
 
-    fn add_ice_candidate(&mut self, _candidate: &str, _sdp_mid: &str) -> MediaResult<()> {
-        todo!()
+    fn add_ice_candidate(&mut self, candidate: &str, sdp_mid: &str) -> MediaResult<()> {
+        let lk_ice = lk_ice_from_parts(candidate, sdp_mid)
+            .map_err(|e| MediaError::new(format!("add_ice_candidate: {e}")))?;
+        rt().block_on(async {
+            self.inner
+                .add_ice_candidate(lk_ice)
+                .await
+                .map_err(|e| MediaError::new(format!("add_ice_candidate: {e}")))
+        })
     }
 
-    fn create_data_channel(&self, _label: &str) -> MediaResult<Box<dyn DataChannel>> {
-        todo!()
+    fn create_data_channel(&self, label: &str) -> MediaResult<Box<dyn DataChannel>> {
+        self.inner
+            .create_data_channel(label, DataChannelInit::default())
+            .map(|dc| {
+                Box::new(LkDataChannel {
+                    inner: dc,
+                    label: label.to_string(),
+                }) as Box<dyn DataChannel>
+            })
+            .map_err(|e| MediaError::new(format!("create_data_channel: {e}")))
     }
 
     fn ice_connection_state(&self) -> IceConnectionState {
@@ -107,11 +214,44 @@ impl PeerConnection for LiveKitPeerConnection {
     }
 
     fn local_description(&self) -> MediaResult<SessionDescription> {
-        todo!()
+        self.inner
+            .current_local_description()
+            .map(Into::into)
+            .ok_or_else(|| MediaError::new("no local description"))
     }
 
     fn remote_description(&self) -> MediaResult<SessionDescription> {
-        todo!()
+        self.inner
+            .current_remote_description()
+            .map(Into::into)
+            .ok_or_else(|| MediaError::new("no remote description"))
+    }
+
+    fn set_on_ice_candidate(&self, cb: Box<dyn Fn(crate::protocols::rtc::client::core::IceCandidate) + Send>) {
+        let cb: Mutex<Option<Box<dyn Fn(crate::protocols::rtc::client::core::IceCandidate) + Send>>> =
+            Mutex::new(Some(cb));
+        self.inner.on_ice_candidate(Some(Box::new(move |lk_ic| {
+            if let Ok(guard) = cb.lock() {
+                if let Some(ref cb) = *guard {
+                    cb(lk_ic.into());
+                }
+            }
+        })));
+    }
+
+    fn set_on_ice_connection_state_change(
+        &self,
+        cb: Box<dyn Fn(IceConnectionState) + Send>,
+    ) {
+        let cb: Mutex<Option<Box<dyn Fn(IceConnectionState) + Send>>> = Mutex::new(Some(cb));
+        self.inner
+            .on_ice_connection_state_change(Some(Box::new(move |lk_state| {
+                if let Ok(guard) = cb.lock() {
+                    if let Some(ref cb) = *guard {
+                        cb(lk_state.into());
+                    }
+                }
+            })));
     }
 
     fn close(&mut self) -> MediaResult<()> {
