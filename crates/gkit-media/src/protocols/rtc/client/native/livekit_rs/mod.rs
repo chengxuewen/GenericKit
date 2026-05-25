@@ -4,6 +4,8 @@ mod factory;
 mod ice;
 mod peer_connection;
 mod session_description;
+mod video_frame;
+mod video_track;
 pub use factory::LiveKitRsFactory;
 pub use session_description::lk_sdp_from_core;
 

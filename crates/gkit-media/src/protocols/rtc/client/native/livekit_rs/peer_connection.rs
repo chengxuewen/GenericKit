@@ -1,17 +1,27 @@
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, atomic::{AtomicBool, Ordering}, Mutex, OnceLock};
 
 use libwebrtc::data_channel::DataChannelInit;
+use libwebrtc::media_stream_track::MediaStreamTrack;
 use libwebrtc::peer_connection::AnswerOptions;
 use libwebrtc::peer_connection::OfferOptions;
+use libwebrtc::peer_connection_factory::native::PeerConnectionFactoryExt;
+use libwebrtc::rtp_sender::RtpSender as LkRtpSender;
+use libwebrtc::video_source::native::NativeVideoSource;
+use libwebrtc::video_source::VideoResolution;
 
 use crate::protocols::rtc::client::core::{
     ConnectionState, DataChannel, DataChannelState, GatheringState,
     IceConnectionState, MediaError, MediaResult, PeerConnection,
-    SessionDescription, SignalingState,
+    SessionDescription, SignalingState, VideoTrack,
 };
+use crate::video::frame::BoxVideoFrame;
+use crate::video::source_sink::{VideoSink, VideoSinkWants, VideoSource};
 
+use super::factory::get_pcf;
 use super::ice::lk_ice_from_parts;
 use super::session_description::lk_sdp_from_core;
+use super::video_frame::gkit_box_frame_to_lk;
+use super::video_track::LkVideoTrack;
 
 fn rt() -> &'static tokio::runtime::Runtime {
     static RT: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
@@ -257,6 +267,104 @@ impl PeerConnection for LiveKitPeerConnection {
     fn close(&mut self) -> MediaResult<()> {
         self.inner.close();
         Ok(())
+    }
+
+    fn create_video_track(
+        &self,
+        source: Box<dyn VideoSource<BoxVideoFrame>>,
+    ) -> MediaResult<Box<dyn VideoTrack>> {
+        let native_source =
+            NativeVideoSource::new(VideoResolution { width: 1280, height: 720 }, false);
+
+        let _adapter = SourceToSinkAdapter::new(native_source.clone(), source);
+        let lk_track = get_pcf()
+            .create_video_track("video", native_source)
+            .map_err(|e| MediaError::new(format!("create_video_track: {e}")))?;
+
+        Ok(Box::new(LkVideoTrack::new(lk_track)))
+    }
+
+    fn set_on_track(
+        &self,
+        cb: Box<dyn Fn(Box<dyn VideoTrack>) + Send>,
+    ) {
+        let cb: Mutex<Option<Box<dyn Fn(Box<dyn VideoTrack>) + Send>>> =
+            Mutex::new(Some(cb));
+        let on_track: libwebrtc::peer_connection::OnTrack = Box::new(
+            move |event: libwebrtc::peer_connection::TrackEvent| {
+                if let Ok(mut guard) = cb.lock() {
+                    if let Some(ref cb) = *guard {
+                        if let MediaStreamTrack::Video(lk_vt) = event.track {
+                            cb(Box::new(LkVideoTrack::new(lk_vt)));
+                        }
+                    }
+                }
+            },
+        );
+        self.inner.on_track(Some(on_track));
+    }
+}
+
+impl LiveKitPeerConnection {
+    pub fn add_track<T: AsRef<str>>(
+        &self,
+        track: MediaStreamTrack,
+        stream_ids: &[T],
+    ) -> Result<LkRtpSender, libwebrtc::RtcError> {
+        self.inner.add_track(track, stream_ids)
+    }
+
+    pub fn remove_track(&self, sender: LkRtpSender) -> Result<(), libwebrtc::RtcError> {
+        self.inner.remove_track(sender)
+    }
+}
+
+struct FrameForwarder {
+    native_source: NativeVideoSource,
+    running: Arc<AtomicBool>,
+}
+
+impl VideoSink<BoxVideoFrame> for FrameForwarder {
+    fn on_frame(&self, frame: &BoxVideoFrame) {
+        if self.running.load(Ordering::Relaxed) {
+            let lk_frame = gkit_box_frame_to_lk(frame);
+            self.native_source.capture_frame(&lk_frame);
+        }
+    }
+}
+
+struct SourceToSinkAdapter {
+    _source: Box<dyn VideoSource<BoxVideoFrame>>,
+    running: Arc<AtomicBool>,
+}
+
+impl SourceToSinkAdapter {
+    fn new(
+        native_source: NativeVideoSource,
+        source: Box<dyn VideoSource<BoxVideoFrame>>,
+    ) -> Self {
+        let running = Arc::new(AtomicBool::new(true));
+        let forwarder = FrameForwarder {
+            native_source,
+            running: Arc::clone(&running),
+        };
+        source.add_or_update_sink(
+            Box::new(forwarder),
+            VideoSinkWants {
+                is_active: true,
+                ..Default::default()
+            },
+        );
+        Self {
+            _source: source,
+            running,
+        }
+    }
+}
+
+impl Drop for SourceToSinkAdapter {
+    fn drop(&mut self) {
+        self.running.store(false, Ordering::Relaxed);
     }
 }
 

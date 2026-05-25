@@ -12,7 +12,7 @@ use super::peer_connection::LiveKitPeerConnection;
 /// Global libwebrtc PeerConnectionFactory — libwebrtc requires exactly one per process.
 static PCF: OnceLock<LkPcf> = OnceLock::new();
 
-fn get_pcf() -> &'static LkPcf {
+pub(crate) fn get_pcf() -> &'static LkPcf {
     PCF.get_or_init(|| LkPcf::default())
 }
 
