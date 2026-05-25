@@ -2,6 +2,12 @@
 
 **Date**: 2026-05-06
 **Scope**: Fill webrtc-rs backend (default, W3C-compatible API), activate google_lk backend (feature-gated), extend C++ wrappers, P2P loopback demo
+
+> **📌 Status Update (2026-05-25)**: The `google_lk` backend described in this spec is being replaced by `livekit_rs` — a thin adapter over LiveKit's `libwebrtc` crate from [livekit/rust-sdks](https://github.com/livekit/rust-sdks). See [2026-05-25-livekit-rs-backend-migration-design.md](2026-05-25-livekit-rs-backend-migration-design.md) for the migration plan. Key changes:
+> - `build-sys/webrtc-sys/` (123 C++/Rust files) → deleted
+> - `google_lk/` (25 modules) → `livekit_rs/` (~10 adapter modules)
+> - `core.rs` trait layer and `RtcEngine` registration are **unchanged**
+> - C++ compilation via CMake/vcpkg → prebuilt binaries auto-downloaded by `webrtc-sys-build`
 **API reference**: [W3C WebRTC 1.0](https://www.w3.org/TR/webrtc/) — `RTCPeerConnection`, `RTCDataChannel`, `RTCSessionDescription`, `RTCIceCandidate`
 **Default backend**: `webrtc-rs` (rust native, no external binary). Alternative: `google_lk` (libwebrtc C++ prebuilt, for Jetson/special platforms).
 **Constraint**: All code in single crate `gkit-media`; no new workspace members
