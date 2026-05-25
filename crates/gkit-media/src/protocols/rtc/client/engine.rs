@@ -36,7 +36,7 @@ impl RtcEngine {
 
     pub fn create_default() -> MediaResult<Box<dyn PeerConnectionFactory>> {
         let names = Self::registered_types();
-        for preferred in &["webrtc-rs", "google_lk", "wasm"] {
+        for preferred in &["webrtc-rs", "google", "wasm"] {
             if names.iter().any(|n| n == preferred) {
                 return Self::create(preferred);
             }
@@ -50,7 +50,7 @@ impl RtcEngine {
     pub fn create_for_platform() -> MediaResult<Box<dyn PeerConnectionFactory>> {
         #[cfg(target_os = "linux")]
         if std::path::Path::new("/etc/nv_tegra_release").exists() {
-            if let Ok(f) = Self::create("google_lk") {
+            if let Ok(f) = Self::create("google") {
                 return Ok(f);
             }
         }

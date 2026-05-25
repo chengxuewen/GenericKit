@@ -1,18 +1,22 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "plugin": [
-    "superpowers@git+https://github.com/obra/superpowers.git"
+    "superpowers@git+https://github.com/obra/superpowers.git",
+    "@smart-coders-hq/opencode-model-fallback",
+    "opencode-plugin-openspec",
+    "oh-my-opencode"
+  ],
+  "instructions": [
+    ".agents/memorys/status.md",
+    ".agents/memorys/conventions.md",
+    ".agents/memorys/decisions.md",
+    ".agents/memorys/pitfalls.md"
   ],
   "mcp": {
-    "mem0": {
-      "type": "local",
-      "enabled": true,
-      "command": "npx",
-      "args": ["-y", "mem0ai/mem0"],
-      "env": {
-        "MEM0_DIR": ".agents/GenericKit-Agent-Memory",
-        "MEMORY_DB_PATH": ".agents/GenericKit-Agent-Memory/memory.sqlite"
-      }
+    "qt-docs": {
+      "type": "remote",
+      "url": "https://qt-docs-mcp.qt.io/mcp",
+      "enabled": true
     }
   }
 }

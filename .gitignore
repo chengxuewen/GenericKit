@@ -99,6 +99,10 @@ build*
 vcpkg*
 target*
 
+# LLM dirs
+# --------
+.sisyphus
+
 # Temp dirs
 # --------
 install

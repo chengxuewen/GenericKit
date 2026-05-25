@@ -4,13 +4,9 @@ mod webrtc_rs;
 pub use webrtc_rs::*;
 
 #[cfg(feature = "backend-native-google")]
-mod google;
+mod livekit_rs;
 #[cfg(feature = "backend-native-google")]
-pub use google::*;
-
-// google_lk: port requires manual per-file `super::` → full path fixes in inline `mod native` blocks
-// #[cfg(feature = "backend-native-google")]
-// mod google_lk;
+pub use livekit_rs::*;
 
 #[cfg(not(any(
     feature = "backend-native-webrtc-rs",

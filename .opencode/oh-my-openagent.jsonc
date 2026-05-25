@@ -1,0 +1,25 @@
+{
+  "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-openagent/dev/assets/oh-my-opencode.schema.json",
+
+  // Sisyphus — 主控 Agent
+  "sisyphus_agent": {
+    "disabled": false,                    // 启用 Sisyphus 编排
+    "default_builder_enabled": true,       // 允许 Sisyphus 直接执行
+    "replace_plan": false                  // 保留 Prometheus 规划流程
+  },
+
+  // Team Mode — 多 Agent 并行协作
+  "team_mode": {
+    "enabled": true,                       // 启用团队模式
+    "tmux_visualization": true,            // tmux pane 实时监控
+    "max_parallel_members": 4              // 最大并行 worker 数
+  },
+
+  // Tmux — 本项目工作流可视化 (系统级 enabled/shell 在全局配置)
+  "tmux": {
+    "session_name": "omo",                 // tmux 会话名
+    "layout": "main-vertical",             // 左主控 | 右 agent 竖排
+    "main_pane_size": 60,                  // 主窗格占比 60%
+    "main_pane_min_width": 120             // 主窗格最小宽度
+  }
+}

@@ -7,20 +7,20 @@ void setUp(void) {}
 void tearDown(void) {}
 
 void test_factory_create_default(void) {
-    void *f = gkit_media_rtc_create_factory("google_lk");
+    void *f = gkit_media_rtc_create_factory("google");
     // google_lk may not be registered if libwebrtc not available;
     // test that the function doesn't crash
     if (f) {
         const char *name = gkit_media_rtc_factory_backend_name(f);
         TEST_ASSERT_NOT_NULL(name);
-        TEST_ASSERT_EQUAL_STRING("google_lk", name);
+        TEST_ASSERT_EQUAL_STRING("google", name);
         gkit_media_rtc_free_string((char *)name);
         gkit_media_rtc_destroy_factory(f);
     }
 }
 
 void test_factory_create_from_factory(void) {
-    void *f = gkit_media_rtc_create_factory("google_lk");
+    void *f = gkit_media_rtc_create_factory("google");
     if (!f) {
         TEST_IGNORE_MESSAGE("google_lk backend not available");
         return;
