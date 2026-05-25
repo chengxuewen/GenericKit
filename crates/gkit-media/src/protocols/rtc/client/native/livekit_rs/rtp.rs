@@ -7,7 +7,6 @@
 //! and calling the accessors on the inner
 //! [`PeerConnection`](libwebrtc::peer_connection::PeerConnection).
 
-use libwebrtc::rtp_parameters::RtpParameters;
 use libwebrtc::rtp_receiver::RtpReceiver as LkRtpReceiver;
 use libwebrtc::rtp_sender::RtpSender as LkRtpSender;
 use libwebrtc::rtp_transceiver::RtpTransceiver as LkRtpTransceiver;

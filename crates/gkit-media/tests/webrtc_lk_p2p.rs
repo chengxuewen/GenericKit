@@ -6,12 +6,8 @@ use gkit_media::protocols::rtc::client::engine::RtcEngine;
 
 const ICE_TIMEOUT_SECS: u64 = 20;
 
-#[cfg(not(target_os = "macos"))]
 #[test]
 fn livekit_p2p_offer_answer_ice() {
-    // On macOS, libwebrtc binaries may not be compatible (macOS 26+).
-    // This test runs on Linux/Windows where the Google backend is available.
-
     let factory = RtcEngine::create("google").expect("google backend not registered");
     let mut alice = factory.create_peer_connection().expect("alice");
     let mut bob = factory.create_peer_connection().expect("bob");
@@ -46,7 +42,7 @@ fn livekit_p2p_offer_answer_ice() {
         }));
     }
 
-    // ── Offer / Answer exchange ──
+    // Offer / Answer exchange
     let offer = alice.create_offer().expect("alice offer");
     alice.set_local_description(&offer).expect("alice setLocal");
     bob.set_remote_description(&offer).expect("bob setRemote");
@@ -55,7 +51,7 @@ fn livekit_p2p_offer_answer_ice() {
     bob.set_local_description(&answer).expect("bob setLocal");
     alice.set_remote_description(&answer).expect("alice setRemote");
 
-    // ── Exchange ICE candidates ──
+    // Exchange ICE candidates
     let alice_ics: Vec<IceCandidate> = alice_candidates.lock().unwrap().drain(..).collect();
     let bob_ics: Vec<IceCandidate> = bob_candidates.lock().unwrap().drain(..).collect();
 
@@ -69,8 +65,7 @@ fn livekit_p2p_offer_answer_ice() {
             .ok();
     }
 
-    // ── Also exchange any late-arriving candidates ──
-    // libwebrtc may trickle candidates after setLocalDescription
+    // Also exchange any late-arriving candidates
     std::thread::sleep(Duration::from_millis(200));
     let alice_late: Vec<IceCandidate> = alice_candidates.lock().unwrap().drain(..).collect();
     let bob_late: Vec<IceCandidate> = bob_candidates.lock().unwrap().drain(..).collect();
@@ -84,7 +79,7 @@ fn livekit_p2p_offer_answer_ice() {
             .ok();
     }
 
-    // ── Wait for ICE connection ──
+    // Wait for ICE connection
     let start = Instant::now();
     loop {
         let as_ = *alice_state.lock().unwrap();
@@ -111,16 +106,4 @@ fn livekit_p2p_offer_answer_ice() {
     alice.close().ok();
     bob.close().ok();
     assert_eq!(alice.ice_connection_state(), IceConnectionState::Closed);
-}
-
-#[cfg(target_os = "macos")]
-#[test]
-#[ignore = "libwebrtc binary not compatible with macOS 26 (crash in VideoEncoderFactory::GetSupportedFormats)"]
-fn livekit_p2p_skipped_on_macos() {
-    let factory = RtcEngine::create("google").expect("google backend not registered");
-    let mut pc = factory.create_peer_connection().expect("create pc");
-    let offer = pc.create_offer().expect("create offer");
-    assert_eq!(offer.sdp_type, "offer");
-    assert!(!offer.sdp.is_empty());
-    pc.close().ok();
 }

@@ -232,8 +232,7 @@ impl PeerConnection for LiveKitPeerConnection {
 
         let _adapter = SourceToSinkAdapter::new(native_source.clone(), source);
         let lk_track = get_pcf()
-            .create_video_track("video", native_source)
-            .map_err(|e| MediaError::new(format!("create_video_track: {e}")))?;
+            .create_video_track("video", native_source);
 
         Ok(Box::new(LkVideoTrack::new(lk_track)))
     }
@@ -279,8 +278,7 @@ impl LiveKitPeerConnection {
             .get_stats()
             .await
             .map_err(|e| MediaError::new(format!("get_stats: {e}")))?;
-        serde_json::to_string_pretty(&stats)
-            .map_err(|e| MediaError::new(format!("serialize stats: {e}")))
+        Ok(format!("{:#?}", stats))
     }
 
     /// Returns all RTP senders attached to this peer connection.

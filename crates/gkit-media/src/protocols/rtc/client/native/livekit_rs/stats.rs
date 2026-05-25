@@ -17,8 +17,7 @@ pub async fn get_stats_json(
         .get_stats()
         .await
         .map_err(|e| MediaError::new(format!("get_stats failed: {e}")))?;
-    serde_json::to_string_pretty(&stats)
-        .map_err(|e| MediaError::new(format!("serialize stats: {e}")))
+    Ok(format!("{:#?}", stats))
 }
 
 /// Collect stats for a single RTP sender and return as JSON string.
@@ -29,8 +28,7 @@ pub async fn sender_stats_json(
         .get_stats()
         .await
         .map_err(|e| MediaError::new(format!("sender get_stats failed: {e}")))?;
-    serde_json::to_string_pretty(&stats)
-        .map_err(|e| MediaError::new(format!("serialize sender stats: {e}")))
+    Ok(format!("{:#?}", stats))
 }
 
 /// Collect stats for a single RTP receiver and return as JSON string.
@@ -41,8 +39,7 @@ pub async fn receiver_stats_json(
         .get_stats()
         .await
         .map_err(|e| MediaError::new(format!("receiver get_stats failed: {e}")))?;
-    serde_json::to_string_pretty(&stats)
-        .map_err(|e| MediaError::new(format!("serialize receiver stats: {e}")))
+    Ok(format!("{:#?}", stats))
 }
 
 /// Re-export the full [`RtcStats`] enum and its substructs so callers can work
