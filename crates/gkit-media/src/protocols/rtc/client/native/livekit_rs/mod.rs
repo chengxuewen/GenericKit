@@ -1,5 +1,7 @@
 use crate::protocols::rtc::client::core::PeerConnectionFactory;
 
+mod audio_track;
+mod data_channel;
 mod factory;
 mod ice;
 mod peer_connection;

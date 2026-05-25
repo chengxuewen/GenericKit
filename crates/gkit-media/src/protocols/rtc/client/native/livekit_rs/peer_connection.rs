@@ -17,6 +17,7 @@ use crate::protocols::rtc::client::core::{
 use crate::video::frame::BoxVideoFrame;
 use crate::video::source_sink::{VideoSink, VideoSinkWants, VideoSource};
 
+use super::data_channel::LkDataChannelAdapter;
 use super::factory::get_pcf;
 use super::ice::lk_ice_from_parts;
 use super::session_description::lk_sdp_from_core;
@@ -84,52 +85,7 @@ impl From<libwebrtc::peer_connection::SignalingState> for SignalingState {
     }
 }
 
-impl From<libwebrtc::data_channel::DataChannelState> for DataChannelState {
-    fn from(s: libwebrtc::data_channel::DataChannelState) -> Self {
-        match s {
-            libwebrtc::data_channel::DataChannelState::Connecting => DataChannelState::Connecting,
-            libwebrtc::data_channel::DataChannelState::Open => DataChannelState::Open,
-            libwebrtc::data_channel::DataChannelState::Closing => DataChannelState::Closing,
-            libwebrtc::data_channel::DataChannelState::Closed => DataChannelState::Closed,
-        }
-    }
-}
 
-struct LkDataChannel {
-    inner: libwebrtc::data_channel::DataChannel,
-    label: String,
-}
-
-impl DataChannel for LkDataChannel {
-    fn label(&self) -> &str {
-        &self.label
-    }
-
-    fn ready_state(&self) -> DataChannelState {
-        self.inner.state().into()
-    }
-
-    fn send_text(&self, data: &str) -> MediaResult<()> {
-        self.inner
-            .send(data.as_bytes(), false)
-            .map_err(|e| MediaError::new(format!("data channel send: {e}")))
-    }
-
-    fn send_bytes(&self, data: &[u8]) -> MediaResult<()> {
-        self.inner
-            .send(data, true)
-            .map_err(|e| MediaError::new(format!("data channel send: {e}")))
-    }
-
-    fn stream_id(&self) -> MediaResult<u32> {
-        Ok(self.inner.id() as u32)
-    }
-
-    fn close(&mut self) -> MediaResult<()> {
-        self.inner.close();
-        Ok(())
-    }
-}
 
 pub struct LiveKitPeerConnection {
     inner: libwebrtc::peer_connection::PeerConnection,
@@ -198,12 +154,7 @@ impl PeerConnection for LiveKitPeerConnection {
     fn create_data_channel(&self, label: &str) -> MediaResult<Box<dyn DataChannel>> {
         self.inner
             .create_data_channel(label, DataChannelInit::default())
-            .map(|dc| {
-                Box::new(LkDataChannel {
-                    inner: dc,
-                    label: label.to_string(),
-                }) as Box<dyn DataChannel>
-            })
+            .map(|dc| Box::new(LkDataChannelAdapter::new(dc)) as Box<dyn DataChannel>)
             .map_err(|e| MediaError::new(format!("create_data_channel: {e}")))
     }
 
