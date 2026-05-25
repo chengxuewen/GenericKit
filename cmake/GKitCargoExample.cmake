@@ -37,6 +37,7 @@ Create standard build / run / aggregate CMake targets for a Rust example::
         [ASSETS <dir>]         # optional: source/assets directory to copy
         [FOLDER <folder>]      # IDE FOLDER property
         [RELEASE]              # build with --release
+        [FEATURES <features>]  # optional: cargo --features flag
         [REQUIRED_CARGO]       # find_program cargo REQUIRED (default ON)
     )
 
@@ -84,7 +85,7 @@ endfunction()
 
 function(gkit_cargo_add_example)
 	set(_options RELEASE REQUIRED_CARGO)
-	set(_onevalue NAME CRATE ASSETS FOLDER)
+	set(_onevalue NAME CRATE ASSETS FOLDER FEATURES)
 	set(_multi)
 	cmake_parse_arguments(_arg "${_options}" "${_onevalue}" "${_multi}" ${ARGN})
 
@@ -108,7 +109,11 @@ function(gkit_cargo_add_example)
 	endif()
 
 	# --- Build flags ---
-	if(_arg_RELEASE)
+	if(_arg_FEATURES)
+		set(_cargo_features "--features" "${_arg_FEATURES}")
+	else()
+		set(_cargo_features)
+	endif()
 		set(_cargo_flags --release)
 		set(_build_type release)
 	else()
@@ -135,7 +140,7 @@ function(gkit_cargo_add_example)
 	# --- Build target ---
 	add_custom_target(${_example_name}_build
 		COMMAND "${GKIT_CARGO_EXECUTABLE}" build -p ${_arg_CRATE}
-			--example ${_example_name} ${_cargo_flags}
+			--example ${_example_name} ${_cargo_features} ${_cargo_flags}
 		WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
 		COMMENT "Building Rust example: ${_example_name} (${_build_type})"
 		USES_TERMINAL
