@@ -5,7 +5,10 @@ use libwebrtc::media_stream_track::MediaStreamTrack;
 use libwebrtc::peer_connection::AnswerOptions;
 use libwebrtc::peer_connection::OfferOptions;
 use libwebrtc::peer_connection_factory::native::PeerConnectionFactoryExt;
+use libwebrtc::rtp_receiver::RtpReceiver as LkRtpReceiver;
 use libwebrtc::rtp_sender::RtpSender as LkRtpSender;
+use libwebrtc::rtp_transceiver::RtpTransceiver as LkRtpTransceiver;
+use libwebrtc::stats::RtcStats;
 use libwebrtc::video_source::native::NativeVideoSource;
 use libwebrtc::video_source::VideoResolution;
 
@@ -267,6 +270,44 @@ impl LiveKitPeerConnection {
 
     pub fn remove_track(&self, sender: LkRtpSender) -> Result<(), libwebrtc::RtcError> {
         self.inner.remove_track(sender)
+    }
+
+    /// Collect all WebRTC stats as a JSON string.
+    pub async fn get_stats(&self) -> MediaResult<String> {
+        let stats: Vec<RtcStats> = self
+            .inner
+            .get_stats()
+            .await
+            .map_err(|e| MediaError::new(format!("get_stats: {e}")))?;
+        serde_json::to_string_pretty(&stats)
+            .map_err(|e| MediaError::new(format!("serialize stats: {e}")))
+    }
+
+    /// Returns all RTP senders attached to this peer connection.
+    pub fn senders(&self) -> Vec<super::rtp::RtpSenderHandle> {
+        self.inner
+            .senders()
+            .into_iter()
+            .map(super::rtp::RtpSenderHandle::new)
+            .collect()
+    }
+
+    /// Returns all RTP receivers attached to this peer connection.
+    pub fn receivers(&self) -> Vec<super::rtp::RtpReceiverHandle> {
+        self.inner
+            .receivers()
+            .into_iter()
+            .map(super::rtp::RtpReceiverHandle::new)
+            .collect()
+    }
+
+    /// Returns all RTP transceivers attached to this peer connection.
+    pub fn transceivers(&self) -> Vec<super::rtp::RtpTransceiverHandle> {
+        self.inner
+            .transceivers()
+            .into_iter()
+            .map(super::rtp::RtpTransceiverHandle::new)
+            .collect()
     }
 }
 

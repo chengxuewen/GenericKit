@@ -8,7 +8,7 @@ default = ["backend-native-google"]
 backend-native = ["dep:ctor"]
 backend-native-all = ["backend-native", "backend-native-webrtc-rs", "backend-native-google"]
 backend-native-webrtc-rs = ["backend-native", "dep:webrtc", "dep:tokio", "dep:bytes", "dep:openh264", "dep:rtp"]
-backend-native-google = ["backend-native", "dep:libwebrtc", "dep:yuv-sys", "dep:tokio"]
+backend-native-google = ["backend-native", "dep:libwebrtc", "dep:yuv-sys", "dep:tokio", "dep:serde_json"]
 
 [dependencies]
 gkit-core.workspace = true
