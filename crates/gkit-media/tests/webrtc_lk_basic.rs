@@ -10,7 +10,6 @@ async fn google_backend_registered() {
 }
 
 #[tokio::test]
-#[ignore = "pre-built libwebrtc binary crashes on macOS during PCF init (NSString+StdString ObjC category issue)"]
 async fn create_and_close_peer_connection() {
     use gkit_media::protocols::rtc::client::core::ConnectionState;
     use gkit_media::protocols::rtc::client::engine::RtcEngine;
@@ -32,7 +31,6 @@ async fn create_and_close_peer_connection() {
 }
 
 #[tokio::test]
-#[ignore = "pre-built libwebrtc binary crashes on macOS during PCF init (NSString+StdString ObjC category issue)"]
 async fn create_factory_twice() {
     use gkit_media::protocols::rtc::client::engine::RtcEngine;
 
