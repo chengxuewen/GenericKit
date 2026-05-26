@@ -8,6 +8,10 @@
 > **Predecessor**: [WebRTC Backend Implementation Design](2026-05-06-webrtc-backend-implementation-design.md) — 定义了 google_lk 后端的原始架构
 > **Predecessor**: [RtcEngine Factory Multi-Backend Design](2026-05-07-rtc-engine-factory-multi-backend-design.md) — 定义了多后端工厂注册模式
 
+> **📌 SUPERSEDED (2026-05-26)**: The `livekit_rs` adapter described in this spec has been absorbed into the plugin architecture. See [2026-05-25-media-plugin-architecture-design.md](2026-05-25-media-plugin-architecture-design.md). Key changes:
+> - `livekit_rs/` module (in gkit-media) → `plugins/webrtc/libwebrtc/src/adapt/` (separate cdylib crate)
+> - `backend-native-google` feature → removed; plugin loaded dynamically via stabby ABI
+
 ---
 
 ## 1. 动机

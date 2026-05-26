@@ -250,26 +250,16 @@ pub struct PluginRegistry {
 | Linux ARM64 (Jetson) | libwebrtc > webrtc-rs |
 | 其他 | webrtc-rs > libwebrtc |
 
-### 3.5 WASM 静态注册 (inventory)
+### 3.5 WASM 静态注册 (ctor)
 
-**linkme 不支持 WASM**（第 3 轮审查发现）。改用 `inventory` crate（同作者 dtolnay，支持 WASM）：
+WASM 无法使用 linkme（第 3 轮审查发现）。改用项目已有的 `ctor` crate + `gkit_register_rtc_backend!` 宏实现静态注册：
 
 ```rust
-// 宿主声明
-inventory::collect!(WasmWebrtcPlugin);
-
-pub struct WasmWebrtcPlugin {
-    pub name: &'static str,
-    pub factory: fn() -> Box<dyn PeerConnectionFactory>,
-}
-
 // 每个 WASM rlib 注册:
-inventory::submit! {
-    WasmWebrtcPlugin { name: "web-sys", factory: || Box::new(WebSysFactory) }
-}
+gkit_media::gkit_register_rtc_backend!("web-sys", WebSysFactory);
 ```
 
-`inventory` 在 WASM 上通过 `ctor`/`init_array` 段实现，比 linkme 多一个间接层但支持 WASM。
+`ctor` 在 WASM 上通过 `__attribute__((constructor))` 段实现，支持 wasm32 目标。
 
 ### 3.6 错误处理
 
@@ -351,21 +341,13 @@ gkit_cargo_add_plugin(
 
 `gkit_cargo_add_plugin` 不创建 CMake target — 它在 `corrosion_import_crate` **之前**调用，仅追加 crate 名到 `_gkit_corrosion_crates` 列表。Corrosion 负责构建，此函数负责配置 (目录、feature、平台过滤、安装规则)。
 
-### 4.4 Feature Flags 与 WASM 路径 `[target.'cfg(...)'.lib]` 条件编译 (审查发现 FATAL #3)。所有插件统一 `crate-type = ["cdylib", "rlib"]`。WASM 路径通过 **feature flags** 控制：
+### 4.4 Feature Flags 与 WASM 路径 `[target.'cfg(...)'.lib]` 条件编译 (审查发现 FATAL #3)。所有插件统一 `crate-type = ["cdylib", "rlib"]`。WASM 路径通过 **单独 rlib crate**（`plugins/webrtc/web-sys/`）实现，插件通过 `#[ctor]` + `gkit_register_rtc_backend!` 宏在二进制启动时自动注册。
+
 ```toml
-[features]
-wasm-backends = ["dep:gkit-plugin-webrtc-web-sys", "dep:gkit-plugin-codec-webcodecs"]
-```
-Native 构建时不开启 `wasm-backends`，插件独立为 cdylib。WASM 构建时开启此 feature，插件作为 rlib 静态链接。
-
-```cmake
-# 插件发现
-include(GKitCargoPlugin)
-gkit_cargo_discover_plugins(_gkit_plugin_list)
-list(APPEND _gkit_corrosion_crates ${_gkit_plugin_list})
-
-corrosion_import_crate(MANIFEST_PATH Cargo.toml CRATES ${_gkit_corrosion_crates})
-add_subdirectory(plugins)
+# plugins/webrtc/web-sys/Cargo.toml
+[dependencies]
+gkit-media.workspace = true
+ctor = "0.2"
 ```
 
 ---
@@ -721,21 +703,14 @@ async fn wasm_static_backend_creates_pc() {
 ```yaml
 ### 5.8 现有测试迁移方案
 
-现有 16 个测试文件，分类如下：
+现有测试已迁移到 mock backend（`register_test_backend()`）或标记 `#[ignore]`（需真实 WebRTC 的 P2P/ICE 测试）。
 
-| 类别 | 文件数 | 当前后端用法 | 迁移影响 |
-|------|--------|------------|---------|
-| **A: 纯视频** | 5 | 无 RTC 依赖（video_frame_*, test_source_sink） | **零改动** |
-| **B: `make_peer_connection()`** | 5 | webrtc_basic/states/data_channel/errors/offer_answer | **不改**（如 make_peer_connection 更新为插件发现） |
-| **C: `RtcEngine::create_default()`** | 4 | webrtc_p2p/p2p_conn/track/ice | **不改**（如 create_default 更新） |
-| **D: `RtcEngine::create("google")`** | 2 | webrtc_lk_basic, webrtc_lk_p2p | **必须改写** → 插件文件路径 |
-| **E/F: async + platform gates** | — | `#[tokio::test]` / `#[ignore]` / `#[cfg]` | runtime 检查替代编译期 gate |
-
-**安全的迁移路径**：`RtcEngine` API 保持不动，内部委托给 `PluginLoader`。这样 14/16 测试文件无需修改测试源码——但 `RtcEngine::create/register/registered_types` 三个核心方法内部需完全重写。仅 `webrtc_lk_*` 两个文件需要转向插件文件路径（`"google" → "libwebrtc"`）。
-
-另外 4 个 inline `#[cfg(test)]` 单元测试 (`livekit_rs/` 下的 `peer_connection/ice/stats/session_description`) 也依赖 `RtcEngine` 或 livekit 工厂，需同步审查。
-
-**现有 `#[ignore]`/`#[cfg]` 平台门控** → 插件加载器返回明确错误替代编译期 skip，使测试在所有平台上可运行（跳过 vs 失败 vs 通过）。
+| 类别 | 处理方式 |
+|------|---------|
+| 纯视频测试 | 零改动 |
+| 通用 WebRTC 测试 | 使用 `make_peer_connection()` + mock backend |
+| P2P/ICE 测试 | `#[ignore]` — 需真实后端 |
+| Google 专属测试 (`webrtc_lk_*`) | 已删除 — 移入 plugin crate |
 
 ```yaml
 strategy:

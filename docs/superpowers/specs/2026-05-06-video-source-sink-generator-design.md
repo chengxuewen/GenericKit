@@ -4,6 +4,8 @@
 **Priority**: P0 (highest precedence over other WebRTC phases)
 **Scope**: Define pipeline traits (VideoSource, VideoSink, VideoSinkWants, VideoBroadcaster, VideoAdapter, AudioSource, AudioSink), implement VideoFrameGenerator (SquarePattern), DefaultAudioSource, C/C++ FFI bindings, comprehensive unit tests, and an egui demo example. All video traits live in `video/source_sink.rs` (not WebRTC-specific); generator in `capture/generator.rs`.
 **Constraint**: All code in single crate `gkit-media`; no new workspace members
+**Status**: ✅ Implemented (2026-05-26)
+**Note**: All core code exists. File manifest (Section 11) paths are outdated — actual paths: `video/source_sink.rs`, `video/adapter.rs`, `capture/generator.rs`.
 
 ---
 
