@@ -39,7 +39,7 @@ gkit-media/                             # ★ 唯一 media crate (rlib)
 │   └── error.rs              # MediaError (thiserror)
 │   [deps: gkit-core, stabby]
 
-plugins/                              # cdylib 插件
+gkit-media/plugins/                      # 插件源码 (workspace members)
 ├── webrtc/
 │   ├── libwebrtc/            → libgkit_plugin_webrtc_libwebrtc.dylib
 │   ├── webrtc-rs/            → libgkit_plugin_webrtc_rs.dylib
@@ -397,7 +397,7 @@ libgkit_plugin_codec_ffmpeg.dylib     libgkit_plugin_webrtc_libwebrtc.dylib
 members = [
     "gkit-core",
     "gkit-media",
-    "plugins/*",
+    "gkit-media/plugins/*",
     "crates/*",
     "apis/*",
 ]
