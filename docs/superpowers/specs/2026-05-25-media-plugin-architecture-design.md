@@ -44,6 +44,8 @@ gkit-media/                             # ★ 唯一 media crate (rlib)
 gkit-media/plugins/                      # 插件源码 (workspace members)
 ├── webrtc/
 │   ├── libwebrtc/            → libgkit_plugin_webrtc_libwebrtc.dylib
+│   │                           Deps: livekit/rust-sdks (webrtc-sys + libwebrtc)
+│   │                           ★ 第一个实施的后端插件
 │   ├── webrtc-rs/            → libgkit_plugin_webrtc_rs.dylib
 │   ├── gstreamer/            → libgkit_plugin_webrtc_gstreamer.dylib
 │   └── web-sys/              → rlib (WASM 静态链接)
@@ -743,6 +745,10 @@ libgkit_plugin_codec_ffmpeg.dylib     libgkit_plugin_webrtc_libwebrtc.dylib
 2. **新 stabby trait 平行**: `IStableVideoSink`, `IStablePeerConnection` 在 `gkit-media/src/trait/`
 3. **适配层**: `PluginRegistry` 返回 `Box<dyn IStablePeerConnection>`，`From`/`Into` 转换到老 trait
 4. **RtcEngine 过渡**: 先查静态注册表 → fallback 到 `PluginRegistry`
+
+**第一个后端插件**: `gkit-media/plugins/webrtc/libwebrtc/`
+
+依赖 LiveKit rust-sdks 的 `webrtc-sys` (CXX FFI) 和 `libwebrtc` (safe wrapper)。可复用已完成迁移的 `livekit_rs/` 代码——该 adapter 已实现 `PeerConnection` trait 并经过 17 个测试验证。迁移为 cdylib 插件只需：加 `#[stabby::export]` 导出函数、改 `crate-type = ["cdylib", "rlib"]`。其他后端按需随后实施。
 
 ---
 
