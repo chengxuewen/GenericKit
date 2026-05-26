@@ -4,7 +4,9 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-
+stabby = { workspace = true, features = ["libloading"] }
+libloading = { workspace = true }
+thiserror = { workspace = true }
 
 [lib]
 crate-type = ["lib", "staticlib", "cdylib"]

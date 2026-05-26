@@ -36,3 +36,7 @@ webrtc = "0.17"
 tokio = { version = "1", features = ["rt", "sync", "macros", "time"] }
 bytes = "1"
 openh264 = "0.9"
+stabby = "72"
+libloading = "0.8"
+linkme = "0.3"
+thiserror = "2"
