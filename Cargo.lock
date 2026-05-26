@@ -2300,6 +2300,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "gkit-plugin-webrtc-web-sys"
+version = "0.1.2"
+dependencies = [
+ "ctor",
+ "gkit-media",
+]
+
+[[package]]
 name = "gkit-profiling"
 version = "0.1.2"
 

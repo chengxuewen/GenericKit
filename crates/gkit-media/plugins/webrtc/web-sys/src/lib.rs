@@ -1,4 +1,4 @@
-use crate::protocols::rtc::client::core::{
+use gkit_media::protocols::rtc::client::core::{
     ConnectionState, DataChannel, DataChannelState, GatheringState, IceConnectionState, IceServer,
     MediaError, MediaResult, PeerConnection, PeerConnectionFactory, RtcConfiguration,
     SessionDescription, SignalingState,
@@ -177,5 +177,5 @@ impl Default for WasmFactory {
     }
 }
 
-#[cfg(feature = "backend-wasm")]
-crate::gkit_register_rtc_backend!("wasm", WasmFactory);
+#[cfg(target_arch = "wasm32")]
+gkit_media::gkit_register_rtc_backend!("wasm", WasmFactory);

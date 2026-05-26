@@ -1,0 +1,11 @@
+[package]
+name = "gkit-plugin-webrtc-web-sys"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+gkit-media.workspace = true
+ctor = "0.2"

@@ -3,6 +3,7 @@ resolver = "3"
 members = [
     "crates/*",
     "crates/gkit-media/plugins/webrtc/libwebrtc",
+    "crates/gkit-media/plugins/webrtc/web-sys",
     "crates/gkit-core/tests/plugin/mock_plugin",
     "apis/c/*",
     "apis/python/*",
@@ -24,6 +25,7 @@ edition = "2024"
 [workspace.dependencies]
 gkit-core = { path = "crates/gkit-core" }
 gkit-media = { path = "crates/gkit-media", default-features = false }
+gkit-plugin-webrtc-web-sys = { path = "crates/gkit-media/plugins/webrtc/web-sys" }
 
 cbindgen = { version = "0.29", default-features = false }
 bindgen = { version = "0.72.1" }

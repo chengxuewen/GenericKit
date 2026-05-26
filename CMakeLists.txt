@@ -669,6 +669,10 @@ gkit_cargo_add_plugin(
 )
 list(APPEND _gkit_corrosion_crates ${_GKIT_CARGO_PLUGIN_LIST})
 
+# WASM plugin: rlib crate (static linking, not cdylib)
+set(_gkit_wasm_plugin_crates gkit-plugin-webrtc-web-sys)
+list(APPEND _gkit_corrosion_crates ${_gkit_wasm_plugin_crates})
+
 corrosion_import_crate(MANIFEST_PATH Cargo.toml CRATES ${_gkit_corrosion_crates})
 
 gkit_cargo_setup_plugins()
