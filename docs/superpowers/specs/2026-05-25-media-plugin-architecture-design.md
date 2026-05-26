@@ -67,7 +67,7 @@ cmake/
 | `QPlatformMediaIntegration` | `PluginRegistry` 单例 |
 | `QPlatformMediaPlayer`/`QPlatformCamera` | 各后端 impl `IVideoSink`/`PeerConnection` |
 | `QVideoFrame` | `VideoFrame` (§ stabby, Arc<[u8]> 零拷贝) |
-| `QVideoSink` | `IVideoSink` (§ stabby trait) |
+| `QVideoSink` | `IStableVideoSink` (§ stabby trait) |
 | FFmpeg 后端 = .dylib | `gkit-plugin-codec-ffmpeg` cdylib |
 | `QT_MEDIA_BACKEND` env var | `GKIT_WEBRTC_BACKEND` / `GKIT_CODEC_BACKEND` |
 | WASM 用 WebAudio/WebVideo | WASM 用 web-sys/WebCodecs (rlib) |
@@ -149,15 +149,17 @@ pub struct VideoFrameBorrowed<'a> { /* Slice 指针域 */ }
 ```rust
 #[stabby::stabby(checked)]
 pub trait IStableVideoSink {
-    /// Receive an owned frame. Sink may hold it indefinitely.
-    extern "C" fn on_frame_owned(&self, frame: Box<VideoFrame>);
-    /// Receive a shared reference — multi-sink broadcast without clone.
-    /// Caller must NOT hold the reference beyond this call.
+    /// 广播路径 — source 默认调用此方法。
+    /// 多 sink 可同时收到同一帧的引用，sink 可 clone 内部 Arc<[u8]> 持有。
+    /// Caller must NOT hold the reference beyond this call — Arc clone if needed.
     extern "C" fn on_frame(&self, frame: &VideoFrame);
+    /// 独占路径 — 当 sink 作为唯一消费者时调用（如编码器输入）。
+    /// 传递所有权，避免 clone 开销。
+    extern "C" fn on_frame_owned(&self, frame: stabby::boxed::Box<VideoFrame>);
     extern "C" fn on_discarded_frame(&self, timestamp_us: i64);
 }
 ```
-**设计说明**: `on_frame(&VideoFrame)` 支持多 sink 广播（与现有 `VideoSink<F>::on_frame(&self, frame: &F)` 一致）。`on_frame_owned(Box<VideoFrame>)` 用于需要持有时。两个方法互补，避免 `Box` 单所有权导致的多 sink 广播问题 (审查发现 FATAL #9)。
+**分发约定**: source 默认广播时调用 `on_frame`（多 sink）。sink 通过 capability flag 声明支持 `on_frame_owned`，source 仅在单 sink 场景调用它。详见 trait 文档。
 
 ### 2.4 性能 (1080p@60fps I420 = 3.11 MB/frame)
 
@@ -178,9 +180,22 @@ pub trait IStableVideoSink {
 `gkit-core::plugin::backend` — 不依赖任何 media 类型，纯泛型：
 
 ```rust
+pub struct PluginLib(pub(crate) Arc<Library>);
+
+// 注意: instance 必须在 _lib 之前声明，确保 Drop 顺序正确
+// Rust 按声明顺序 drop enum 变体字段 — instance 先析构（dylib 代码仍可用），
+// _lib 后析构（安全释放 dylib 句柄）
 pub enum PluginBackend<T> {
-    Dynamic { _lib: PluginLib, instance: T },
+    Dynamic { instance: T, _lib: PluginLib },  // ✅ instance drops FIRST
     Static(T),
+}
+
+impl<T> PluginBackend<T> {
+    pub fn instance(&self) -> &T {
+        match self {
+            Self::Dynamic { instance, .. } | Self::Static(instance) => instance,
+        }
+    }
 }
 ```
 
@@ -226,14 +241,26 @@ pub struct PluginRegistry {
 | Linux ARM64 (Jetson) | libwebrtc > webrtc-rs |
 | 其他 | webrtc-rs > libwebrtc |
 
-### 3.5 WASM 静态注册 (linkme)
+### 3.5 WASM 静态注册 (inventory)
+
+**linkme 不支持 WASM**（第 3 轮审查发现）。改用 `inventory` crate（同作者 dtolnay，支持 WASM）：
 
 ```rust
-#[linkme::distributed_slice]
-pub static WEBRTC_STATIC_PLUGINS: [fn() -> (&'static str, Box<dyn PeerConnectionFactory>)] = [..];
+// 宿主声明
+inventory::collect!(WasmWebrtcPlugin);
+
+pub struct WasmWebrtcPlugin {
+    pub name: &'static str,
+    pub factory: fn() -> Box<dyn PeerConnectionFactory>,
+}
+
+// 每个 WASM rlib 注册:
+inventory::submit! {
+    WasmWebrtcPlugin { name: "web-sys", factory: || Box::new(WebSysFactory) }
+}
 ```
 
-每个 WASM rlib 编译期注册，宿主通过 `PluginBackend::Static(instance)` 访问。
+`inventory` 在 WASM 上通过 `ctor`/`init_array` 段实现，比 linkme 多一个间接层但支持 WASM。
 
 ### 3.6 错误处理
 
@@ -708,12 +735,14 @@ libgkit_plugin_codec_ffmpeg.dylib     libgkit_plugin_webrtc_libwebrtc.dylib
 
 ---
 
-## 7. 迁移路径 (backward compatible)
+## 7. 迁移路径 (修正版)
 
-1. `gkit-media` 现有 `RtcEngine` 委托给 `PluginRegistry::create_webrtc()`
-2. 老 `gkit_register_rtc_backend!` 映射到 `PluginRegistry::register_webrtc()`
-3. `engine.rs` 后续废弃
-4. `core.rs` trait 保持不动 (已通过 L0/L1/L2 测试验证)
+原设计 "core.rs trait 保持不动" 与引入 stabby trait 矛盾 (FATAL #1)。修正方案 (合并原 Section 9.3)：
+
+1. **老 trait 保留**: `VideoSink<F>`, `PeerConnection` 等继续在 `core.rs` 中
+2. **新 stabby trait 平行**: `IStableVideoSink`, `IStablePeerConnection` 在 `gkit-media/src/trait/`
+3. **适配层**: `PluginRegistry` 返回 `Box<dyn IStablePeerConnection>`，`From`/`Into` 转换到老 trait
+4. **RtcEngine 过渡**: 先查静态注册表 → fallback 到 `PluginRegistry`
 
 ---
 
@@ -734,13 +763,16 @@ members = [
 ]
 
 [workspace.dependencies]
-stabby = "72"
+stabby = "72.1"
 libloading = "0.8"
-linkme = "0.3"
+inventory = "0.3"
 thiserror = "2"
 gkit-core = { path = "crates/gkit-core" }
 gkit-media = { path = "crates/gkit-media" }
 ```
+
+> **注意**: `plugins/*` 目录需预创建（含 `.gitkeep`）避免 Cargo 报错。
+> gkit-core 的 plugin 依赖通过 feature flag `plugin` 控制，不传播到下游。
 
 ---
 
