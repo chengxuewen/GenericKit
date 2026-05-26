@@ -83,7 +83,7 @@ pub fn gkit_box_frame_to_lk(
             Box::new(gkit_i420_to_lk(&i420))
         }
         gkit_buf::VideoBufferType::Native => {
-            panic!("gkit_frame_to_libwebrtc: Native buffer not supported in livekit_rs adapter");
+            panic!("gkit_frame_to_libwebrtc: Native buffer not supported in libwebrtc plugin");
         }
     };
 

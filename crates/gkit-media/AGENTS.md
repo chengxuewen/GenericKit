@@ -63,15 +63,13 @@ crates/gkit-media/
 | Add CXX FFI binding | `src/build-sys/webrtc-sys/` | Rust/C++ bridge pairs |
 | Add HW encoder | `src/build-sys/webrtc-sys/{nvidia,vaapi}/` | GPU encoding |
 | Add integration test | `tests/` | Each file = separate cargo test binary |
-| Change feature flags | `Cargo.toml` | backend-native-google (default), backend-native-webrtc-rs |
+| Change feature flags | `Cargo.toml` | backend-native enables `ctor` for static registration |
 
 ## FEATURE FLAGS
 
 | Feature | Backend | Key Deps | Notes |
 |---------|---------|----------|-------|
-| `backend-native-webrtc-rs` | Pure Rust webrtc crate | webrtc 0.17, tokio, bytes, openh264 | No C++ needed |
-| `backend-native` | Infrastructure only | ctor | Enables native plugin loading (no backend) |
-| `backend-native-all` | All native backends | backend-native-webrtc-rs | For testing |
+| `backend-native` | Infrastructure | ctor | Enables plugin loading (no backend) |
 
 **Plugin backends** (cdylib, NOT in gkit-media):
 | Plugin | Location | Key Deps |
@@ -102,22 +100,14 @@ Google backend: `VideoFrame::to_webrtc_frame()` → CXX bridge → libwebrtc C++
 
 ```bash
 # All Rust tests (select backend)
-cargo test -p gkit-media --features backend-native-webrtc-rs
-cargo test -p gkit-media --features backend-native-google
-
-# Single integration test
-cargo test -p gkit-media webrtc_basic -- --nocapture
-
-# Unit tests only
-cargo test -p gkit-media --lib
+cargo test -p gkit-media --features backend-native
+cargo test -p gkit-media --features backend-native
 ```
 
 14 integration tests in `tests/` cover: WebRTC lifecycle, P2P, ICE, data channel, error codes, offer/answer, VideoFrame construct/convert/transform, source/sink broadcaster.
 
 ## NOTES
 
-- **170+ unsafe blocks** in `google_lk/native/` and `build-sys/webrtc-sys/` — many missing `// SAFETY:` comments
 - **yuv-sys is nested, not a workspace member** — has its own version (0.3.14)
-- **build-sys/** is 23K lines (mostly NVIDIA/VAAPI C++) — gated behind `backend-native-google`
 - **webrtc-rs backend uses tokio runtime** (spawned per PeerConnection) — ensure #[tokio::test] for async tests
 - **VideoFrame ownership**: Rust VideoFrame wraps either owned I420Buffer or borrowed pointer from Google backend

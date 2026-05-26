@@ -635,9 +635,6 @@ if(GKIT_BUILD_TESTS)
 	add_test(NAME gkit_media_tests_native
 		COMMAND "${GKIT_CARGO_EXECUTABLE}" test -p gkit-media --features backend-native
 		WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}")
-	add_test(NAME gkit_media_tests_google
-		COMMAND ${CMAKE_COMMAND} -E env GKIT_SKIP_WEBRTC_DOWNLOAD=true "${GKIT_CARGO_EXECUTABLE}" test -p gkit-media --features backend-native-google
-		WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}")
 endif()
 
 
@@ -676,15 +673,6 @@ list(APPEND _gkit_corrosion_crates ${_gkit_wasm_plugin_crates})
 corrosion_import_crate(MANIFEST_PATH Cargo.toml CRATES ${_gkit_corrosion_crates})
 
 gkit_cargo_setup_plugins()
-
-# Set WebRTC backend features on gkit_media
-if(GKIT_FEATURE_MEDIA_WEBRTC_BACKEND STREQUAL "webrtc-rs")
-	set_target_properties(gkit_media PROPERTIES CORROSION_FEATURES "backend-native-webrtc-rs")
-elseif(GKIT_FEATURE_MEDIA_WEBRTC_BACKEND STREQUAL "google")
-	set_target_properties(gkit_media PROPERTIES CORROSION_FEATURES "backend-native-google")
-elseif(GKIT_FEATURE_MEDIA_WEBRTC_BACKEND STREQUAL "wasm")
-	set_target_properties(gkit_media PROPERTIES CORROSION_FEATURES "backend-wasm")
-endif()
 
 # Direct internal/Python/Wasm/Node/Flutter crate output to a cargo subdir to avoid cluttering build/
 set(_gkit_redirect_crates gkit_core gkit_media gkit_native gkit_crash gkit_network gkit_service)

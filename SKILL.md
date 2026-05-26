@@ -134,8 +134,7 @@ All C types use snake_case with `_t` suffix (e.g., `gkit_media_rtc_sctp_settings
 ### WebRTC Backend Abstraction
 
 Three backends behind a common trait (`core.rs`):
-- `backend-native-webrtc-rs` — Rust webrtc-rs crate bindings (default)
-- `backend-native-google` — libwebrtc via LiveKit FFI bridge (cxx.rs + C++20)
+- `backend-native` — enables native platform support (ctor for static registration)
 - `backend-wasm` — Browser-native WebRTC API
 
 Selected via CMake cache string `GKIT_FEATURE_MEDIA_WEBRTC_BACKEND` → `CORROSION_FEATURES`.
@@ -174,7 +173,7 @@ Selected via CMake cache string `GKIT_FEATURE_MEDIA_WEBRTC_BACKEND` → `CORROSI
 **Test commands:**
 ```bash
 cargo test -p gkit-media                          # Rust tests (native backend)
-cargo test -p gkit-media --features backend-native-google  # Google backend
+cargo test -p gkit-media --features backend-native  # All tests (mock backend)
 ctest --test-dir build-auto                       # All CTest-registered tests
 ctest -R gkit_media_c_test                        # C FFI tests only
 ```

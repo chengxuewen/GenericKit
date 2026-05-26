@@ -57,8 +57,11 @@ GenericKit/
 
 ```bash
 # Rust-only (fast dev loop)
-cargo build -p gkit-media --features backend-native-webrtc-rs
-cargo test -p gkit-media --features backend-native-webrtc-rs
+cargo build -p gkit-media --features backend-native
+cargo test -p gkit-media --features backend-native
+
+# Build + run libwebrtc plugin
+cargo build -p gkit-plugin-webrtc-libwebrtc
 
 # Full build (CMake + Corrosion)
 cmake -B build-auto -S . -DGKIT_BUILD_TESTS=ON
@@ -67,7 +70,7 @@ ctest --test-dir build-auto --output-on-failure
 ```
 
 **Key CMake options**: `GKIT_BUILD_TESTS`, `GKIT_BUILD_API_C`, `GKIT_BUILD_API_CPP`, `GKIT_BUILD_API_PYTHON`, `GKIT_BUILD_API_*`
-**WebRTC backend**: `GKIT_FEATURE_MEDIA_WEBRTC_BACKEND` ∈ {`webrtc-rs`, `google`, `wasm`}
+**WebRTC backend**: `GKIT_FEATURE_MEDIA_WEBRTC_BACKEND` ∈ {`webrtc-rs`, `libwebrtc`, `wasm`}
 **First build**: Corrosion 0.6.1 extracted from `3rdparty/corrosion-0.6.1.tar.gz`, built at configure time (~minutes). vcpkg clones and bootstraps if not present.
 
 ## API BINDINGS
