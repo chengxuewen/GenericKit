@@ -344,7 +344,7 @@ gkit_cargo_add_plugin(
 
 `gkit_cargo_add_plugin` 不创建 CMake target — 它在 `corrosion_import_crate` **之前**调用，仅追加 crate 名到 `_gkit_corrosion_crates` 列表。Corrosion 负责构建，此函数负责配置 (目录、feature、平台过滤、安装规则)。
 
-**重要**: Cargo 不支持 `[target.'cfg(...)'.lib]` 条件编译 (审查发现 FATAL #3)。所有插件统一 `crate-type = ["cdylib", "rlib"]`。WASM 路径通过 **feature flags** 控制：
+### 4.4 Feature Flags 与 WASM 路径 `[target.'cfg(...)'.lib]` 条件编译 (审查发现 FATAL #3)。所有插件统一 `crate-type = ["cdylib", "rlib"]`。WASM 路径通过 **feature flags** 控制：
 ```toml
 [features]
 wasm-backends = ["dep:gkit-plugin-webrtc-web-sys", "dep:gkit-plugin-codec-webcodecs"]
@@ -724,7 +724,9 @@ async fn wasm_static_backend_creates_pc() {
 | **D: `RtcEngine::create("google")`** | 2 | webrtc_lk_basic, webrtc_lk_p2p | **必须改写** → 插件文件路径 |
 | **E/F: async + platform gates** | — | `#[tokio::test]` / `#[ignore]` / `#[cfg]` | runtime 检查替代编译期 gate |
 
-**安全的迁移路径**：`RtcEngine` API 保持不动，内部委托给 `PluginLoader`。这样 14/16 测试文件零改动。仅 webrtc_lk_* 两个文件需要转向插件文件路径。
+**安全的迁移路径**：`RtcEngine` API 保持不动，内部委托给 `PluginLoader`。这样 14/16 测试文件无需修改测试源码——但 `RtcEngine::create/register/registered_types` 三个核心方法内部需完全重写。仅 `webrtc_lk_*` 两个文件需要转向插件文件路径（`"google" → "libwebrtc"`）。
+
+另外 4 个 inline `#[cfg(test)]` 单元测试 (`livekit_rs/` 下的 `peer_connection/ice/stats/session_description`) 也依赖 `RtcEngine` 或 livekit 工厂，需同步审查。
 
 **现有 `#[ignore]`/`#[cfg]` 平台门控** → 插件加载器返回明确错误替代编译期 skip，使测试在所有平台上可运行（跳过 vs 失败 vs 通过）。
 
@@ -784,6 +786,12 @@ gkit_cargo_add_example(... FEATURES "${_loopback_features}")
 # 新 (插件发现):
 gkit_cargo_add_example(NAME gkit-media-webrtc-loopback ...)  # 无 FEATURES
 # 插件 dylib 由 gkit_cargo_add_plugin 构建到 build/plugins/webrtc/
+# 添加 POST_BUILD 步骤复制 dylib 到示例可执行文件旁:
+add_custom_command(TARGET gkit-media-webrtc-loopback POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_BINARY_DIR}/plugins/webrtc/libgkit_plugin_webrtc_rs.dylib"
+        "$<TARGET_FILE_DIR:gkit-media-webrtc-loopback>/plugins/"
+    DEPENDS gkit_plugin_webrtc_rs)
 ```
 
 ---
