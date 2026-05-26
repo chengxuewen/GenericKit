@@ -6,26 +6,11 @@ edition.workspace = true
 [features]
 default = ["backend-native"]
 backend-native = ["dep:ctor"]
-backend-native-all = ["backend-native", "backend-native-webrtc-rs", "backend-native-google"]
-backend-native-webrtc-rs = ["backend-native", "dep:webrtc", "dep:tokio", "dep:bytes", "dep:openh264", "dep:rtp"]
-backend-native-google = ["backend-native", "dep:libwebrtc", "dep:tokio", "dep:serde_json"]
 
 [dependencies]
 gkit-core.workspace = true
-webrtc = { workspace = true, optional = true }
-tokio = { workspace = true, optional = true }
-bytes = { workspace = true, optional = true }
-openh264 = { workspace = true, optional = true }
-rtp = { version = "0.17", optional = true }
+stabby.workspace = true
 ctor = { version = "0.2", optional = true }
-parking_lot = { version = "0.12", optional = true }
-thiserror = { version = "1", optional = true }
-log = { version = "0.4", optional = true }
-futures = { version = "0.3", optional = true }
-serde = { version = "1", features = ["derive"], optional = true }
-lazy_static = { version = "1", optional = true }
-serde_json = { version = "1", optional = true }
-libwebrtc = { git = "https://github.com/livekit/rust-sdks", tag = "libwebrtc/v0.3.34", optional = true }
 
 [build-dependencies]
 ureq = { version = "2", features = ["tls"] }
@@ -47,4 +32,5 @@ image = { version = "0.25", default-features = false, features = ["bmp"] }
 webrtc = "0.17"
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "macros", "time"] }
 bytes = "1"
+libloading = "0.8"
 webrtc-util = { version = "0.17", features = ["vnet"] }

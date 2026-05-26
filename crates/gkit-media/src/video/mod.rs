@@ -11,5 +11,6 @@ pub mod adapter;
 pub mod buffer;
 pub mod convert;
 pub mod frame;
+pub mod frame_stabby;
 pub mod source_sink;
 pub mod transform;
