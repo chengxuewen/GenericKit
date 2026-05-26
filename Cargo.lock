@@ -2283,6 +2283,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "gkit-mock-plugin"
+version = "0.1.0"
+dependencies = [
+ "stabby",
+]
+
+[[package]]
 name = "gkit-native"
 version = "0.1.2"
 

@@ -1,0 +1,10 @@
+[package]
+name = "gkit-mock-plugin"
+version = "0.1.0"
+edition.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+stabby = { workspace = true }

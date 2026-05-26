@@ -1,12 +1,6 @@
 use super::loader::PluginLib;
 use std::ops::Deref;
 
-impl std::fmt::Debug for PluginLib {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("PluginLib").finish_non_exhaustive()
-    }
-}
-
 // ===========================================================================
 // PluginBackend<T> — Dynamic vs Static backend dispatch
 // ===========================================================================
@@ -21,8 +15,17 @@ impl std::fmt::Debug for PluginLib {
 /// # Drop Ordering (Critical)
 ///
 /// For the `Dynamic` variant, Rust drops fields in **declaration order**:
-    /// `instance` is dropped first, then `_lib`. This guarantees that all resources
-    /// allocated inside the library are freed before the library itself is unloaded.
+/// `instance` is dropped first, then `_lib`. This guarantees that all resources
+/// allocated inside the library are freed before the library itself is unloaded.
+///
+/// The field name `_lib` has a leading underscore to suppress the "unused field"
+/// compiler warning since access always goes through the public API methods.
+///
+/// # Type Parameters
+///
+/// * `T` — The concrete backend instance (e.g., `Box<dyn PeerConnectionFactory>`).
+pub enum PluginBackend<T> {
+    /// Loaded at runtime from a cdylib via `libloading`.
     Dynamic {
         /// The actual backend instance created by the plugin. Dropped FIRST.
         instance: T,

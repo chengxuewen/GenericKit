@@ -2,6 +2,7 @@
 resolver = "3"
 members = [
     "crates/*",
+    "crates/gkit-core/tests/plugin/mock_plugin",
     "apis/c/*",
     "apis/python/*",
     "apis/wasm/*",
