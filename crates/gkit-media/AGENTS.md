@@ -4,43 +4,49 @@
 
 ## OVERVIEW
 
-gkit-media is the **only active Rust crate** in GenericKit &mdash; video processing, capture, YUV color conversion, and WebRTC real-time communication. ~17K lines (103 Rust files + 98 C++/ObjC files).
+gkit-media is the **only active Rust crate** in GenericKit &mdash; video processing, capture, YUV color conversion, and WebRTC real-time communication.
+
+**Plugin Architecture**: libwebrtc backend moved to `plugins/webrtc/libwebrtc/` (cdylib). gkit-media provides core traits + plugin infrastructure; backends are dynamically loaded.
 
 ## STRUCTURE
 
 ```
 crates/gkit-media/
 ├── src/
-│   ├── lib.rs               # Entry point: 3 public modules + build_sys, 2 public fns
+│   ├── lib.rs               # Entry point: modules + trait re-exports
 │   ├── capture/             # VideoFrameGenerator, frame patterns (SquarePattern), I420 test frames
 │   ├── video/               # Video pipeline: buffers, conversion, transform, source/sink
 │   │   ├── buffer.rs        # I420/I422/I444/NV12/I010 buffers, VideoBuffer trait
 │   │   ├── convert.rs       # ARGB↔I420, NV12/NV21, YUY2/UYVY conversion
-│   │   ├── frame.rs         # VideoFrame<T>, VideoRotation, FrameMetadata
+│   │   ├── frame.rs         # VideoFrame<T>, VideoRotation, FrameMetadata (non-stabby)
+│   │   ├── frame_stabby.rs  # StableVideoFrame, VideoFrameMeta, I420Planes, NV12Planes (stabby ABI)
 │   │   ├── source_sink.rs   # VideoSink/VideoSource/AudioSource traits, VideoBroadcaster
 │   │   ├── transform.rs     # I420 scale/crop/rotate (90/180/270)
 │   │   └── adapter.rs       # VideoAdapter (adaptive resolution/framerate)
+│   ├── trait/               # Stabby ABI-stable trait definitions (cross-dylib)
+│   │   ├── video_sink_stabby.rs  # IStableVideoSink
+│   │   └── webrtc_stabby.rs      # IStablePeerConnectionFactory
+│   ├── plugin/              # Media-specific plugin infrastructure
+│   │   └── registry.rs      # PluginRegistry<T> (wraps gkit-core PluginLoader)
 │   ├── protocols/rtc/       # WebRTC abstraction layer
 │   │   └── client/
 │   │       ├── core.rs      # PeerConnection, DataChannel, VideoTrack traits, ICE/connection states
-│   │       ├── engine.rs    # Plugin backend registry (RtcEngine)
+│   │       ├── engine.rs    # RtcEngine + PluginRegistry integration + load_plugins()
 │   │       ├── engine_macros.rs  # gkit_register_rtc_backend! macro
 │   │       ├── wasm.rs      # Browser WebRTC backend (stub)
 │   │       └── native/
-│   │           ├── webrtc_rs.rs     # Real webrtc-rs backend (openh264 encode, VP8 passthrough)
-│   │           ├── google.rs        # Google libwebrtc stub
-│   │           └── google_lk/       # Full LiveKit bindings (25 modules)
-│   │               ├── native/      # CXX FFI bridge: video_frame, yuv_helper, peer_connection
-│   │               └── web/         # WASM bridge
+│   │           ├── mod.rs        # Feature-gated module declarations
+│   │           └── webrtc_rs.rs  # Real webrtc-rs backend (openh264 encode, VP8 passthrough)
 │   └── build-sys/           # Feature-gated (backend-native-google)
-│       ├── webrtc-sys/      # 28 Rust FFI + 98 C++/ObjC files for Google libwebrtc
-│       │   ├── nvidia/      # NVENC/NVDEC GPU encoder/decoder
-│       │   ├── vaapi/       # VAAPI Linux hardware encoder
-│       │   └── include/     # LiveKit C++ bridge headers
 │       └── yuv-sys/         # YUV conversion FFI (libyuv bindings)
-├── tests/                   # 14 Rust integration tests (WebRTC + VideoFrame)
-├── examples/                # viewer, square-gen, webrtc-loopback
-└── Cargo.toml               # 14 optional deps, 3 feature flags
+├── plugins/                 # cdylib plugin crates (workspace members)
+│   └── webrtc/libwebrtc/    # ★ libwebrtc plugin — LiveKit rust-sdks adapter
+│       └── src/adapt/       #   (factory, peer_connection, data_channel, video_frame, etc.)
+├── tests/                   # Integration tests
+│   ├── video_frame_stabby.rs   # TDD-5: stabby VideoFrame roundtrip
+│   ├── video_sink_stabby.rs    # TDD-6: IStableVideoSink CountingSink
+│   └── plugin_load.rs          # Plugin dlopen + ABI check + factory creation
+└── Cargo.toml               # Features: backend-native, backend-native-webrtc-rs (NO google)
 ```
 
 ## WHERE TO LOOK
@@ -50,9 +56,10 @@ crates/gkit-media/
 | Add video buffer type | `src/video/buffer.rs` | Implement VideoBuffer trait |
 | Add color conversion | `src/video/convert.rs` | RGB/I420/NV12/YUY2/UYVY |
 | Add video transform | `src/video/transform.rs` | Scale, crop, rotate |
-| Add WebRTC backend | `src/protocols/rtc/client/` | Register via RtcEngine + macro |
-| Change webrtc-rs backend | `src/protocols/rtc/client/native/webrtc_rs.rs` | 363 lines, H264 encode |
-| Change Google backend | `src/protocols/rtc/client/native/google_lk/` | 25 modules, CXX FFI |
+| Add WebRTC plugin | `plugins/webrtc/libwebrtc/src/adapt/` | cdylib crate, implement PeerConnectionFactory |
+| Add stabby trait | `src/trait/` | `#[stabby::stabby(checked)]` trait definition |
+| Plugin registry | `src/plugin/registry.rs` | PluginRegistry<T> wraps gkit-core loader |
+| Engine integration | `src/protocols/rtc/client/engine.rs` | RtcEngine + load_plugins() |
 | Add CXX FFI binding | `src/build-sys/webrtc-sys/` | Rust/C++ bridge pairs |
 | Add HW encoder | `src/build-sys/webrtc-sys/{nvidia,vaapi}/` | GPU encoding |
 | Add integration test | `tests/` | Each file = separate cargo test binary |
@@ -62,9 +69,14 @@ crates/gkit-media/
 
 | Feature | Backend | Key Deps | Notes |
 |---------|---------|----------|-------|
-| `backend-native-google` (default) | Google libwebrtc via CXX FFI | cxx, tokio, parking_lot, thiserror, serde | Requires C++ toolchain |
 | `backend-native-webrtc-rs` | Pure Rust webrtc crate | webrtc 0.17, tokio, bytes, openh264 | No C++ needed |
-| `backend-native-all` | Both native backends | Both of the above + ctor | For testing all |
+| `backend-native` | Infrastructure only | ctor | Enables native plugin loading (no backend) |
+| `backend-native-all` | All native backends | backend-native-webrtc-rs | For testing |
+
+**Plugin backends** (cdylib, NOT in gkit-media):
+| Plugin | Location | Key Deps |
+|--------|----------|----------|
+| libwebrtc | `plugins/webrtc/libwebrtc/` | libwebrtc (LiveKit rust-sdks), tokio |
 
 **CMake selects backend**: `GKIT_FEATURE_MEDIA_WEBRTC_BACKEND` ∈ {`webrtc-rs`, `google`, `wasm`}. WASM targets lock to `wasm` backend.
 

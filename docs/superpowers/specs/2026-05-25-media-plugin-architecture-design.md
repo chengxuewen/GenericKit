@@ -1,10 +1,18 @@
 # GenericKit Media 插件架构设计
 
 **Date**: 2026-05-25
-**Status**: Design (未实施)
+**Status**: Implemented (已实施 P0-P4)
 **Scope**: gkit-media 核心库 + stabby 跨 FFI 类型定义 + 插件发现/加载 + 测试架构 + CMake 集成
 
 > 基于 Qt6 Multimedia 架构，采用 stabby 实现 ABI 稳定的插件系统。
+>
+> **实施进度** (2026-05-26):
+> - P0 ✅: gkit-core 通用插件加载器 (PluginLib, PluginLoader, PluginDiscovery)
+> - P1 ✅: gkit-media stabby 类型定义 (VideoFrameMeta, I420Planes, NV12Planes, BufferData, StableVideoFrame, IStableVideoSink, IStablePeerConnectionFactory)
+> - P2 ✅: gkit-media PluginRegistry + TDD-4 测试
+> - P3 ✅: 第一个 cdylib 插件 (gkit-plugin-webrtc-libwebrtc) — livekit_rs 已迁移到 plugin/src/adapt/
+> - P4 ✅: RtcEngine 集成 PluginRegistry + load_plugins() 动态发现/加载
+> - **已移除**: `backend-native-google` feature（libwebrtc 不再编译进 gkit-media，由 plugin 独立提供）
 
 ---
 

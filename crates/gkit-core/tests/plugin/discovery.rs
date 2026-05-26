@@ -69,15 +69,18 @@ fn plugin_search_path_resolves_cargo_target_dir() {
 #[test]
 fn plugin_search_path_env_var_fallback() {
     let old_val = std::env::var("GKIT_PLUGIN_PATH").ok();
-    std::env::set_var("GKIT_PLUGIN_PATH", "/tmp/nonexistent");
+    // SAFETY: Single-threaded test context; env var restore prevents cross-test leakage.
+    unsafe { std::env::set_var("GKIT_PLUGIN_PATH", "/tmp/nonexistent") };
 
     let path = PluginSearchPath::EnvVar("GKIT_PLUGIN_PATH");
     let dirs = path.resolve().unwrap();
     assert_eq!(dirs.len(), 1);
 
     if let Some(val) = old_val {
-        std::env::set_var("GKIT_PLUGIN_PATH", val);
+        // SAFETY: Restoring original value in single-threaded test context.
+        unsafe { std::env::set_var("GKIT_PLUGIN_PATH", val) };
     } else {
-        std::env::remove_var("GKIT_PLUGIN_PATH");
+        // SAFETY: Removing test env var in single-threaded test context.
+        unsafe { std::env::remove_var("GKIT_PLUGIN_PATH") };
     }
 }
