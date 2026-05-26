@@ -377,7 +377,313 @@ mod avfoundation_tests { ... }
 mod mediacodec_tests { ... }
 ```
 
-### 5.5 CI 矩阵
+### 5.6 TDD 开发场景 (按实施顺序)
+
+#### TDD-1: gkit-core 插件发现 (TDD: RED→GREEN)
+
+**测试目标**: 扫描目录找到 mock `.dylib` 插件文件。
+
+```rust
+// gkit-core/tests/plugin/discovery.rs
+#[test]
+fn scan_empty_directory_returns_none() {
+    let dir = tempdir();
+    let plugins = PluginDiscovery::scan(dir.path()).unwrap();
+    assert!(plugins.is_empty());
+}
+
+#[test]
+fn scan_finds_dylib_plugins() {
+    let dir = tempdir();
+    // 创建 mock .dylib 文件
+    let plugin_path = dir.path().join("libgkit_plugin_test.dylib");
+    std::fs::write(&plugin_path, b"mock dylib").unwrap();
+    
+    let plugins = PluginDiscovery::scan(dir.path()).unwrap();
+    assert_eq!(plugins.len(), 1);
+    assert_eq!(plugins[0].name, "test");
+}
+
+#[test]
+fn scan_ignores_non_plugin_files() {
+    let dir = tempdir();
+    std::fs::write(dir.path().join("readme.txt"), b"hello").unwrap();
+    std::fs::write(dir.path().join("librandom.dylib"), b"not gkit").unwrap();
+    
+    let plugins = PluginDiscovery::scan(dir.path()).unwrap();
+    assert!(plugins.is_empty());
+}
+
+#[test]
+fn plugin_search_path_resolves_cargo_target_dir() {
+    let path = PluginSearchPath::CargoTargetDir;
+    let dirs = path.resolve();
+    assert!(!dirs.is_empty());
+}
+
+#[test]
+fn plugin_search_path_env_var_fallback() {
+    std::env::set_var("GKIT_PLUGIN_PATH", "/tmp/nonexistent");
+    let path = PluginSearchPath::EnvVar("GKIT_PLUGIN_PATH");
+    let dirs = path.resolve();
+    assert_eq!(dirs.len(), 1);
+}
+```
+
+#### TDD-2: gkit-core 插件加载 (TDD: RED→GREEN)
+
+**前置**: 创建 mock plugin cdylib 导出稳定符号。
+
+```rust
+// gkit-core/tests/plugin/mock_plugin/src/lib.rs (cdylib)
+#[stabby::export]
+pub extern "C" fn gkit_plugin_abi_version() -> u32 { 1 }
+
+#[stabby::export(canaries)]
+pub extern "C" fn create_mock_backend() -> u32 { 42 }
+```
+
+```rust
+// gkit-core/tests/plugin/loader.rs
+#[test]
+fn load_mock_plugin_gets_abi_version() {
+    let lib = unsafe { Library::new(mock_plugin_path()).unwrap() };
+    let version: Symbol<extern "C" fn() -> u32> = unsafe { lib.get(b"gkit_plugin_abi_version").unwrap() };
+    assert_eq!(version(), 1);
+}
+
+#[test]
+fn load_mock_plugin_with_stabby_type_check() {
+    let lib = unsafe { Library::new(mock_plugin_path()).unwrap() };
+    let create = unsafe {
+        lib.get_stabbied::<extern "C" fn() -> u32>(b"create_mock_backend")
+    }.unwrap();
+    assert_eq!(create(), 42);
+}
+
+#[test]
+fn abi_version_mismatch_is_detected() {
+    let lib = unsafe { Library::new(mock_plugin_path()).unwrap() };
+    let version: Symbol<extern "C" fn() -> u32> = unsafe { lib.get(b"gkit_plugin_abi_version").unwrap() };
+    assert_ne!(version(), 999); // 模拟版本不匹配
+}
+
+#[test]
+fn missing_symbol_returns_error() {
+    let lib = unsafe { Library::new(mock_plugin_path()).unwrap() };
+    let result: Result<Symbol<extern "C" fn() -> u32>, _> = unsafe { lib.get(b"nonexistent_symbol") };
+    assert!(result.is_err());
+}
+```
+
+#### TDD-3: PluginBackend Drop 顺序 (TDD: RED→GREEN)
+
+```rust
+// gkit-core/tests/plugin/backend.rs
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+
+struct DropTracker {
+    dropped: Arc<AtomicBool>,
+}
+impl Drop for DropTracker {
+    fn drop(&mut self) {
+        self.dropped.store(true, Ordering::SeqCst);
+    }
+}
+
+#[test]
+fn dynamic_backend_drops_instance_before_library() {
+    let dropped = Arc::new(AtomicBool::new(false));
+    let tracker = DropTracker { dropped: dropped.clone() };
+    let lib = unsafe { Library::new(mock_plugin_path()).unwrap() };
+    
+    let backend = PluginBackend::Dynamic {
+        _lib: PluginLib(Arc::new(lib)),
+        instance: tracker,
+    };
+    drop(backend);
+    // tracker.instance 应先析构，_lib 后析构
+    // 如果顺序反了，dropped 在 _lib 释放后才设置 = use-after-free
+    assert!(dropped.load(Ordering::SeqCst));
+}
+
+#[test]
+fn static_backend_works() {
+    let backend = PluginBackend::Static(42u32);
+    assert_eq!(*backend.instance(), 42);
+}
+```
+
+#### TDD-4: gkit-media PluginRegistry fallback 链 (TDD: RED→GREEN)
+
+```rust
+// gkit-media/tests/plugin/registry.rs
+#[test]
+fn registry_returns_none_when_empty() {
+    let registry = PluginRegistry::new();
+    let result = registry.create_webrtc(None);
+    assert!(result.is_err());
+}
+
+#[test]
+fn registry_fallback_to_next_when_first_fails() {
+    let registry = PluginRegistry::new();
+    // 注册一个会失败的 backend
+    registry.set_default_order(vec!["fail".into(), "ok".into()]);
+    // "fail" 不存在 → fallback 到 "ok" 
+    // (需要 mock 注册表来模拟)
+}
+
+#[test]
+fn registry_returns_error_when_all_fail() {
+    let registry = PluginRegistry::new();
+    registry.set_default_order(vec!["fail1".into(), "fail2".into()]);
+    let result = registry.create_webrtc(None);
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("no webrtc backend"));
+}
+```
+
+#### TDD-5: VideoFrame stabby 往返 (TDD: RED→GREEN)
+
+```rust
+// gkit-media/tests/video/video_frame_stabby.rs
+#[test]
+fn i420_frame_roundtrip_preserves_dimensions() {
+    let frame = VideoFrame {
+        meta: VideoFrameMeta { width: 640, height: 480, rotation: 0, timestamp_us: 0 },
+        buffer: BufferData::I420(I420Planes {
+            data_y: Arc::from(vec![128u8; 640*480].into_boxed_slice()),
+            data_u: Arc::from(vec![64u8; 320*240].into_boxed_slice()),
+            data_v: Arc::from(vec![64u8; 320*240].into_boxed_slice()),
+            stride_y: 640, stride_u: 320, stride_v: 320,
+        }),
+    };
+    assert_eq!(frame.meta.width, 640);
+    assert_eq!(frame.meta.height, 480);
+}
+
+#[test]
+fn nv12_frame_roundtrip() {
+    let frame = VideoFrame {
+        meta: VideoFrameMeta { width: 1920, height: 1080, rotation: 0, timestamp_us: 0 },
+        buffer: BufferData::NV12(NV12Planes {
+            data_y: Arc::from(vec![128u8; 1920*1080].into_boxed_slice()),
+            data_uv: Arc::from(vec![64u8; 1920*540].into_boxed_slice()),
+            stride_y: 1920, stride_uv: 1920,
+        }),
+    };
+    assert!(matches!(frame.buffer, BufferData::NV12(_)));
+}
+
+#[test]
+fn arc_reference_count_increments_on_clone() {
+    let data = Arc::from(vec![1u8, 2, 3].into_boxed_slice());
+    let clone1 = Arc::clone(&data);
+    let clone2 = Arc::clone(&data);
+    drop(clone1);
+    drop(clone2);
+    // 原始 data 仍可用 — ref count 正确管理
+    assert_eq!(&data[..], &[1u8, 2, 3]);
+}
+```
+
+#### TDD-6: IStableVideoSink 跨线程广播 (TDD: RED→GREEN)
+
+```rust
+// gkit-media/tests/trait/video_sink_stabby.rs
+use std::sync::{Arc, Mutex};
+
+struct CountingSink {
+    count: Mutex<u32>,
+}
+impl IStableVideoSink for CountingSink {
+    extern "C" fn on_frame_owned(&self, _frame: Box<VideoFrame>) {
+        *self.count.lock().unwrap() += 1;
+    }
+    extern "C" fn on_frame(&self, _frame: &VideoFrame) {}
+    extern "C" fn on_discarded_frame(&self, _timestamp_us: i64) {}
+}
+
+#[test]
+fn sink_counts_frames() {
+    let sink = CountingSink { count: Mutex::new(0) };
+    let frame = make_test_i420_frame(640, 480);
+    sink.on_frame_owned(Box::new(frame));
+    assert_eq!(*sink.count.lock().unwrap(), 1);
+}
+
+#[test]
+fn multiple_frame_receives_increment_correctly() {
+    let sink = CountingSink { count: Mutex::new(0) };
+    for _ in 0..5 {
+        sink.on_frame_owned(Box::new(make_test_i420_frame(320, 240)));
+    }
+    assert_eq!(*sink.count.lock().unwrap(), 5);
+}
+```
+
+#### TDD-7: P2P 集成 — 动态加载后端 (TDD: GREEN—需真实 dylib)
+
+```rust
+// gkit-media/tests/integration/p2p_with_dynamic_plugin.rs
+#[test]
+#[ignore = "requires compiled plugin dylib"]
+fn p2p_with_dynamically_loaded_backend() {
+    // 1. 构建插件 dylib
+    // 2. 宿主 dlopen + get_stabbied 加载
+    // 3. TestPair + P2P exchange + ICE
+    // 4. 验证 VideoTrack 推拉流
+}
+
+#[test]
+fn static_backend_p2p_works() {
+    // 使用编译期注册的 backend (gkit_register_rtc_backend! 或 linkme)
+    let factory = RtcEngine::create("webrtc-rs").unwrap();
+    let mut pair = TestPair::new(&*factory);
+    pair.exchange_sdp();
+    pair.wait_for_ice_connected(Duration::from_secs(15)).unwrap();
+}
+```
+
+#### TDD-8: WASM 静态注册 (TDD: RED→GREEN, 需 WASM 目标)
+
+```rust
+// gkit-media/tests/wasm/static_registration.rs
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen_test]
+async fn wasm_static_plugin_registers_correctly() {
+    // linkme distributed_slice 在 WASM 链接后应有至少一个 entry
+    let plugins = PluginRegistry::static_plugins();
+    assert!(!plugins.is_empty());
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen_test]
+async fn wasm_static_backend_creates_pc() {
+    let factory = PluginRegistry::create_webrtc(None).unwrap();
+    let pc = factory.create_peer_connection().unwrap();
+    assert!(matches!(pc.connection_state(), ConnectionState::New));
+    pc.close().unwrap();
+}
+```
+
+### 5.7 TDD 实施顺序
+
+| 阶段 | 测试文件 | 依赖 | 可并行 |
+|------|---------|------|--------|
+| P0 | `gkit-core/tests/plugin/discovery.rs` | 无 | ✅ |
+| P0 | `gkit-core/tests/plugin/loader.rs` | P0 discovery | ✅ |
+| P0 | `gkit-core/tests/plugin/backend.rs` | P0 loader | ✅ |
+| P1 | `gkit-media/tests/video/video_frame_stabby.rs` | 无 | ✅ |
+| P1 | `gkit-media/tests/trait/video_sink_stabby.rs` | P1 video_frame | — |
+| P2 | `gkit-media/tests/plugin/registry.rs` | P0 backend | — |
+| P3 | `gkit-media/tests/integration/p2p_with_dynamic_plugin.rs` | P1 + P2 | — |
+| P4 | `gkit-media/tests/wasm/static_registration.rs` | 需 WASM target | ✅
+
+```yaml
+### 5.8 CI 矩阵
 
 ```yaml
 strategy:
