@@ -3,10 +3,10 @@
 **Date**: 2026-05-07
 **Scope**: RtcEngine 全局注册中心、PeerConnectionFactory 对象安全化、多后端共存、google_lk 后端激活、C FFI/C++ 工厂封装
 
-> **📌 Status Update (2026-05-25)**: 本文档中的 `google_lk/` 后端正在被 `livekit_rs/` 替换。详见 [2026-05-25-livekit-rs-backend-migration-design.md](2026-05-25-livekit-rs-backend-migration-design.md)。RtcEngine 注册机制和 `core.rs` trait 层不变，仅后端实现切换：
-> - 原 `google.rs` → `livekit_rs/` adapter
-> - 原 `google_lk/`（LiveKit 移植代码）→ 删除，改为 `livekit_rs/`（薄 adapter）
-> - `gkit_register_rtc_backend!` 注册名不变（保持 `"google"` 名称）
+> **📌 SUPERSEDED (2026-05-26)**: RtcEngine's HashMap-based runtime registry is being replaced by `gkit-core::plugin::PluginLoader` + `gkit-media::plugin::PluginRegistry` (stabby-based cdylib plugin system). See [2026-05-25-media-plugin-architecture-design.md](2026-05-25-media-plugin-architecture-design.md). Key changes:
+> - `RtcEngine` (static HashMap + `ctor`) → `PluginRegistry` (dynamic dlopen + linkme WASM)
+> - `gkit_register_rtc_backend!` macro → `#[stabby::export]` + `linkme::distributed_slice`
+> - Backends become separate cdylib crates under `gkit-media/plugins/`
 **Reference**: [OpenCTK RtcEngine](https://gitee.com/chengxuewen/OpenCTK/blob/master/src/libs/media/source/protocols/rtc/octk_rtc_engine.hpp) — 工厂模式 + 静态自注册宏
 **Constraint**: 所有代码在单个 `gkit-media` crate，不新增 workspace member
 

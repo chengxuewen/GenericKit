@@ -3,7 +3,8 @@
 **Date**: 2026-05-06
 **Scope**: Fill webrtc-rs backend (default, W3C-compatible API), activate google_lk backend (feature-gated), extend C++ wrappers, P2P loopback demo
 
-> **📌 Status Update (2026-05-25)**: The `google_lk` backend described in this spec is being replaced by `livekit_rs` — a thin adapter over LiveKit's `libwebrtc` crate from [livekit/rust-sdks](https://github.com/livekit/rust-sdks). See [2026-05-25-livekit-rs-backend-migration-design.md](2026-05-25-livekit-rs-backend-migration-design.md) for the migration plan. Key changes:
+> **📌 Status Update (2026-05-25)**: The `google_lk` backend described in this spec has been replaced by `livekit_rs` — see [2026-05-25-livekit-rs-backend-migration-design.md](2026-05-25-livekit-rs-backend-migration-design.md).
+> **📌 SUPERSEDED (2026-05-26)**: The entire backend model (RtcEngine + feature-gated static linking) is being replaced by a stabby-based plugin architecture. See [2026-05-25-media-plugin-architecture-design.md](2026-05-25-media-plugin-architecture-design.md). The new design uses cdylib plugins loaded via libloading on desktop and rlib static linking on WASM. Key changes:
 > - `build-sys/webrtc-sys/` (123 C++/Rust files) → deleted
 > - `google_lk/` (25 modules) → `livekit_rs/` (~10 adapter modules)
 > - `core.rs` trait layer and `RtcEngine` registration are **unchanged**

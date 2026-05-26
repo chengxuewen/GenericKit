@@ -1,7 +1,7 @@
 # Google libwebrtc 后端从自维护 CXX FFI 迁移到 LiveKit rust-sdks
 
 **Date**: 2026-05-25
-**Status**: Design (未实施)
+**Status**: ✅ Completed (实施完毕，2026-05-25)
 **Scope**: 删除自维护的 `build-sys/webrtc-sys/` (123 文件) 和 `google_lk/` (25 模块)，替换为依赖 LiveKit rust-sdks 的 `libwebrtc` + `yuv-sys` crate，新写 `livekit_rs` adapter 模块
 **Constraint**: `core.rs` trait 层不动；RtcEngine 注册机制不动；所有代码在 `gkit-media` crate 内
 
