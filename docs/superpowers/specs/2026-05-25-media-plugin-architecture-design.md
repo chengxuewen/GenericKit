@@ -712,7 +712,21 @@ async fn wasm_static_backend_creates_pc() {
 | P4 | `gkit-media/tests/wasm/static_registration.rs` | 需 WASM target | ✅
 
 ```yaml
-### 5.8 CI 矩阵
+### 5.8 现有测试迁移方案
+
+现有 16 个测试文件，分类如下：
+
+| 类别 | 文件数 | 当前后端用法 | 迁移影响 |
+|------|--------|------------|---------|
+| **A: 纯视频** | 5 | 无 RTC 依赖（video_frame_*, test_source_sink） | **零改动** |
+| **B: `make_peer_connection()`** | 5 | webrtc_basic/states/data_channel/errors/offer_answer | **不改**（如 make_peer_connection 更新为插件发现） |
+| **C: `RtcEngine::create_default()`** | 4 | webrtc_p2p/p2p_conn/track/ice | **不改**（如 create_default 更新） |
+| **D: `RtcEngine::create("google")`** | 2 | webrtc_lk_basic, webrtc_lk_p2p | **必须改写** → 插件文件路径 |
+| **E/F: async + platform gates** | — | `#[tokio::test]` / `#[ignore]` / `#[cfg]` | runtime 检查替代编译期 gate |
+
+**安全的迁移路径**：`RtcEngine` API 保持不动，内部委托给 `PluginLoader`。这样 14/16 测试文件零改动。仅 webrtc_lk_* 两个文件需要转向插件文件路径。
+
+**现有 `#[ignore]`/`#[cfg]` 平台门控** → 插件加载器返回明确错误替代编译期 skip，使测试在所有平台上可运行（跳过 vs 失败 vs 通过）。
 
 ```yaml
 strategy:
@@ -749,6 +763,28 @@ libgkit_plugin_codec_ffmpeg.dylib     libgkit_plugin_webrtc_libwebrtc.dylib
 **第一个后端插件**: `gkit-media/plugins/webrtc/libwebrtc/`
 
 依赖 LiveKit rust-sdks 的 `webrtc-sys` (CXX FFI) 和 `libwebrtc` (safe wrapper)。可复用已完成迁移的 `livekit_rs/` 代码——该 adapter 已实现 `PeerConnection` trait 并经过 17 个测试验证。迁移为 cdylib 插件只需：加 `#[stabby::export]` 导出函数、改 `crate-type = ["cdylib", "rlib"]`。其他后端按需随后实施。
+
+### 7.1 示例迁移
+
+| 示例 | RTC 依赖 | 迁移影响 |
+|------|---------|---------|
+| `gkit-media-webrtc-loopback` (egui P2P) | `RtcEngine::create(&backend)` + `registered_types()` | 更新 `registered_types()` 为插件目录扫描；CMake FEATURES 改为构建插件 dylib |
+| `gkit-media-viewer` (视频变换) | 无 | 零改动 |
+| `gkit-media-square-gen` (帧生成) | 无 | 零改动 |
+
+### 7.2 CMake 示例构建变更
+
+新增 `gkit_cargo_add_plugin()` 宏（Section 4.1），用于构建 cdylib 后端插件。webrtc-loopback 的 CMakeLists.txt 从静态 feature flag → 依赖插件构建目标：
+
+```cmake
+# 旧 (静态链接):
+set(_loopback_features "backend-native-webrtc-rs")
+gkit_cargo_add_example(... FEATURES "${_loopback_features}")
+
+# 新 (插件发现):
+gkit_cargo_add_example(NAME gkit-media-webrtc-loopback ...)  # 无 FEATURES
+# 插件 dylib 由 gkit_cargo_add_plugin 构建到 build/plugins/webrtc/
+```
 
 ---
 
