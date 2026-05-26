@@ -12,20 +12,20 @@ use libwebrtc::stats::RtcStats;
 use libwebrtc::video_source::native::NativeVideoSource;
 use libwebrtc::video_source::VideoResolution;
 
-use crate::protocols::rtc::client::core::{
+use gkit_media::protocols::rtc::client::core::{
     ConnectionState, DataChannel, DataChannelState, GatheringState,
     IceConnectionState, MediaError, MediaResult, PeerConnection,
     SessionDescription, SignalingState, VideoTrack,
 };
-use crate::video::frame::BoxVideoFrame;
-use crate::video::source_sink::{VideoSink, VideoSinkWants, VideoSource};
+use gkit_media::video::frame::BoxVideoFrame;
+use gkit_media::video::source_sink::{VideoSink, VideoSinkWants, VideoSource};
 
-use super::data_channel::LkDataChannelAdapter;
-use super::factory::get_pcf;
-use super::ice::lk_ice_from_parts;
-use super::session_description::lk_sdp_from_core;
-use super::video_frame::gkit_box_frame_to_lk;
-use super::video_track::LkVideoTrack;
+use crate::adapt::data_channel::LkDataChannelAdapter;
+use crate::adapt::factory::get_pcf;
+use crate::adapt::ice::lk_ice_from_parts;
+use crate::adapt::session_description::lk_sdp_from_core;
+use crate::adapt::video_frame::gkit_box_frame_to_lk;
+use crate::adapt::video_track::LkVideoTrack;
 
 fn rt() -> &'static tokio::runtime::Runtime {
     static RT: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
@@ -37,56 +37,9 @@ fn rt() -> &'static tokio::runtime::Runtime {
     })
 }
 
-impl From<libwebrtc::peer_connection::PeerConnectionState> for ConnectionState {
-    fn from(s: libwebrtc::peer_connection::PeerConnectionState) -> Self {
-        match s {
-            libwebrtc::peer_connection::PeerConnectionState::New => ConnectionState::New,
-            libwebrtc::peer_connection::PeerConnectionState::Connecting => ConnectionState::Connecting,
-            libwebrtc::peer_connection::PeerConnectionState::Connected => ConnectionState::Connected,
-            libwebrtc::peer_connection::PeerConnectionState::Disconnected => ConnectionState::Disconnected,
-            libwebrtc::peer_connection::PeerConnectionState::Failed => ConnectionState::Failed,
-            libwebrtc::peer_connection::PeerConnectionState::Closed => ConnectionState::Closed,
-        }
-    }
-}
 
-impl From<libwebrtc::peer_connection::IceConnectionState> for IceConnectionState {
-    fn from(s: libwebrtc::peer_connection::IceConnectionState) -> Self {
-        match s {
-            libwebrtc::peer_connection::IceConnectionState::New => IceConnectionState::New,
-            libwebrtc::peer_connection::IceConnectionState::Checking => IceConnectionState::Checking,
-            libwebrtc::peer_connection::IceConnectionState::Connected => IceConnectionState::Connected,
-            libwebrtc::peer_connection::IceConnectionState::Completed => IceConnectionState::Completed,
-            libwebrtc::peer_connection::IceConnectionState::Failed => IceConnectionState::Failed,
-            libwebrtc::peer_connection::IceConnectionState::Disconnected => IceConnectionState::Disconnected,
-            libwebrtc::peer_connection::IceConnectionState::Closed => IceConnectionState::Closed,
-            libwebrtc::peer_connection::IceConnectionState::Max => IceConnectionState::Closed,
-        }
-    }
-}
 
-impl From<libwebrtc::peer_connection::IceGatheringState> for GatheringState {
-    fn from(s: libwebrtc::peer_connection::IceGatheringState) -> Self {
-        match s {
-            libwebrtc::peer_connection::IceGatheringState::New => GatheringState::New,
-            libwebrtc::peer_connection::IceGatheringState::Gathering => GatheringState::Gathering,
-            libwebrtc::peer_connection::IceGatheringState::Complete => GatheringState::Complete,
-        }
-    }
-}
 
-impl From<libwebrtc::peer_connection::SignalingState> for SignalingState {
-    fn from(s: libwebrtc::peer_connection::SignalingState) -> Self {
-        match s {
-            libwebrtc::peer_connection::SignalingState::Stable => SignalingState::Stable,
-            libwebrtc::peer_connection::SignalingState::HaveLocalOffer => SignalingState::HaveLocalOffer,
-            libwebrtc::peer_connection::SignalingState::HaveLocalPrAnswer => SignalingState::HaveLocalPranswer,
-            libwebrtc::peer_connection::SignalingState::HaveRemoteOffer => SignalingState::HaveRemoteOffer,
-            libwebrtc::peer_connection::SignalingState::HaveRemotePrAnswer => SignalingState::HaveRemotePranswer,
-            libwebrtc::peer_connection::SignalingState::Closed => SignalingState::Stable,
-        }
-    }
-}
 
 
 
@@ -106,7 +59,7 @@ impl PeerConnection for LiveKitPeerConnection {
             self.inner
                 .create_offer(OfferOptions::default())
                 .await
-                .map(Into::into)
+                .map(crate::adapt::convert::lk_sdp_to_core)
                 .map_err(|e| MediaError::new(format!("create_offer: {e}")))
         })
     }
@@ -116,7 +69,7 @@ impl PeerConnection for LiveKitPeerConnection {
             self.inner
                 .create_answer(AnswerOptions::default())
                 .await
-                .map(Into::into)
+                .map(crate::adapt::convert::lk_sdp_to_core)
                 .map_err(|e| MediaError::new(format!("create_answer: {e}")))
         })
     }
@@ -162,42 +115,42 @@ impl PeerConnection for LiveKitPeerConnection {
     }
 
     fn ice_connection_state(&self) -> IceConnectionState {
-        self.inner.ice_connection_state().into()
+        crate::adapt::convert::lk_ice_state(self.inner.ice_connection_state())
     }
 
     fn connection_state(&self) -> ConnectionState {
-        self.inner.connection_state().into()
+        crate::adapt::convert::lk_conn_state(self.inner.connection_state())
     }
 
     fn gathering_state(&self) -> GatheringState {
-        self.inner.ice_gathering_state().into()
+        crate::adapt::convert::lk_gathering_state(self.inner.ice_gathering_state())
     }
 
     fn signaling_state(&self) -> SignalingState {
-        self.inner.signaling_state().into()
+        crate::adapt::convert::lk_signaling_state(self.inner.signaling_state())
     }
 
     fn local_description(&self) -> MediaResult<SessionDescription> {
         self.inner
             .current_local_description()
-            .map(Into::into)
+            .map(crate::adapt::convert::lk_sdp_to_core)
             .ok_or_else(|| MediaError::new("no local description"))
     }
 
     fn remote_description(&self) -> MediaResult<SessionDescription> {
         self.inner
             .current_remote_description()
-            .map(Into::into)
+            .map(crate::adapt::convert::lk_sdp_to_core)
             .ok_or_else(|| MediaError::new("no remote description"))
     }
 
-    fn set_on_ice_candidate(&self, cb: Box<dyn Fn(crate::protocols::rtc::client::core::IceCandidate) + Send>) {
-        let cb: Mutex<Option<Box<dyn Fn(crate::protocols::rtc::client::core::IceCandidate) + Send>>> =
+    fn set_on_ice_candidate(&self, cb: Box<dyn Fn(gkit_media::protocols::rtc::client::core::IceCandidate) + Send>) {
+        let cb: Mutex<Option<Box<dyn Fn(gkit_media::protocols::rtc::client::core::IceCandidate) + Send>>> =
             Mutex::new(Some(cb));
         self.inner.on_ice_candidate(Some(Box::new(move |lk_ic| {
             if let Ok(guard) = cb.lock() {
                 if let Some(ref cb) = *guard {
-                    cb(lk_ic.into());
+                    cb(crate::adapt::convert::lk_ice_candidate_to_core(lk_ic));
                 }
             }
         })));
@@ -212,7 +165,7 @@ impl PeerConnection for LiveKitPeerConnection {
             .on_ice_connection_state_change(Some(Box::new(move |lk_state| {
                 if let Ok(guard) = cb.lock() {
                     if let Some(ref cb) = *guard {
-                        cb(lk_state.into());
+                        cb(crate::adapt::convert::lk_ice_state(lk_state));
                     }
                 }
             })));
@@ -282,29 +235,29 @@ impl LiveKitPeerConnection {
     }
 
     /// Returns all RTP senders attached to this peer connection.
-    pub fn senders(&self) -> Vec<super::rtp::RtpSenderHandle> {
+    pub fn senders(&self) -> Vec<crate::adapt::rtp::RtpSenderHandle> {
         self.inner
             .senders()
             .into_iter()
-            .map(super::rtp::RtpSenderHandle::new)
+            .map(crate::adapt::rtp::RtpSenderHandle::new)
             .collect()
     }
 
     /// Returns all RTP receivers attached to this peer connection.
-    pub fn receivers(&self) -> Vec<super::rtp::RtpReceiverHandle> {
+    pub fn receivers(&self) -> Vec<crate::adapt::rtp::RtpReceiverHandle> {
         self.inner
             .receivers()
             .into_iter()
-            .map(super::rtp::RtpReceiverHandle::new)
+            .map(crate::adapt::rtp::RtpReceiverHandle::new)
             .collect()
     }
 
     /// Returns all RTP transceivers attached to this peer connection.
-    pub fn transceivers(&self) -> Vec<super::rtp::RtpTransceiverHandle> {
+    pub fn transceivers(&self) -> Vec<crate::adapt::rtp::RtpTransceiverHandle> {
         self.inner
             .transceivers()
             .into_iter()
-            .map(super::rtp::RtpTransceiverHandle::new)
+            .map(crate::adapt::rtp::RtpTransceiverHandle::new)
             .collect()
     }
 }
@@ -360,7 +313,7 @@ impl Drop for SourceToSinkAdapter {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::adapt::*;
 
     #[test]
     fn connection_state_mapping() {

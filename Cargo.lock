@@ -2212,20 +2212,12 @@ dependencies = [
  "eframe",
  "egui",
  "flate2",
- "futures",
  "gkit-core",
  "image",
- "lazy_static",
- "libwebrtc",
- "log",
- "openh264",
- "parking_lot",
+ "libloading",
  "pkg-config",
- "rtp",
- "serde",
- "serde_json",
+ "stabby",
  "tar",
- "thiserror 1.0.69",
  "tokio",
  "ureq",
  "webrtc",
@@ -2296,6 +2288,16 @@ version = "0.1.2"
 [[package]]
 name = "gkit-network"
 version = "0.1.2"
+
+[[package]]
+name = "gkit-plugin-webrtc-libwebrtc"
+version = "0.1.2"
+dependencies = [
+ "gkit-media",
+ "libwebrtc",
+ "stabby",
+ "tokio",
+]
 
 [[package]]
 name = "gkit-profiling"
@@ -3332,15 +3334,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "nasm-rs"
-version = "0.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "706bf8a5e8c8ddb99128c3291d31bd21f4bcde17f0f4c20ec678d85c74faa149"
-dependencies = [
- "log",
-]
-
-[[package]]
 name = "ndk"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3802,27 +3795,6 @@ name = "opaque-debug"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
-
-[[package]]
-name = "openh264"
-version = "0.9.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a12b82c14f702c2cece4e0fc28896c6a6bed5317dc13448c86ac41df91a6f82"
-dependencies = [
- "openh264-sys2",
- "wide",
-]
-
-[[package]]
-name = "openh264-sys2"
-version = "0.9.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fa9e072e9b270f3b291c80488dc160abc31ecc214ab3bfde937213cfd8c83b32"
-dependencies = [
- "cc",
- "nasm-rs",
- "walkdir",
-]
 
 [[package]]
 name = "openssl-probe"
@@ -4755,15 +4727,6 @@ name = "ryu"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
-
-[[package]]
-name = "safe_arch"
-version = "0.7.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "96b02de82ddbe1b636e6170c21be622223aea188ef2e139be0a5b219ec215323"
-dependencies = [
- "bytemuck",
-]
 
 [[package]]
 name = "same-file"
@@ -6489,16 +6452,6 @@ dependencies = [
  "bitflags 2.11.1",
  "js-sys",
  "web-sys",
-]
-
-[[package]]
-name = "wide"
-version = "0.7.33"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ce5da8ecb62bcd8ec8b7ea19f69a51275e91299be594ea5cc6ef7819e16cd03"
-dependencies = [
- "bytemuck",
- "safe_arch",
 ]
 
 [[package]]

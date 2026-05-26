@@ -1,5 +1,5 @@
-use crate::video::buffer as gkit_buf;
-use crate::video::frame as gkit_frame;
+use gkit_media::video::buffer as gkit_buf;
+use gkit_media::video::frame as gkit_frame;
 use libwebrtc::video_frame as lk_vf;
 use lk_vf::VideoBuffer as _;
 
@@ -7,27 +7,7 @@ use lk_vf::VideoBuffer as _;
 // Rotation conversions
 // ---------------------------------------------------------------------------
 
-impl From<gkit_frame::VideoRotation> for lk_vf::VideoRotation {
-    fn from(r: gkit_frame::VideoRotation) -> Self {
-        match r {
-            gkit_frame::VideoRotation::Rotation0 => Self::VideoRotation0,
-            gkit_frame::VideoRotation::Rotation90 => Self::VideoRotation90,
-            gkit_frame::VideoRotation::Rotation180 => Self::VideoRotation180,
-            gkit_frame::VideoRotation::Rotation270 => Self::VideoRotation270,
-        }
-    }
-}
 
-impl From<lk_vf::VideoRotation> for gkit_frame::VideoRotation {
-    fn from(r: lk_vf::VideoRotation) -> Self {
-        match r {
-            lk_vf::VideoRotation::VideoRotation0 => Self::Rotation0,
-            lk_vf::VideoRotation::VideoRotation90 => Self::Rotation90,
-            lk_vf::VideoRotation::VideoRotation180 => Self::Rotation180,
-            lk_vf::VideoRotation::VideoRotation270 => Self::Rotation270,
-        }
-    }
-}
 
 // ---------------------------------------------------------------------------
 // I420 buffer conversions (both directions)
@@ -108,7 +88,7 @@ pub fn gkit_box_frame_to_lk(
     };
 
     lk_vf::VideoFrame {
-        rotation: frame.rotation.into(),
+        rotation: crate::adapt::convert::gkit_rotation_to_lk(frame.rotation),
         timestamp_us: frame.timestamp_us,
         frame_metadata: None,
         buffer: lk_buffer,
@@ -182,7 +162,7 @@ pub fn gkit_box_frame_from_lk(
     };
 
     gkit_frame::VideoFrame {
-        rotation: lk_frame.rotation.into(),
+        rotation: crate::adapt::convert::lk_rotation_to_gkit(lk_frame.rotation),
         timestamp_us: lk_frame.timestamp_us,
         metadata: None,
         buffer: gkit_buffer,

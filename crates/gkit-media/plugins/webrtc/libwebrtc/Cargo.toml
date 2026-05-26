@@ -1,0 +1,13 @@
+[package]
+name = "gkit-plugin-webrtc-libwebrtc"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+gkit-media = { workspace = true, default-features = false }
+stabby.workspace = true
+libwebrtc = { git = "https://github.com/livekit/rust-sdks", tag = "libwebrtc/v0.3.34" }
+tokio = { workspace = true, features = ["rt", "sync", "macros", "time"] }

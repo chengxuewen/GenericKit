@@ -3,11 +3,11 @@ use std::sync::OnceLock;
 use libwebrtc::peer_connection_factory::PeerConnectionFactory as LkPcf;
 use libwebrtc::peer_connection_factory::RtcConfiguration as LkRtcConfig;
 
-use crate::protocols::rtc::client::core::{
+use gkit_media::protocols::rtc::client::core::{
     MediaError, MediaResult, PeerConnection, PeerConnectionFactory, RtcConfiguration,
 };
 
-use super::peer_connection::LiveKitPeerConnection;
+use crate::adapt::peer_connection::LiveKitPeerConnection;
 
 /// Global libwebrtc PeerConnectionFactory — libwebrtc requires exactly one per process.
 static PCF: OnceLock<LkPcf> = OnceLock::new();

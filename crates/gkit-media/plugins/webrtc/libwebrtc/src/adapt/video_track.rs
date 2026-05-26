@@ -1,6 +1,6 @@
-use crate::protocols::rtc::client::core::VideoTrack;
-use crate::video::frame::BoxVideoFrame;
-use crate::video::source_sink::VideoSink;
+use gkit_media::protocols::rtc::client::core::VideoTrack;
+use gkit_media::video::frame::BoxVideoFrame;
+use gkit_media::video::source_sink::VideoSink;
 use libwebrtc::video_track::RtcVideoTrack as LkRtcVideoTrack;
 
 /// Thin adapter wrapping a libwebrtc `RtcVideoTrack` to implement gkit's `VideoTrack` trait.

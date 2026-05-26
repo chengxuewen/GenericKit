@@ -1,33 +1,10 @@
 use libwebrtc::ice_candidate::IceCandidate as LkIceCandidate;
 
-use crate::protocols::rtc::client::core::IceCandidate;
+use gkit_media::protocols::rtc::client::core::IceCandidate;
 
 // ---------------------------------------------------------------------------
 // LkIceCandidate → our IceCandidate (infallible)
 // ---------------------------------------------------------------------------
-impl From<LkIceCandidate> for IceCandidate {
-    fn from(ic: LkIceCandidate) -> Self {
-        IceCandidate {
-            candidate: ic.candidate(),
-            sdp_mid: {
-                let mid = ic.sdp_mid();
-                if mid.is_empty() {
-                    None
-                } else {
-                    Some(mid)
-                }
-            },
-            sdp_mline_index: {
-                let idx = ic.sdp_mline_index();
-                if idx < 0 {
-                    None
-                } else {
-                    Some(idx as u16)
-                }
-            },
-        }
-    }
-}
 
 // ---------------------------------------------------------------------------
 // parsed IceCandidate string → LkIceCandidate
@@ -45,13 +22,13 @@ pub fn lk_ice_from_parts(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::adapt::*;
 
     #[test]
     fn lk_ice_to_core() {
         let lk = LkIceCandidate::parse("0", 0, "candidate:0 1 UDP 2122252543 192.168.1.1 12345 typ host")
             .expect("parse");
-        let ours: IceCandidate = lk.into();
+        let ours: IceCandidate = crate::adapt::convert::lk_ice_candidate_to_core(lk);
         assert_eq!(ours.sdp_mid.as_deref(), Some("0"));
         assert_eq!(ours.sdp_mline_index, Some(0));
         assert!(ours.candidate.contains("192.168.1.1"));

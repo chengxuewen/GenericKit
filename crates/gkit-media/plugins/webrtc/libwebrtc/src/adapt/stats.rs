@@ -6,7 +6,7 @@
 
 use libwebrtc::stats::RtcStats;
 
-use crate::protocols::rtc::client::core::{MediaError, MediaResult};
+use gkit_media::protocols::rtc::client::core::{MediaError, MediaResult};
 
 /// Collect all stats from the peer connection and return them as a pretty-printed
 /// JSON string.
@@ -48,7 +48,7 @@ pub use libwebrtc::stats::*;
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::adapt::*;
 
     #[test]
     fn rtc_stats_serde_roundtrip() {

@@ -659,7 +659,27 @@ endif()
 if(GKIT_BUILD_API_FLUTTER)
 	list(APPEND _gkit_corrosion_crates gkit-core-flutter gkit-media-flutter)
 endif()
+
+# --- Plugin crates ---
+set(_gkit_plugin_crates gkit-plugin-webrtc-libwebrtc)
+list(APPEND _gkit_corrosion_crates ${_gkit_plugin_crates})
+
 corrosion_import_crate(MANIFEST_PATH Cargo.toml CRATES ${_gkit_corrosion_crates})
+
+# --- Plugin post-build: copy dylibs to build/plugins/ ---
+foreach(_plugin ${_gkit_plugin_crates})
+    if(TARGET ${_plugin})
+        add_custom_command(TARGET ${_plugin} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${GKIT_BUILD_DIR}/plugins/webrtc"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:${_plugin}>"
+                "${GKIT_BUILD_DIR}/plugins/webrtc/"
+            COMMENT "Plugin ${_plugin} → plugins/webrtc/"
+            VERBATIM)
+        set_target_properties(${_plugin} PROPERTIES
+            FOLDER "gkit_media/plugins/webrtc")
+    endif()
+endforeach()
 
 # Set WebRTC backend features on gkit_media
 if(GKIT_FEATURE_MEDIA_WEBRTC_BACKEND STREQUAL "webrtc-rs")

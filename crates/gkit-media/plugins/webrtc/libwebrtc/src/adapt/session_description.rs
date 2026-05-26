@@ -2,18 +2,11 @@ use std::str::FromStr;
 
 use libwebrtc::session_description::{SdpType as LkSdpType, SessionDescription as LkSdp};
 
-use crate::protocols::rtc::client::core::SessionDescription;
+use gkit_media::protocols::rtc::client::core::SessionDescription;
 
 // ---------------------------------------------------------------------------
 // LkSdp → our SessionDescription (infallible — just accessor calls)
 // ---------------------------------------------------------------------------
-impl From<LkSdp> for SessionDescription {
-    fn from(sd: LkSdp) -> Self {
-        let sdp_type = sd.sdp_type().to_string();
-        let sdp = sd.to_string();
-        SessionDescription { sdp_type, sdp }
-    }
-}
 
 // ---------------------------------------------------------------------------
 // our SessionDescription → LkSdp (fallible — requires SDP parsing)
@@ -29,7 +22,7 @@ pub fn lk_sdp_from_core(sd: &SessionDescription) -> Result<LkSdp, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::adapt::*;
 
     fn min_sdp() -> &'static str {
         "v=0\r\no=- 0 0 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\n"
@@ -39,7 +32,7 @@ mod tests {
     fn lk_sdp_to_core_offer() {
         let sdp = min_sdp();
         let lk = LkSdp::parse(sdp, LkSdpType::Offer).expect("parse");
-        let ours: SessionDescription = lk.into();
+        let ours: SessionDescription = crate::adapt::convert::lk_sdp_to_core(lk);
         assert_eq!(ours.sdp_type, "offer");
         assert!(ours.sdp.contains("v=0"));
     }
@@ -48,7 +41,7 @@ mod tests {
     fn lk_sdp_to_core_answer() {
         let sdp = min_sdp();
         let lk = LkSdp::parse(sdp, LkSdpType::Answer).expect("parse");
-        let ours: SessionDescription = lk.into();
+        let ours: SessionDescription = crate::adapt::convert::lk_sdp_to_core(lk);
         assert_eq!(ours.sdp_type, "answer");
     }
 
@@ -60,7 +53,7 @@ mod tests {
             sdp: sdp.to_string(),
         };
         let lk = lk_sdp_from_core(&ours).expect("convert");
-        let back: SessionDescription = lk.into();
+        let back: SessionDescription = crate::adapt::convert::lk_sdp_to_core(lk);
         assert_eq!(back.sdp_type, "offer");
         assert!(back.sdp.contains("v=0"));
     }

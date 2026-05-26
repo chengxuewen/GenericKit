@@ -1,17 +1,7 @@
 use libwebrtc::data_channel::{DataChannel as LkDataChannel, DataChannelState as LkDataChannelState};
 
-use crate::protocols::rtc::client::core::{DataChannel, DataChannelState, MediaError, MediaResult};
+use gkit_media::protocols::rtc::client::core::{DataChannel, DataChannelState, MediaError, MediaResult};
 
-impl From<LkDataChannelState> for DataChannelState {
-    fn from(s: LkDataChannelState) -> Self {
-        match s {
-            LkDataChannelState::Connecting => DataChannelState::Connecting,
-            LkDataChannelState::Open => DataChannelState::Open,
-            LkDataChannelState::Closing => DataChannelState::Closing,
-            LkDataChannelState::Closed => DataChannelState::Closed,
-        }
-    }
-}
 
 /// Thin adapter wrapping a libwebrtc `DataChannel` to implement gkit's `DataChannel` trait.
 pub(super) struct LkDataChannelAdapter {
@@ -32,7 +22,7 @@ impl DataChannel for LkDataChannelAdapter {
     }
 
     fn ready_state(&self) -> DataChannelState {
-        self.inner.state().into()
+        crate::adapt::convert::lk_dc_state(self.inner.state())
     }
 
     fn send_text(&self, data: &str) -> MediaResult<()> {
