@@ -1,5 +1,18 @@
 # Agent Orchestration
 
+## Memory Updates (NON-NEGOTIABLE)
+
+When the user asks to "update memory" or the session produces significant architectural/status changes, update the **local memory files** at `.agents/memorys/` (NOT the knowledge graph tools):
+
+| File | Update When |
+|------|------------|
+| `.agents/memorys/status.md` | Phase completion, test results change, crate list changes |
+| `.agents/memorys/conventions.md` | New naming patterns, architectural principles |
+| `.agents/memorys/decisions.md` | Key architectural decisions, trade-offs |
+| `.agents/memorys/pitfalls.md` | Bugs encountered, gotchas, orphan rule issues |
+
+This path is configured in `.opencode/opencode.json`. Do NOT use memory_create_entities/relations tools — they go to a different system.
+
 ## Available Agents
 
 Located in `~/.claude/agents/`:
