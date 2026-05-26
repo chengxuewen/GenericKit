@@ -674,6 +674,15 @@ corrosion_import_crate(MANIFEST_PATH Cargo.toml CRATES ${_gkit_corrosion_crates}
 
 gkit_cargo_setup_plugins()
 
+# WASM rlib plugins: no post-build copy needed, just IDE folder
+if(TARGET gkit_plugin_webrtc_web_sys)
+    get_target_property(_wstype gkit_plugin_webrtc_web_sys TYPE)
+    if(NOT _wstype STREQUAL "INTERFACE_LIBRARY")
+        set_target_properties(gkit_plugin_webrtc_web_sys PROPERTIES
+            FOLDER "gkit_media/plugins/webrtc")
+    endif()
+endif()
+
 # Direct internal/Python/Wasm/Node/Flutter crate output to a cargo subdir to avoid cluttering build/
 set(_gkit_redirect_crates gkit_core gkit_media gkit_native gkit_crash gkit_network gkit_service)
 if(GKIT_BUILD_API_PYTHON)

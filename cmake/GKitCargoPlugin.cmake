@@ -18,10 +18,9 @@
 #
 ########################################################################################################################
 
-if(DEFINED _GKIT_CARGO_PLUGIN_LIST)
-    return()
+if(NOT DEFINED _GKIT_CARGO_PLUGIN_LIST)
+    set(_GKIT_CARGO_PLUGIN_LIST CACHE INTERNAL "List of plugin crate names")
 endif()
-set(_GKIT_CARGO_PLUGIN_LIST)
 
 #[[.rst:
 GenericKit Cargo Plugin Helpers
@@ -86,6 +85,7 @@ function(gkit_cargo_add_plugin)
     endif()
 
     list(APPEND _GKIT_CARGO_PLUGIN_LIST ${_arg_NAME})
+    set(_GKIT_CARGO_PLUGIN_LIST "${_GKIT_CARGO_PLUGIN_LIST}" CACHE INTERNAL "")
     set(_GKIT_CARGO_PLUGIN_LIST "${_GKIT_CARGO_PLUGIN_LIST}" CACHE INTERNAL "Plugin crate names")
 
     set(_prop_name "GKIT_PLUGIN_${_arg_NAME}_CATEGORY")
@@ -107,18 +107,49 @@ function(gkit_cargo_setup_plugins)
             set(_category "misc")
         endif()
 
-        if(TARGET ${_plugin})
-            add_custom_command(TARGET ${_plugin} POST_BUILD
+        string(REPLACE "-" "_" _target ${_plugin})
+
+        if(NOT TARGET ${_target})
+            continue()
+        endif()
+
+        set_target_properties(${_target} PROPERTIES
+            FOLDER "gkit_media/plugins/${_category}")
+
+        foreach(_prefix cargo-build_ _cargo-build_ cargo-clean_ _cargo-clean_
+                      cargo-check_ _cargo-check_ cargo-test_ _cargo-test_
+                      cargo-clippy_ _cargo-clippy_ cargo-prebuild_ _cargo-prebuild_)
+            set(_util_target ${_prefix}${_target})
+            if(TARGET ${_util_target})
+                set_target_properties(${_util_target} PROPERTIES
+                    FOLDER "gkit_media/plugins/${_category}")
+            endif()
+        endforeach()
+
+        set(_build_target cargo-build_${_target})
+        if(NOT TARGET ${_build_target})
+            set(_build_target _cargo-build_${_target})
+        endif()
+        if(NOT TARGET ${_build_target})
+            continue()
+        endif()
+
+        if(NOT TARGET copy-plugin-${_plugin})
+            add_custom_target(copy-plugin-${_plugin} ALL
                 COMMAND ${CMAKE_COMMAND} -E make_directory
                     "${GKIT_BUILD_DIR}/plugins/${_category}"
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "$<TARGET_FILE:${_plugin}>"
+                    "$<TARGET_FILE:${_target}-shared>"
                     "${GKIT_BUILD_DIR}/plugins/${_category}/"
-                COMMENT "Plugin ${_plugin} → plugins/${_category}/"
+                DEPENDS ${_build_target}
+                COMMENT "Plugin ${_target} → plugins/${_category}/"
                 VERBATIM)
-
-            set_target_properties(${_plugin} PROPERTIES
-                FOLDER "gkit_media/plugins/${_category}")
         endif()
+
+        set_target_properties(copy-plugin-${_plugin} PROPERTIES
+            FOLDER "gkit_media/plugins/${_category}")
+
+        install(FILES "$<TARGET_FILE:${_target}-shared>"
+            DESTINATION "${CMAKE_INSTALL_LIBDIR}/plugins/${_category}")
     endforeach()
 endfunction()

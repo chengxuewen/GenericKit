@@ -42,3 +42,19 @@
 - When gkit-media lib is compiled for a test binary, `cfg(test)` is FALSE
 - Only the test file itself has `cfg(test)` = TRUE
 - Use `#[cfg(not(test))]` to prevent plugin loading in test context
+
+## Corrosion UTILITY targets don't support POST_BUILD
+- Corrosion creates `cargo-build_` as UTILITY target (via `add_custom_target`)
+- `add_custom_command(TARGET <UTILITY> POST_BUILD)` creates self-referencing cycle in CMake
+- Error: `"cargo-build_X" depends on "cargo-build_X" (strong)`
+- Fix: use `add_custom_target(copy-plugin-X ALL ... DEPENDS cargo-build_X)`
+
+## CMake FOLDER set on correct target
+- Corrosion creates INTERFACE library (IDE visible) + IMPORTED library (has file)
+- FOLDER must be set on INTERFACE target AND cargo-build_ utility targets
+- `$<TARGET_FILE:${target}-shared>` gets the actual dylib path from IMPORTED library
+
+## GKitCargoPlugin include-once guard
+- `if(DEFINED) return()` prevents function re-definition on CMake re-configure
+- Fix: only guard variable init, not function definitions
+- Use `if(NOT TARGET copy-plugin-X)` guards for `add_custom_target` (duplicate on re-configure)

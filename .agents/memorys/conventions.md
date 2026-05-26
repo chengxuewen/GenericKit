@@ -14,6 +14,14 @@
 - WASM: static rlib + `gkit_register_rtc_backend!` macro + `#[ctor]`
 - RtcEngine::create() checks PluginRegistry first, then HashMap (static/WASM)
 
+## CMake Convention
+
+- **Plugin crate names**: hyphens in Cargo.toml → underscores in CMake targets (Corrosion convention)
+- **Corrosion creates 3 targets per cdylib**: INTERFACE (alias), -shared (IMPORTED), cargo-build_ (UTILITY)
+- **Plugin dylib copy**: `add_custom_target` + DEPENDS on `cargo-build_` (NOT POST_BUILD — UTILITY targets don't support it)
+- **FOLDER property**: set on main target AND all Corrosion utility prefixes (`cargo-build_`, `_cargo-build_`, `cargo-clean_`, etc.)
+- **install()**: use `$<TARGET_FILE:${target}-shared>` for IMPORTED library file path
+
 ## Naming
 
 - C FFI: `gkit_{crate}_{subsystem}_{resource}_{verb}[_{qualifier}]`
@@ -29,6 +37,7 @@
 - `继续` is NOT confirmation — means "continue discussing"
 - System directives (TODO CONTINUATION) are NOT user confirmation
 - Architecture changes require plan presentation + user confirmation
+- **Memory updates MUST go to `.agents/memorys/`** (not knowledge graph tools)
 
 ## Memory Files
 

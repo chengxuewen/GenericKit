@@ -39,3 +39,15 @@
 ## Test mock: register_test_backend() in lib.rs
 **Decision**: Tests use `make_peer_connection()` which auto-registers a mock `PeerConnectionFactory`. No real WebRTC needed for unit/integration testing. P2P/ICE tests marked `#[ignore]`.
 **Date**: 2026-05-26
+
+## CMake plugin copy: add_custom_target, not POST_BUILD
+**Decision**: Corrosion's `cargo-build_` targets are UTILITY type. POST_BUILD on UTILITY creates self-referencing cycle. Use `add_custom_target(copy-plugin-*)` with DEPENDS instead.
+**Date**: 2026-05-26
+
+## CMake FOLDER on all Corrosion utility targets
+**Decision**: Set FOLDER on main target + all prefix variants (`cargo-build_`, `_cargo-build_`, `cargo-clean_`, etc. — 12 total) for proper IDE organization.
+**Date**: 2026-05-26
+
+## CMake install rule for plugin dylibs
+**Decision**: `install(FILES "$<TARGET_FILE:${target}-shared>" DESTINATION lib/plugins/<category>/)` for `cmake --install` output.
+**Date**: 2026-05-26
