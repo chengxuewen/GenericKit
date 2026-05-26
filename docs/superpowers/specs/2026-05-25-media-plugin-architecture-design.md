@@ -1,18 +1,18 @@
 # GenericKit Media 插件架构设计
 
 **Date**: 2026-05-25
-**Status**: Implemented (已实施 P0-P4)
-**Scope**: gkit-media 核心库 + stabby 跨 FFI 类型定义 + 插件发现/加载 + 测试架构 + CMake 集成
+**Status**: Implemented (已实施 P0-P5)
 
-> 基于 Qt6 Multimedia 架构，采用 stabby 实现 ABI 稳定的插件系统。
->
 > **实施进度** (2026-05-26):
 > - P0 ✅: gkit-core 通用插件加载器 (PluginLib, PluginLoader, PluginDiscovery)
-> - P1 ✅: gkit-media stabby 类型定义 (VideoFrameMeta, I420Planes, NV12Planes, BufferData, StableVideoFrame, IStableVideoSink, IStablePeerConnectionFactory)
-> - P2 ✅: gkit-media PluginRegistry + TDD-4 测试
-> - P3 ✅: 第一个 cdylib 插件 (gkit-plugin-webrtc-libwebrtc) — livekit_rs 已迁移到 plugin/src/adapt/
+> - P1 ✅: gkit-media stabby 类型定义 + IStableVideoSink + IStablePeerConnectionFactory
+> - P2 ✅: gkit-media PluginRegistry<T> + TDD-4 测试
+> - P3 ✅: 第一个 cdylib 插件 (gkit-plugin-webrtc-libwebrtc)
 > - P4 ✅: RtcEngine 集成 PluginRegistry + load_plugins() 动态发现/加载
-> - **已移除**: `backend-native-google` feature（libwebrtc 不再编译进 gkit-media，由 plugin 独立提供）
+> - P5 ✅: WASM web-sys 插件 → plugins/webrtc/web-sys/ (rlib 静态链接)
+> - **已移除**: `backend-native-google` feature + `livekit_rs` 模块 + `native/` 目录
+> - **已移除**: `backend-native-webrtc-rs` feature + `webrtc_rs.rs`
+> - **已移除**: gkit-media 的 `wasm.rs` → web-sys plugin
 
 ---
 
@@ -34,38 +34,37 @@ gkit-core/                              # workspace 基础 (类似 QtCore)
 │   └── mock_plugin/       # cdylib 导出 dummy extern "C" fn
 
 gkit-media/                             # ★ 唯一 media crate (rlib)
-│   [路径: crates/gkit-media/ — 保持现有结构]
+│   [路径: crates/gkit-media/]
 ├── src/
-│   ├── video/frame.rs        # VideoFrame (§ stabby)
-│   ├── video/buffer.rs       # I420Planes, NV12Planes 等 (§ stabby)
+│   ├── video/
+│   │   ├── frame.rs           # VideoFrame<T> (generic, non-stabby)
+│   │   ├── frame_stabby.rs    # StableVideoFrame, I420Planes, NV12Planes, BufferData
+│   │   ├── buffer.rs          # I420/I422/I444/NV12/I010 buffers
+│   │   ├── source_sink.rs     # VideoSink<F>, VideoSource<F>, VideoBroadcaster
+│   │   ├── convert.rs / transform.rs / adapter.rs
 │   ├── trait/
-│   │   ├── video_sink.rs     # IStableVideoSink (§ stabby trait, 与现有 VideoSink<F> 并列)
-│   │   ├── audio_sink.rs     # IStableAudioSink (§ stabby trait)
-│   │   ├── webrtc.rs         # IStablePeerConnection 等 (§ stabby trait, W3C)
-│   │   └── codec.rs          # IStableCodec (§ stabby trait)
+│   │   ├── video_sink_stabby.rs  # IStableVideoSink (on_frame/on_frame_owned)
+│   │   └── webrtc_stabby.rs      # IStablePeerConnectionFactory (backend_name)
 │   ├── plugin/
-│   │   ├── registry.rs       # PluginRegistry (wraps gkit-core::PluginLoader)
-│   │   └── static.rs         # linkme WASM 静态注册
-│   └── error.rs              # MediaError (thiserror)
-│   [deps: gkit-core, stabby]
-
-gkit-media/plugins/                      # 插件源码 (workspace members)
-├── webrtc/
-│   ├── libwebrtc/            → libgkit_plugin_webrtc_libwebrtc.dylib
-│   │                           Deps: livekit/rust-sdks (webrtc-sys + libwebrtc)
-│   │                           ★ 第一个实施的后端插件
-│   ├── webrtc-rs/            → libgkit_plugin_webrtc_rs.dylib
-│   ├── gstreamer/            → libgkit_plugin_webrtc_gstreamer.dylib
-│   └── web-sys/              → rlib (WASM 静态链接)
-├── codec/
-│   ├── ffmpeg/               → libgkit_plugin_codec_ffmpeg.dylib
-│   ├── gstreamer/            → libgkit_plugin_codec_gstreamer.dylib
-│   ├── avfoundation/         → macOS only
-│   ├── mediacodec/           → Android only
-│   └── webcodecs/            → rlib (WASM 静态链接)
+│   │   └── registry.rs           # PluginRegistry<T> (wraps gkit-core)
+│   └── protocols/rtc/client/
+│       ├── core.rs                # PeerConnection, DataChannel, VideoTrack traits
+│       ├── engine.rs              # RtcEngine + load_plugins() + PluginRegistry 集成
+│       ├── engine_macros.rs       # gkit_register_rtc_backend! 宏 (WASM 静态注册)
+│       └── mod.rs
+│   [deps: gkit-core, stabby, ctor(optional)]
+│
+gkit-media/plugins/                      # 插件 (workspace members)
+└── webrtc/
+    ├── libwebrtc/          → libgkit_plugin_webrtc_libwebrtc.dylib (cdylib)
+    │   └── src/adapt/      LiveKit rust-sdks 适配 (12 modules + convert.rs)
+    │   [deps: gkit-media, libwebrtc, tokio]
+    └── web-sys/            → rlib (WASM 静态链接)
+        └── src/lib.rs      WasmPeerConnection + WasmFactory + #[ctor] 注册
+        [deps: gkit-media, ctor]
 
 cmake/
-├── GKitCargoPlugin.cmake     # NEW: gkit_cargo_add_plugin()
+├── GKitCargoPlugin.cmake     # gkit_cargo_add_plugin() + gkit_cargo_setup_plugins()
 ├── GKitCargoExample.cmake
 └── GKitCargoHelpers.cmake
 ```

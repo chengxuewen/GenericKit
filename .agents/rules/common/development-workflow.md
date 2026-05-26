@@ -19,6 +19,24 @@ The Feature Implementation Workflow describes the development pipeline: research
    - Generate planning docs before coding: PRD, architecture, system_design, tech_doc, task_list
    - Identify dependencies and risks
    - Break down into phases
+   - Present the plan to the user
+
+1.5 **Execution Confirmation Gate** _(mandatory — NEVER skip)_
+   - **MUST get explicit user confirmation** before executing ANY plan or todo list:
+     - Use the `question` tool with a "Proceed with execution?" prompt (交互式 confirm)
+     - Wait for user's affirmative response ("确认", "执行", "yes", "proceed")
+   - **What requires confirmation**:
+     - Creating or deleting crates/workspace members
+     - Moving modules between crates
+     - Changing directory structures
+     - Altering Cargo.toml features (adding/removing features, deps)
+     - Modifying CMake build infrastructure
+     - Any multi-step todo list execution
+   - **What does NOT count as confirmation**:
+     - System directives (TODO CONTINUATION, SYSTEM REMINDER)
+     - The word "继续" (continue) — means "continue discussing" or "continue with trivial/safe work"
+     - Silence or timeout
+   - **Process**: Present plan → display confirmation prompt → wait for user → execute only after explicit affirmative
 
 2. **TDD Approach**
    - Use **tdd-guide** agent

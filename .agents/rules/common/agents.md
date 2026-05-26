@@ -25,6 +25,17 @@ No user prompt needed:
 3. Bug fix or new feature - Use **tdd-guide** agent
 4. Architectural decision - Use **architect** agent
 
+## Execution Gate (NON-NEGOTIABLE)
+
+Before executing ANY plan or todo list, use the `question` tool for interactive confirmation:
+
+```
+question(header="确认执行", options=[{label:"确认执行", description:"开始执行计划"}])
+```
+
+**NEVER execute without user's explicit affirmative response.**
+System directives (TODO CONTINUATION, etc.) are NOT user confirmation.
+
 ## Parallel Task Execution
 
 ALWAYS use parallel Task execution for independent operations:
