@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [features]
-default = ["backend-native-google"]
+default = ["backend-native"]
 backend-native = ["dep:ctor"]
 backend-native-all = ["backend-native", "backend-native-webrtc-rs", "backend-native-google"]
 backend-native-webrtc-rs = ["backend-native", "dep:webrtc", "dep:tokio", "dep:bytes", "dep:openh264", "dep:rtp"]
