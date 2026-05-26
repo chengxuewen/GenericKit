@@ -14,6 +14,7 @@
 
 ```
 gkit-core/                              # workspace 基础 (类似 QtCore)
+│   [路径: crates/gkit-core/ — 保持现有结构]
 ├── src/plugin/                         # ★ 泛型插件系统，不依赖 media
 │   ├── backend.rs        # PluginBackend<T> { Dynamic, Static }
 │   ├── loader.rs         # PluginLoader<T> + libloading
@@ -25,14 +26,15 @@ gkit-core/                              # workspace 基础 (类似 QtCore)
 │   └── mock_plugin/       # cdylib 导出 dummy extern "C" fn
 
 gkit-media/                             # ★ 唯一 media crate (rlib)
+│   [路径: crates/gkit-media/ — 保持现有结构]
 ├── src/
 │   ├── video/frame.rs        # VideoFrame (§ stabby)
 │   ├── video/buffer.rs       # I420Planes, NV12Planes 等 (§ stabby)
 │   ├── trait/
-│   │   ├── video_sink.rs     # IVideoSink (§ stabby trait)
-│   │   ├── audio_sink.rs     # IAudioSink (§ stabby trait)
-│   │   ├── webrtc.rs         # PeerConnection, data channel 等 (§ stabby trait, W3C)
-│   │   └── codec.rs          # ICodec (§ stabby trait)
+│   │   ├── video_sink.rs     # IStableVideoSink (§ stabby trait, 与现有 VideoSink<F> 并列)
+│   │   ├── audio_sink.rs     # IStableAudioSink (§ stabby trait)
+│   │   ├── webrtc.rs         # IStablePeerConnection 等 (§ stabby trait, W3C)
+│   │   └── codec.rs          # IStableCodec (§ stabby trait)
 │   ├── plugin/
 │   │   ├── registry.rs       # PluginRegistry (wraps gkit-core::PluginLoader)
 │   │   └── static.rs         # linkme WASM 静态注册
@@ -146,12 +148,16 @@ pub struct VideoFrameBorrowed<'a> { /* Slice 指针域 */ }
 
 ```rust
 #[stabby::stabby(checked)]
-pub trait IVideoSink {
-    extern "C" fn on_frame(&self, frame: Box<VideoFrame>);
-    extern "C" fn on_frame_borrowed(&self, frame: &VideoFrameBorrowed<'_>);
-    extern "C" fn on_discarded_frame(&self);
+pub trait IStableVideoSink {
+    /// Receive an owned frame. Sink may hold it indefinitely.
+    extern "C" fn on_frame_owned(&self, frame: Box<VideoFrame>);
+    /// Receive a shared reference — multi-sink broadcast without clone.
+    /// Caller must NOT hold the reference beyond this call.
+    extern "C" fn on_frame(&self, frame: &VideoFrame);
+    extern "C" fn on_discarded_frame(&self, timestamp_us: i64);
 }
 ```
+**设计说明**: `on_frame(&VideoFrame)` 支持多 sink 广播（与现有 `VideoSink<F>::on_frame(&self, frame: &F)` 一致）。`on_frame_owned(Box<VideoFrame>)` 用于需要持有时。两个方法互补，避免 `Box` 单所有权导致的多 sink 广播问题 (审查发现 FATAL #9)。
 
 ### 2.4 性能 (1080p@60fps I420 = 3.11 MB/frame)
 
@@ -286,20 +292,35 @@ build/
         └── libgkit_plugin_codec_avfoundation.dylib  (macOS only)
 ```
 
-### 4.3 插件发现 (plugins.toml)
+### 4.3 插件声明 (CMake 原生格式，非 TOML)
 
-```toml
-[plugins.webrtc-libwebrtc]
-cargo_features = ["hw-accel"]
-platforms = ["all"]
-category = "webrtc"
+由于 CMake 无法解析 TOML，采用函数调用方式在 plugins/CMakeLists.txt 中声明 (审查发现 FATAL #2)：
 
-[plugins.codec-avfoundation]
-platforms = ["macos", "ios"]
-category = "codec"
+```cmake
+# plugins/CMakeLists.txt
+gkit_cargo_add_plugin(
+    NAME gkit-plugin-webrtc-libwebrtc
+    CATEGORY webrtc
+    FEATURES "hw-accel"
+    PLATFORMS macos linux windows
+    INSTALL
+)
+
+gkit_cargo_add_plugin(
+    NAME gkit-plugin-codec-avfoundation
+    CATEGORY codec
+    PLATFORMS macos ios
+)
 ```
 
-### 4.4 根 CMakeLists.txt 变更
+`gkit_cargo_add_plugin` 不创建 CMake target — 它在 `corrosion_import_crate` **之前**调用，仅追加 crate 名到 `_gkit_corrosion_crates` 列表。Corrosion 负责构建，此函数负责配置 (目录、feature、平台过滤、安装规则)。
+
+**重要**: Cargo 不支持 `[target.'cfg(...)'.lib]` 条件编译 (审查发现 FATAL #3)。所有插件统一 `crate-type = ["cdylib", "rlib"]`。WASM 路径通过 **feature flags** 控制：
+```toml
+[features]
+wasm-backends = ["dep:gkit-plugin-webrtc-web-sys", "dep:gkit-plugin-codec-webcodecs"]
+```
+Native 构建时不开启 `wasm-backends`，插件独立为 cdylib。WASM 构建时开启此 feature，插件作为 rlib 静态链接。
 
 ```cmake
 # 插件发现
@@ -395,15 +416,51 @@ libgkit_plugin_codec_ffmpeg.dylib     libgkit_plugin_webrtc_libwebrtc.dylib
 ```toml
 [workspace]
 members = [
-    "gkit-core",
-    "gkit-media",
-    "gkit-media/plugins/*",
     "crates/*",
-    "apis/*",
+    "crates/gkit-media/plugins/*",
+    "apis/c/*",
+    "apis/python/*",
+    "apis/wasm/*",
+    "apis/node/*",
+    "apis/flutter/*",
+    "apis/csharp/*",
+    "tools/gkit-vcpkg",
 ]
 
 [workspace.dependencies]
 stabby = "72"
-gkit-core = { path = "gkit-core" }
-gkit-media = { path = "gkit-media" }
+libloading = "0.8"
+linkme = "0.3"
+thiserror = "2"
+gkit-core = { path = "crates/gkit-core" }
+gkit-media = { path = "crates/gkit-media" }
 ```
+
+---
+
+## 9. 运行时安全 & 迁移路径 (审查修正)
+
+### 9.1 Arc 跨 dylib 安全 + 不卸载策略
+
+`stabby::arc::Arc<[u8]>` 控制块在创建 dylib 分配，析构函数存储在控制块内。插件**永不卸载** — `PluginLib` 持有 `Arc<Library>`，生命周期 = 进程生命周期 (FATAL #2 修正)。
+
+### 9.2 tokio runtime 隔离
+
+每个 `.dylib` 插件自带独立 tokio runtime。宿主 async 上下文通过 channel 触发插件操作，避免嵌套 runtime panic (FATAL #3 修正)。
+
+### 9.3 迁移路径 (FATAL #1 修正)
+
+原设计 "core.rs trait 保持不动" 与引入 stabby trait 矛盾。修正：
+
+1. **老 trait 保留**: `VideoSink<F>`, `PeerConnection` 等继续在 `core.rs` 中
+2. **新 stabby trait 平行**: `IStableVideoSink`, `IStablePeerConnection` 在 `gkit-media/src/trait/`
+3. **适配层**: `PluginRegistry` 返回 `Box<dyn IStablePeerConnection>`，`From`/`Into` 转换到老 trait
+4. **RtcEngine 过渡**: 先查静态注册表 → fallback 到 `PluginRegistry`
+
+### 9.4 构建系统修正摘要
+
+| 审查问题 | 修正 |
+|---------|------|
+| F1: gkit_cargo_add_plugin 模糊 | 明确为 pre-import 配置函数 |
+| F2: TOML 不可行 | CMake 函数调用 (Section 4.3) |
+| F3: cfg on [lib] 语法错误 | feature flags `wasm-backends` (Section 4.4) |
