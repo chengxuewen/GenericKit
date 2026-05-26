@@ -1,8 +1,9 @@
-// gkit-media P2P Video Loopback (egui) — backend-agnostic RTC API
+// gkit-media P2P Video Loopback (egui) — plugin-based backend discovery
 // Usage:
-//   cargo run -p gkit-media --example gkit-media-webrtc-loopback --features backend-native-all
-//   cargo run -p gkit-media --example gkit-media-webrtc-loopback --features backend-native-webrtc-rs
-//   cargo run -p gkit-media --example gkit-media-webrtc-loopback --features backend-native-google
+//   cargo build -p gkit-plugin-webrtc-libwebrtc  # build plugin dylib first
+//   cargo run -p gkit-media --example gkit-media-webrtc-loopback
+//
+// Backends are discovered dynamically from target/debug/plugins/ via RtcEngine::load_plugins().
 
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -56,11 +57,12 @@ fn default_ice_config() -> RtcConfiguration {
 }
 
 fn main() -> Result<(), eframe::Error> {
+    RtcEngine::load_plugins();
     let backends = RtcEngine::registered_types();
-    let default_backend = if backends.contains(&"webrtc-rs".to_string()) {
+    let default_backend = if backends.contains(&"libwebrtc".to_string()) {
+        "libwebrtc"
+    } else if backends.contains(&"webrtc-rs".to_string()) {
         "webrtc-rs"
-    } else if backends.contains(&"google".to_string()) {
-        "google"
     } else {
         backends.first().map(|s| s.as_str()).unwrap_or("none")
     };
