@@ -1,0 +1,9 @@
+# Required by webrtc-sys/libwebrtc on macOS: the -ObjC linker flag forces
+# the linker to load all Objective-C categories from static libraries.
+# Without this, categories like NSString+StdString are dead-stripped,
+# causing runtime crashes (NSInvalidArgumentException: unrecognized selector).
+[target.x86_64-apple-darwin]
+rustflags = ["-C", "link-args=-ObjC"]
+
+[target.aarch64-apple-darwin]
+rustflags = ["-C", "link-args=-ObjC"]
