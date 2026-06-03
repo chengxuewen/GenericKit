@@ -2,21 +2,23 @@
 resolver = "3"
 members = [
     "crates/*",
+    "crates/gkit-media-ffi",
+    "crates/gkit-core-ffi",
     "patches/livekit-runtime",
     "crates/gkit-media/plugins/webrtc/libwebrtc",
     "crates/gkit-media/plugins/webrtc/web-sys",
     "crates/gkit-core/tests/plugin/mock_plugin",
-    "apis/c/*",
-    "apis/python/*",
-    "apis/wasm/*",
-    "apis/node/*",
-    "apis/flutter/*",
-    "apis/csharp/*",
+    "bindings/python/*",
+    "bindings/wasm/*",
+    "bindings/node/*",
+    "bindings/flutter/*",
+    "bindings/csharp/*",
     "tools/gkit-vcpkg"
 ]
 default-members = [
     "crates/*",
-    "apis/c/*"
+    "crates/gkit-media-ffi",
+    "crates/gkit-core-ffi",
 ]
 
 [workspace.package]

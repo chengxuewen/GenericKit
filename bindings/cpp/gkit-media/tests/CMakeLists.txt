@@ -24,5 +24,5 @@ set(_test_dir "${CMAKE_CURRENT_SOURCE_DIR}")
 
 add_executable(gkit_media_cpp_test_video_frame "${_test_dir}/test_video_frame.cpp")
 target_link_libraries(gkit_media_cpp_test_video_frame gkit_media_cpp gkit_media_c GKitWrapGTest::WrapGTest)
-set_target_properties(gkit_media_cpp_test_video_frame PROPERTIES FOLDER "gkit_media/apis/cpp/tests")
+set_target_properties(gkit_media_cpp_test_video_frame PROPERTIES FOLDER "gkit_media/bindings/cpp/tests")
 add_test(NAME gkit_media_cpp_test_video_frame COMMAND gkit_media_cpp_test_video_frame)

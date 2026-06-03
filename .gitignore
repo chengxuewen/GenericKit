@@ -72,16 +72,17 @@ Thumbs.db
 
 # Generated cbindgen headers
 # --------
-**/apis/c/**/generated/
+**/crates/gkit-core-ffi/generated/
+**/crates/gkit-media-ffi/generated/
 
 # Generated csbindgen C# files
 # --------
-**/apis/csharp/**/*.g.cs
+**/bindings/csharp/**/*.g.cs
 build/csharp/
 
 # Generated flutter_rust_bridge files
 # --------
-**/apis/flutter/**/src/frb_generated.rs
+**/bindings/flutter/**/src/frb_generated.rs
 
 # IDE files
 # --------

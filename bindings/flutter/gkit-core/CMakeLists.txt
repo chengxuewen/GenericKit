@@ -29,10 +29,10 @@ file(WRITE "${GKIT_BUILD_DIR}/flutter/gkit-core/pubspec.yaml"
 message(STATUS "Generating Flutter bindings for gkit-core...")
 execute_process(
 	COMMAND "${GKIT_FRB_CODEGEN}" generate
-		--rust-input "apis/flutter/gkit-core/src/api"
-		--rust-root "apis/flutter/gkit-core"
+		--rust-input "bindings/flutter/gkit-core/src/api"
+		--rust-root "bindings/flutter/gkit-core"
 		--dart-output "${_dart_out}"
-		--rust-output "apis/flutter/gkit-core/src/frb_generated.rs"
+		--rust-output "bindings/flutter/gkit-core/src/frb_generated.rs"
 	WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
 	RESULT_VARIABLE _frb_result
 	ERROR_VARIABLE _frb_err

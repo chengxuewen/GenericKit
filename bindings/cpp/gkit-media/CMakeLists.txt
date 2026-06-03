@@ -22,7 +22,7 @@ gkit_cargo_setup_ffi_cpp_target(gkit_media_cpp
 	HEADER_DIR "${CMAKE_CURRENT_SOURCE_DIR}"
 	FFI_BASE_NAME "gkit_media_c"
 	INSTALL_HEADERS "gkit_media.hpp" "gkit_media_video_frame.hpp"
-	FOLDER "gkit_media/apis/cpp")
+	FOLDER "gkit_media/bindings/cpp")
 
 gkit_cargo_install_config(gkit_media_cpp
 	DESCRIPTION "GenericKit Media C++ bindings"

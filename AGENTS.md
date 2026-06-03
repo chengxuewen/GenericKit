@@ -21,8 +21,9 @@ GenericKit/
 │   ├── gkit-native/     # STUB — OS platform abstraction
 │   ├── gkit-profiling/  # STUB — profiling/tracing
 │   └── gkit-crash/      # STUB — crash reporting
-├── apis/                # FFI bindings (7 languages × 2 crates)
-│   ├── c/               # C FFI (extern "C" + cbindgen) — working
+├── crates/gkit-media-ffi/  # C FFI (extern "C" + cbindgen) — working
+├── crates/gkit-core-ffi/   # C FFI (core primitives)
+├── bindings/               # Non-Rust language bindings
 │   ├── cpp/             # C++ RAII wrappers on C FFI
 │   ├── python/          # PyO3 + maturin — stub
 │   ├── wasm/            # wasm-bindgen — stub
@@ -45,8 +46,8 @@ GenericKit/
 | Task | Location | Notes |
 |------|----------|-------|
 | Rust changes | `crates/gkit-media/src/` | Only active crate |
-| C FFI changes | `apis/c/gkit-media/src/lib.rs` | 1,168-line FFI binding |
-| C++ wrapper changes | `apis/cpp/gkit-media/*.hpp` | RAII headers on C handles |
+| C FFI changes | `crates/gkit-media-ffi/src/lib.rs` | 1,168-line FFI binding |
+| C++ wrapper changes | `bindings/cpp/gkit-media/*.hpp` | RAII headers on C handles |
 | Build system changes | `CMakeLists.txt` + `cmake/GKitCargoHelpers.cmake` | Corrosion + FFI target setup |
 | AI coding rules | `.agents/rules/common/` + `.agents/rules/rust/` | Layered: specific overrides general |
 | Test infrastructure | See AGENTS.md notes; only gkit-media has tests | C: Unity, C++: GTest, Rust: `#[test]` |
@@ -75,17 +76,17 @@ ctest --test-dir build-auto --output-on-failure
 
 ## API BINDINGS
 
-7 language bindings in `apis/`. Each wraps exactly 2 crates (`gkit-core` + `gkit-media`). Only C and C++ are functional; all others are stubs.
+6 language bindings in `bindings/`, plus C FFI in `crates/gkit-media-ffi/` and `crates/gkit-core-ffi/`. Each wraps exactly 2 crates (`gkit-core` + `gkit-media`). Only C and C++ are functional; all others are stubs.
 
 | Lang | Dir | FFI Tech | Status | Notes |
 |------|-----|----------|--------|-------|
-| C | `apis/c/` | extern "C" + cbindgen 0.29 | **Working** | RTC, VideoFrame, SCTP, 7 callback types |
-| C++ | `apis/cpp/` | Headers on C FFI | **Working** | RAII wrappers, GTest suite, 3 examples |
-| Python | `apis/python/` | PyO3 0.24 + maturin | Stub | `hello()` only |
-| Node | `apis/node/` | napi-rs 2 | Stub | `hello()` only |
-| WASM | `apis/wasm/` | wasm-bindgen 0.2 | Stub | `hello()` only |
-| Flutter | `apis/flutter/` | flutter_rust_bridge 2 | Stub | `hello()` only |
-| C# | `apis/csharp/` | csbindgen 1 | Broken | No build.rs, lib.rs is a comment |
+| C | `crates/gkit-media-ffi/` | extern "C" + cbindgen 0.29 | **Working** | RTC, VideoFrame, SCTP, 7 callback types |
+| C++ | `bindings/cpp/` | Headers on C FFI | **Working** | RAII wrappers, GTest suite, 3 examples |
+| Python | `bindings/python/` | PyO3 0.24 + maturin | Stub | `hello()` only |
+| Node | `bindings/node/` | napi-rs 2 | Stub | `hello()` only |
+| WASM | `bindings/wasm/` | wasm-bindgen 0.2 | Stub | `hello()` only |
+| Flutter | `bindings/flutter/` | flutter_rust_bridge 2 | Stub | `hello()` only |
+| C# | `bindings/csharp/` | csbindgen 1 | Broken | No build.rs, lib.rs is a comment |
 
 Enable via `GKIT_BUILD_API_<LANG>` CMake options. Build helpers: `cmake/GKitCargoHelpers.cmake`.
 
@@ -149,7 +150,7 @@ gkit-vcpkg install <package>                  # Install C/C++ dependency
 - **No CI** — project is pre-CI; add `.github/workflows/` when ready
 - **Corrosion build is slow on first run** — ~minutes for full CMake configure
 - **WebRTC backends are mutually exclusive** — select one at CMake configure time
-- **cbindgen headers are generated at build time** — not committed, in `apis/c/*/generated/`
+- **cbindgen headers are generated at build time** — not committed, in `crates/gkit-*-ffi/generated/`
 - **vcpkg is not a submodule** — cloned fresh if not present
 - **LICENSE**: Apache 2.0 for self-owned code; third-party code must be replaced/removed for commercial use
 - **AI rules**: See `.agents/rules/README.md` — `common/` for universals, `rust/`/`cpp/`/etc. for language specifics

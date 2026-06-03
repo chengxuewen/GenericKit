@@ -40,17 +40,18 @@ GenericKit/
 │   └── prompts/             # Task plans and system prompts
 │       ├── tasks/           # Feature task lists (webrtc-impl.md)
 │       └── systems/         # System-level prompts
-├── crates/                  # Internal Rust crates
+├── crates/                  # Internal Rust crates (10 total)
 │   ├── gkit-core/           # Core library (lib + staticlib + cdylib)
+│   ├── gkit-core-ffi/       # C FFI (cbindgen)
 │   ├── gkit-media/          # Media/WebRTC (most developed crate)
+│   ├── gkit-media-ffi/      # C FFI (cbindgen)
 │   ├── gkit-native/         # Native platform integration (stub)
 │   ├── gkit-crash/          # Crash handling (stub)
 │   ├── gkit-network/        # Network library (stub)
 │   ├── gkit-service/        # Service library (stub)
 │   ├── gkit-profiling/      # Profiling (stub)
 │   └── gkit-graphics/       # Graphics (stub)
-├── apis/                    # Multi-language FFI bindings
-│   ├── c/                   # C FFI (cbindgen)
+├── bindings/                # Multi-language FFI bindings (6 languages)
 │   ├── cpp/                 # C++ wrappers (RAII classes)
 │   ├── python/              # Python (pyo3 + maturin)
 │   ├── wasm/                # WebAssembly (wasm-bindgen + wasm-pack)
@@ -158,8 +159,8 @@ Selected via CMake cache string `GKIT_FEATURE_MEDIA_WEBRTC_BACKEND` → `CORROSI
 | Layer | Language | Framework | Location | Count |
 |-------|----------|-----------|----------|-------|
 | Rust trait | Rust | `#[test]` | `crates/gkit-media/tests/` | 21 |
-| C FFI | C | Unity | `apis/c/gkit-media/tests/` | 5 |
-| C++ FFI | C++ | GTest | `apis/cpp/gkit-media/tests/` | 1 |
+| C FFI | C | Unity | `crates/gkit-media-ffi/tests/` | 5 |
+| C++ FFI | C++ | GTest | `bindings/cpp/gkit-media/tests/` | 1 |
 
 **Test naming conventions:**
 - Rust: `snake_case` descriptive (e.g., `create_and_close`, `error_on_closed_connection`)
@@ -168,7 +169,7 @@ Selected via CMake cache string `GKIT_FEATURE_MEDIA_WEBRTC_BACKEND` → `CORROSI
 - Tests registered as CTest via `add_test(NAME ... COMMAND ...)`
 - C test targets linked with `gkit_media_c` + `GKitWrapUnity::WrapUnity`
 - C++ test targets linked with `gkit_media_cpp` + `GKitWrapGTest::WrapGTest`
-- FOLDER: `gkit_media/apis/c/tests`, `gkit_media/apis/cpp/tests`
+- FOLDER: `gkit_media/ffi/c/tests`, `gkit_media/bindings/cpp/tests`
 
 **Test commands:**
 ```bash
@@ -199,8 +200,8 @@ For each new API binding crate:
 1. Add to `[workspace].members` in root `Cargo.toml`
 2. Conditionally add to `_gkit_corrosion_crates` in root `CMakeLists.txt`
 3. Add `gkit_cargo_set_folder()` call matching the import condition
-4. Create `apis/<api>/<module>/CMakeLists.txt` with target definitions
-5. Create `apis/<api>/CMakeLists.txt` with `add_subdirectory()`
+4. Create `crates/<crate>/CMakeLists.txt` (for C FFI) or `bindings/<api>/<module>/CMakeLists.txt` (for other bindings) with target definitions
+5. Create `bindings/<api>/CMakeLists.txt` (or add to root `CMakeLists.txt` for C FFI crates) with `add_subdirectory()`
 6. Verify FOLDER tree: cargo-build targets are correctly grouped
 7. Ensure all Rust output is redirected away from `build/` root
 8. `cargo build` (default members) compiles cleanly

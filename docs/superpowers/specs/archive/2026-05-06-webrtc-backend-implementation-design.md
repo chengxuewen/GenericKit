@@ -235,7 +235,7 @@ Confirm build.rs:
 
 ### 5.1 PeerConnection RAII Wrapper
 
-New file: `apis/cpp/gkit-media/gkit_media_rtc.hpp`
+New file: `bindings/cpp/gkit-media/gkit_media_rtc.hpp`
 
 ```cpp
 namespace gkit {
@@ -310,15 +310,15 @@ private:
 ### 5.3 GTest Tests
 
 New test files:
-- `apis/cpp/gkit-media/tests/test_rtc_basic.cpp` — create/destroy, move semantics
-- `apis/cpp/gkit-media/tests/test_rtc_sdp.cpp` — offer/answer round-trip via C FFI
-- `apis/cpp/gkit-media/tests/test_rtc_dc.cpp` — DataChannel label, send, close
+- `bindings/cpp/gkit-media/tests/test_rtc_basic.cpp` — create/destroy, move semantics
+- `bindings/cpp/gkit-media/tests/test_rtc_sdp.cpp` — offer/answer round-trip via C FFI
+- `bindings/cpp/gkit-media/tests/test_rtc_dc.cpp` — DataChannel label, send, close
 
 ### 5.4 CMake Wiring
 
 New targets:
 - `gkit_media_cpp_test_rtc_basic`, `gkit_media_cpp_test_rtc_sdp`, `gkit_media_cpp_test_rtc_dc`
-- FOLDER: `gkit_media/apis/cpp/tests`
+- FOLDER: `gkit_media/bindings/cpp/tests`
 - Registered in CTest
 
 ### 5.5 Verification

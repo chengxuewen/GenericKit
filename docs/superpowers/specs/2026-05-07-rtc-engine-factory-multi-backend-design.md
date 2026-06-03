@@ -290,7 +290,7 @@ pub unsafe extern "C" fn gkit_media_rtc_create_factory(
 
 ## 6. C++ RAII 封装
 
-新文件：`apis/cpp/gkit-media/gkit_media_rtc.hpp`
+新文件：`bindings/cpp/gkit-media/gkit_media_rtc.hpp`
 
 ```cpp
 namespace gkit {

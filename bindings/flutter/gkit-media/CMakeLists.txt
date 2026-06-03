@@ -29,10 +29,10 @@ file(WRITE "${GKIT_BUILD_DIR}/flutter/gkit-media/pubspec.yaml"
 message(STATUS "Generating Flutter bindings for gkit-media...")
 execute_process(
 	COMMAND "${GKIT_FRB_CODEGEN}" generate
-		--rust-input "apis/flutter/gkit-media/src/api"
-		--rust-root "apis/flutter/gkit-media"
+		--rust-input "bindings/flutter/gkit-media/src/api"
+		--rust-root "bindings/flutter/gkit-media"
 		--dart-output "${_dart_out}"
-		--rust-output "apis/flutter/gkit-media/src/frb_generated.rs"
+		--rust-output "bindings/flutter/gkit-media/src/frb_generated.rs"
 	WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
 	RESULT_VARIABLE _frb_result
 	ERROR_VARIABLE _frb_err

@@ -22,7 +22,7 @@ target_include_directories(${_example_name} PRIVATE
 )
 
 set_target_properties(${_example_name} PROPERTIES
-    FOLDER "gkit_media/apis/cpp/examples"
+    FOLDER "gkit_media/bindings/cpp/examples"
     RUNTIME_OUTPUT_DIRECTORY "${GKIT_BUILD_DIR}/${GKIT_INSTALL_BINDIR}"
     CXX_STANDARD 17
 )

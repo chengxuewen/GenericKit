@@ -1,5 +1,15 @@
 # Conventions
 
+## FFI Directory Structure
+
+- **C FFI crates**: `crates/gkit-{core,media}-ffi/` — workspace members, each has its own CMakeLists.txt
+  - Cargo package names stay as `gkit-{core,media}-c` (unchanged from original crate names)
+  - cbindgen output: `{crate_dir}/generated/` (not committed, generated at build time)
+  - Manual API headers: `{crate_dir}/gkit_media_api.h`, `gkit_core_api.h` (committed)
+- **Higher-level bindings**: `bindings/{cpp,python,wasm,node,flutter,csharp}/` — non-Rust wrappers/stubs
+  - C++ bindings are header-only RAII wrappers linking to C FFI
+  - Stub languages each have their own Cargo.toml (workspace members under `bindings/{lang}/*`)
+
 ## Plugin Architecture
 
 - **Plugin naming**: `libgkit_plugin_{name}.dylib` (macOS/Linux), `gkit_plugin_{name}.dll` (Windows)

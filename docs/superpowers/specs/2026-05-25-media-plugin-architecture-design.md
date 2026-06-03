@@ -785,12 +785,13 @@ add_custom_command(TARGET gkit-media-webrtc-loopback POST_BUILD
 members = [
     "crates/*",
     "crates/gkit-media/plugins/*",
-    "apis/c/*",
-    "apis/python/*",
-    "apis/wasm/*",
-    "apis/node/*",
-    "apis/flutter/*",
-    "apis/csharp/*",
+    "crates/gkit-core-ffi",
+    "crates/gkit-media-ffi",
+    "bindings/python/*",
+    "bindings/wasm/*",
+    "bindings/node/*",
+    "bindings/flutter/*",
+    "bindings/csharp/*",
     "tools/gkit-vcpkg",
 ]
 
