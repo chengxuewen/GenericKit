@@ -524,20 +524,28 @@ async fn run_p2p_async(p: Arc<Pipeline>, backend: String) {
             let kbps = fps * 640.0 * 360.0 * 1.5 / 1000.0;
             let mut stats = format!("fps:{:.0}  kbps:{:.0}", fps, kbps);
             if let Ok(json) = pc2.get_stats_json() {
+                let (mut jitter, mut rtt, mut lost) = (None, None, None);
+                let mut in_inbound = false;
+                let mut in_remote = false;
                 for line in json.lines() {
-                    let extract_val = || {
-                        line.split(':').nth(1).map(|v| v.trim().trim_end_matches(',')).unwrap_or("-")
-                    };
-                    if line.contains("jitter:") && !line.contains("jitter_buffer") {
-                        stats.push_str(&format!("  jitter:{}", extract_val()));
+                    let t = line.trim();
+                    if t.starts_with("InboundRtp") { in_inbound = true; continue; }
+                    if t.starts_with("RemoteInboundRtp") { in_inbound = false; in_remote = true; continue; }
+                    if t.starts_with("OutboundRtp") || t.starts_with("RemoteOutboundRtp") { in_inbound = false; in_remote = false; continue; }
+                    if t == "}" { in_inbound = false; in_remote = false; continue; }
+                    if in_inbound && jitter.is_none() && t.starts_with("jitter:") {
+                        jitter = t.split(':').nth(1).map(|v| v.trim().trim_end_matches(','));
                     }
-                    if line.contains("round_trip_time:") {
-                        stats.push_str(&format!("  rtt:{}s", extract_val()));
+                    if in_inbound && lost.is_none() && t.starts_with("packets_lost:") {
+                        lost = t.split(':').nth(1).map(|v| v.trim().trim_end_matches(','));
                     }
-                    if line.contains("packets_lost:") {
-                        stats.push_str(&format!("  lost:{}", extract_val()));
+                    if in_remote && rtt.is_none() && t.starts_with("round_trip_time:") {
+                        rtt = t.split(':').nth(1).map(|v| v.trim().trim_end_matches(','));
                     }
                 }
+                if let Some(v) = jitter { stats.push_str(&format!("  jitter:{}", v)); }
+                if let Some(v) = rtt { stats.push_str(&format!("  rtt:{}s", v)); }
+                if let Some(v) = lost { stats.push_str(&format!("  lost:{}", v)); }
             }
             *p.receiver_stats.lock().unwrap() = stats;
         }
