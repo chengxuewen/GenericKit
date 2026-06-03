@@ -9,6 +9,7 @@
 // Backends are discovered dynamically via RtcEngine::load_plugins().
 
 use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::io::Write;
 use std::time::Duration;
 use eframe::egui;
@@ -49,6 +50,7 @@ struct Pipeline {
     available_backends: Mutex<Vec<String>>,
     ice_config: RtcConfiguration,
     tokio_handle: tokio::runtime::Handle,
+    stop_requested: AtomicBool,
 }
 
 fn default_ice_config() -> RtcConfiguration {
@@ -106,6 +108,7 @@ fn main() -> Result<(), eframe::Error> {
         available_backends: Mutex::new(backends),
         ice_config: default_ice_config(),
         tokio_handle,
+        stop_requested: AtomicBool::new(false),
     });
 
     // Frame generator — always running
@@ -185,12 +188,21 @@ fn main() -> Result<(), eframe::Error> {
                                     let p = self.p.clone();
                                     *p.status.lock().unwrap() = format!("Starting: {} ...", backend);
                                     *p.p2p_state.lock().unwrap() = P2pState::Connecting;
+                                    p.stop_requested.store(false, Ordering::Relaxed);
                                     p.pc1_log.lock().unwrap().clear();
                                     p.pc2_log.lock().unwrap().clear();
                                     let handle = p.tokio_handle.clone();
                                     std::thread::spawn(move || run_p2p(p, backend, handle));
                                 }
                             });
+
+                            let is_running = matches!(*self.p.p2p_state.lock().unwrap(), P2pState::Connecting | P2pState::Connected);
+                            if is_running {
+                                if ui.button("⏹ Stop P2P").clicked() {
+                                    self.p.stop_requested.store(true, Ordering::Relaxed);
+                                    *self.p.status.lock().unwrap() = "Stopping...".into();
+                                }
+                            }
 
                             ui.separator();
                             ui.label(format!("Status: {}", self.p.status.lock().unwrap()));
@@ -480,6 +492,14 @@ async fn run_p2p_async(p: Arc<Pipeline>, backend: String) {
             break;
         }
         if matches!(*p.p2p_state.lock().unwrap(), P2pState::Error(_)) {
+            pc1.close().ok();
+            pc2.close().ok();
+            break;
+        }
+        if p.stop_requested.load(Ordering::Relaxed) {
+            log("SYS", "Stop requested — closing connections");
+            *p.status.lock().unwrap() = "Stopped".into();
+            *p.p2p_state.lock().unwrap() = P2pState::Idle;
             pc1.close().ok();
             pc2.close().ok();
             break;
