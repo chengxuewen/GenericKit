@@ -525,14 +525,17 @@ async fn run_p2p_async(p: Arc<Pipeline>, backend: String) {
             let mut stats = format!("fps:{:.0}  kbps:{:.0}", fps, kbps);
             if let Ok(json) = pc2.get_stats_json() {
                 for line in json.lines() {
+                    let extract_val = || {
+                        line.split(':').nth(1).map(|v| v.trim().trim_end_matches(',')).unwrap_or("-")
+                    };
                     if line.contains("jitter:") && !line.contains("jitter_buffer") {
-                        if let Some(v) = line.split(':').nth(1) { stats.push_str(&format!("  jitter:{}", v.trim())); }
+                        stats.push_str(&format!("  jitter:{}", extract_val()));
                     }
                     if line.contains("round_trip_time:") {
-                        if let Some(v) = line.split(':').nth(1) { stats.push_str(&format!("  rtt:{}", v.trim())); }
+                        stats.push_str(&format!("  rtt:{}s", extract_val()));
                     }
                     if line.contains("packets_lost:") {
-                        if let Some(v) = line.split(':').nth(1) { stats.push_str(&format!("  lost:{}", v.trim())); }
+                        stats.push_str(&format!("  lost:{}", extract_val()));
                     }
                 }
             }
