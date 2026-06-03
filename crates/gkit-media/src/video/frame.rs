@@ -56,8 +56,12 @@ impl<T> VideoFrame<T> {
 }
 
 impl VideoFrame<Box<dyn super::buffer::VideoBuffer>> {
-    pub fn width(&self) -> u32 { self.buffer.width() }
-    pub fn height(&self) -> u32 { self.buffer.height() }
+    pub fn width(&self) -> u32 {
+        self.buffer.width()
+    }
+    pub fn height(&self) -> u32 {
+        self.buffer.height()
+    }
 }
 
 /// Type alias for heap-allocated video frame.

@@ -71,7 +71,11 @@ impl PeerConnection for WasmPeerConnection {
     }
 
     fn connection_state(&self) -> ConnectionState {
-        if self.closed { ConnectionState::Closed } else { ConnectionState::New }
+        if self.closed {
+            ConnectionState::Closed
+        } else {
+            ConnectionState::New
+        }
     }
 
     fn gathering_state(&self) -> GatheringState {
@@ -84,12 +88,18 @@ impl PeerConnection for WasmPeerConnection {
 
     fn local_description(&self) -> MediaResult<SessionDescription> {
         self.check_closed()?;
-        Ok(SessionDescription { sdp_type: String::new(), sdp: String::new() })
+        Ok(SessionDescription {
+            sdp_type: String::new(),
+            sdp: String::new(),
+        })
     }
 
     fn remote_description(&self) -> MediaResult<SessionDescription> {
         self.check_closed()?;
-        Ok(SessionDescription { sdp_type: String::new(), sdp: String::new() })
+        Ok(SessionDescription {
+            sdp_type: String::new(),
+            sdp: String::new(),
+        })
     }
 
     fn close(&mut self) -> MediaResult<()> {
@@ -160,13 +170,18 @@ impl WasmFactory {
 }
 
 impl PeerConnectionFactory for WasmFactory {
-    fn backend_name(&self) -> &'static str { "wasm" }
+    fn backend_name(&self) -> &'static str {
+        "wasm"
+    }
 
     fn create_peer_connection(&self) -> MediaResult<Box<dyn PeerConnection>> {
         Ok(Box::new(WasmPeerConnection::new()))
     }
 
-    fn create_peer_connection_with_config(&self, _config: &RtcConfiguration) -> MediaResult<Box<dyn PeerConnection>> {
+    fn create_peer_connection_with_config(
+        &self,
+        _config: &RtcConfiguration,
+    ) -> MediaResult<Box<dyn PeerConnection>> {
         Ok(Box::new(WasmPeerConnection::new()))
     }
 }
