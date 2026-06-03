@@ -1,9 +1,12 @@
 // gkit-media P2P Video Loopback (egui) — plugin-based backend discovery
 // Usage:
-//   cargo build -p gkit-plugin-webrtc-libwebrtc  # build plugin dylib first
-//   cargo run -p gkit-media --example gkit-media-webrtc-loopback
+//   cargo build -p gkit-plugin-webrtc-libwebrtc
+//   cargo run -p gkit-media --example gkit-media-webrtc-loopback [-- --auto-start]
 //
-// Backends are discovered dynamically from target/debug/plugins/ via RtcEngine::load_plugins().
+// Options:
+//   --auto-start    Start P2P immediately on launch (default: off)
+//
+// Backends are discovered dynamically via RtcEngine::load_plugins().
 
 use std::sync::{Arc, Mutex};
 use std::io::Write;
@@ -86,7 +89,9 @@ fn main() -> Result<(), eframe::Error> {
     } else {
         backends.first().map(|s| s.clone()).unwrap_or_else(|| "none".into())
     };
-    let auto_start = default_backend != "none" && !default_backend.is_empty();
+    let auto_start = std::env::args().any(|a| a == "--auto-start")
+        && default_backend != "none"
+        && !default_backend.is_empty();
 
     let pipeline = Arc::new(Pipeline {
         sender_frame: Mutex::new(None),
