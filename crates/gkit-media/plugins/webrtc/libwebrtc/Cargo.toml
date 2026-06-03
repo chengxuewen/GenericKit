@@ -10,4 +10,6 @@ crate-type = ["cdylib"]
 gkit-media = { workspace = true, default-features = false }
 stabby.workspace = true
 libwebrtc = { git = "https://github.com/livekit/rust-sdks", tag = "libwebrtc/v0.3.34" }
+futures = "0.3"
+livekit-runtime = { path = "../../../../../patches/livekit-runtime" }
 tokio = { workspace = true, features = ["rt", "sync", "macros", "time"] }

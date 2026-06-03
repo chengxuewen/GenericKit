@@ -1,4 +1,7 @@
-use std::sync::{Arc, atomic::{AtomicBool, Ordering}, Mutex, OnceLock};
+use std::sync::{
+    Arc, Mutex, OnceLock,
+    atomic::{AtomicBool, Ordering},
+};
 
 use libwebrtc::data_channel::DataChannelInit;
 use libwebrtc::media_stream_track::MediaStreamTrack;
@@ -9,13 +12,12 @@ use libwebrtc::rtp_receiver::RtpReceiver as LkRtpReceiver;
 use libwebrtc::rtp_sender::RtpSender as LkRtpSender;
 use libwebrtc::rtp_transceiver::RtpTransceiver as LkRtpTransceiver;
 use libwebrtc::stats::RtcStats;
-use libwebrtc::video_source::native::NativeVideoSource;
 use libwebrtc::video_source::VideoResolution;
+use libwebrtc::video_source::native::NativeVideoSource;
 
 use gkit_media::protocols::rtc::client::core::{
-    ConnectionState, DataChannel, DataChannelState, GatheringState,
-    IceConnectionState, MediaError, MediaResult, PeerConnection,
-    SessionDescription, SignalingState, VideoTrack,
+    ConnectionState, DataChannel, DataChannelState, GatheringState, IceConnectionState, MediaError,
+    MediaResult, PeerConnection, SessionDescription, SignalingState, VideoTrack,
 };
 use gkit_media::video::frame::BoxVideoFrame;
 use gkit_media::video::source_sink::{VideoSink, VideoSinkWants, VideoSource};
@@ -27,21 +29,26 @@ use crate::adapt::session_description::lk_sdp_from_core;
 use crate::adapt::video_frame::gkit_box_frame_to_lk;
 use crate::adapt::video_track::LkVideoTrack;
 
-fn rt() -> &'static tokio::runtime::Runtime {
-    static RT: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
+pub(crate) fn rt() -> &'static tokio::runtime::Runtime {
+    static RT: OnceLock<&'static tokio::runtime::Runtime> = OnceLock::new();
     RT.get_or_init(|| {
-        tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("tokio runtime")
+        let rt = Box::leak(Box::new(
+            tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()
+                .expect("tokio runtime"),
+        ));
+        livekit_runtime::set_handle(rt.handle().clone());
+        let handle = rt.handle().clone();
+        std::thread::Builder::new()
+            .name("gkit-webrtc-rt".into())
+            .spawn(move || {
+                handle.block_on(std::future::pending::<()>());
+            })
+            .expect("spawn tokio runtime thread");
+        rt
     })
 }
-
-
-
-
-
-
 
 pub struct LiveKitPeerConnection {
     inner: libwebrtc::peer_connection::PeerConnection,
@@ -144,9 +151,13 @@ impl PeerConnection for LiveKitPeerConnection {
             .ok_or_else(|| MediaError::new("no remote description"))
     }
 
-    fn set_on_ice_candidate(&self, cb: Box<dyn Fn(gkit_media::protocols::rtc::client::core::IceCandidate) + Send>) {
-        let cb: Mutex<Option<Box<dyn Fn(gkit_media::protocols::rtc::client::core::IceCandidate) + Send>>> =
-            Mutex::new(Some(cb));
+    fn set_on_ice_candidate(
+        &self,
+        cb: Box<dyn Fn(gkit_media::protocols::rtc::client::core::IceCandidate) + Send>,
+    ) {
+        let cb: Mutex<
+            Option<Box<dyn Fn(gkit_media::protocols::rtc::client::core::IceCandidate) + Send>>,
+        > = Mutex::new(Some(cb));
         self.inner.on_ice_candidate(Some(Box::new(move |lk_ic| {
             if let Ok(guard) = cb.lock() {
                 if let Some(ref cb) = *guard {
@@ -156,10 +167,7 @@ impl PeerConnection for LiveKitPeerConnection {
         })));
     }
 
-    fn set_on_ice_connection_state_change(
-        &self,
-        cb: Box<dyn Fn(IceConnectionState) + Send>,
-    ) {
+    fn set_on_ice_connection_state_change(&self, cb: Box<dyn Fn(IceConnectionState) + Send>) {
         let cb: Mutex<Option<Box<dyn Fn(IceConnectionState) + Send>>> = Mutex::new(Some(cb));
         self.inner
             .on_ice_connection_state_change(Some(Box::new(move |lk_state| {
@@ -180,24 +188,30 @@ impl PeerConnection for LiveKitPeerConnection {
         &self,
         source: Box<dyn VideoSource<BoxVideoFrame>>,
     ) -> MediaResult<Box<dyn VideoTrack>> {
-        let native_source =
-            NativeVideoSource::new(VideoResolution { width: 1280, height: 720 }, false);
+        let native_source = NativeVideoSource::new(
+            VideoResolution {
+                width: 640,
+                height: 360,
+            },
+            false,
+        );
 
-        let _adapter = SourceToSinkAdapter::new(native_source.clone(), source);
-        let lk_track = get_pcf()
-            .create_video_track("video", native_source);
+        Box::leak(Box::new(SourceToSinkAdapter::new(native_source.clone(), source)));
+        let lk_track = get_pcf().create_video_track("video", native_source);
+
+        let media_track: libwebrtc::media_stream_track::MediaStreamTrack =
+            lk_track.clone().into();
+        self.inner
+            .add_track(media_track, &["stream"])
+            .map_err(|e| MediaError::new(format!("add_track: {e}")))?;
 
         Ok(Box::new(LkVideoTrack::new(lk_track)))
     }
 
-    fn set_on_track(
-        &self,
-        cb: Box<dyn Fn(Box<dyn VideoTrack>) + Send>,
-    ) {
-        let cb: Mutex<Option<Box<dyn Fn(Box<dyn VideoTrack>) + Send>>> =
-            Mutex::new(Some(cb));
-        let on_track: libwebrtc::peer_connection::OnTrack = Box::new(
-            move |event: libwebrtc::peer_connection::TrackEvent| {
+    fn set_on_track(&self, cb: Box<dyn Fn(Box<dyn VideoTrack>) + Send>) {
+        let cb: Mutex<Option<Box<dyn Fn(Box<dyn VideoTrack>) + Send>>> = Mutex::new(Some(cb));
+        let on_track: libwebrtc::peer_connection::OnTrack =
+            Box::new(move |event: libwebrtc::peer_connection::TrackEvent| {
                 if let Ok(mut guard) = cb.lock() {
                     if let Some(ref cb) = *guard {
                         if let MediaStreamTrack::Video(lk_vt) = event.track {
@@ -205,8 +219,7 @@ impl PeerConnection for LiveKitPeerConnection {
                         }
                     }
                 }
-            },
-        );
+            });
         self.inner.on_track(Some(on_track));
     }
 }
@@ -272,6 +285,11 @@ impl VideoSink<BoxVideoFrame> for FrameForwarder {
         if self.running.load(Ordering::Relaxed) {
             let lk_frame = gkit_box_frame_to_lk(frame);
             self.native_source.capture_frame(&lk_frame);
+            static SENDER_COUNT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+            let n = SENDER_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+            if n <= 3 || n % 30 == 0 {
+                let _ = std::fs::write("/tmp/gkit_sender_count.log", format!("{}", n));
+            }
         }
     }
 }
@@ -282,10 +300,7 @@ struct SourceToSinkAdapter {
 }
 
 impl SourceToSinkAdapter {
-    fn new(
-        native_source: NativeVideoSource,
-        source: Box<dyn VideoSource<BoxVideoFrame>>,
-    ) -> Self {
+    fn new(native_source: NativeVideoSource, source: Box<dyn VideoSource<BoxVideoFrame>>) -> Self {
         let running = Arc::new(AtomicBool::new(true));
         let forwarder = FrameForwarder {
             native_source,
@@ -334,32 +349,80 @@ mod tests {
     #[test]
     fn ice_connection_state_mapping() {
         use libwebrtc::peer_connection::IceConnectionState as LkState;
-        assert_eq!(IceConnectionState::from(LkState::New), IceConnectionState::New);
-        assert_eq!(IceConnectionState::from(LkState::Checking), IceConnectionState::Checking);
-        assert_eq!(IceConnectionState::from(LkState::Connected), IceConnectionState::Connected);
-        assert_eq!(IceConnectionState::from(LkState::Completed), IceConnectionState::Completed);
-        assert_eq!(IceConnectionState::from(LkState::Failed), IceConnectionState::Failed);
-        assert_eq!(IceConnectionState::from(LkState::Disconnected), IceConnectionState::Disconnected);
-        assert_eq!(IceConnectionState::from(LkState::Closed), IceConnectionState::Closed);
-        assert_eq!(IceConnectionState::from(LkState::Max), IceConnectionState::Closed);
+        assert_eq!(
+            IceConnectionState::from(LkState::New),
+            IceConnectionState::New
+        );
+        assert_eq!(
+            IceConnectionState::from(LkState::Checking),
+            IceConnectionState::Checking
+        );
+        assert_eq!(
+            IceConnectionState::from(LkState::Connected),
+            IceConnectionState::Connected
+        );
+        assert_eq!(
+            IceConnectionState::from(LkState::Completed),
+            IceConnectionState::Completed
+        );
+        assert_eq!(
+            IceConnectionState::from(LkState::Failed),
+            IceConnectionState::Failed
+        );
+        assert_eq!(
+            IceConnectionState::from(LkState::Disconnected),
+            IceConnectionState::Disconnected
+        );
+        assert_eq!(
+            IceConnectionState::from(LkState::Closed),
+            IceConnectionState::Closed
+        );
+        assert_eq!(
+            IceConnectionState::from(LkState::Max),
+            IceConnectionState::Closed
+        );
     }
 
     #[test]
     fn gathering_state_mapping() {
         use libwebrtc::peer_connection::IceGatheringState as LkState;
         assert_eq!(GatheringState::from(LkState::New), GatheringState::New);
-        assert_eq!(GatheringState::from(LkState::Gathering), GatheringState::Gathering);
-        assert_eq!(GatheringState::from(LkState::Complete), GatheringState::Complete);
+        assert_eq!(
+            GatheringState::from(LkState::Gathering),
+            GatheringState::Gathering
+        );
+        assert_eq!(
+            GatheringState::from(LkState::Complete),
+            GatheringState::Complete
+        );
     }
 
     #[test]
     fn signaling_state_mapping() {
         use libwebrtc::peer_connection::SignalingState as LkState;
-        assert_eq!(SignalingState::from(LkState::Stable), SignalingState::Stable);
-        assert_eq!(SignalingState::from(LkState::HaveLocalOffer), SignalingState::HaveLocalOffer);
-        assert_eq!(SignalingState::from(LkState::HaveLocalPrAnswer), SignalingState::HaveLocalPranswer);
-        assert_eq!(SignalingState::from(LkState::HaveRemoteOffer), SignalingState::HaveRemoteOffer);
-        assert_eq!(SignalingState::from(LkState::HaveRemotePrAnswer), SignalingState::HaveRemotePranswer);
-        assert_eq!(SignalingState::from(LkState::Closed), SignalingState::Stable);
+        assert_eq!(
+            SignalingState::from(LkState::Stable),
+            SignalingState::Stable
+        );
+        assert_eq!(
+            SignalingState::from(LkState::HaveLocalOffer),
+            SignalingState::HaveLocalOffer
+        );
+        assert_eq!(
+            SignalingState::from(LkState::HaveLocalPrAnswer),
+            SignalingState::HaveLocalPranswer
+        );
+        assert_eq!(
+            SignalingState::from(LkState::HaveRemoteOffer),
+            SignalingState::HaveRemoteOffer
+        );
+        assert_eq!(
+            SignalingState::from(LkState::HaveRemotePrAnswer),
+            SignalingState::HaveRemotePranswer
+        );
+        assert_eq!(
+            SignalingState::from(LkState::Closed),
+            SignalingState::Stable
+        );
     }
 }

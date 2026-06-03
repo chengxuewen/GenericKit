@@ -9,25 +9,38 @@ use gkit_media::protocols::rtc::client::core::{
 
 use crate::adapt::peer_connection::LiveKitPeerConnection;
 
-/// Global libwebrtc PeerConnectionFactory — libwebrtc requires exactly one per process.
 static PCF: OnceLock<LkPcf> = OnceLock::new();
 
 pub(crate) fn get_pcf() -> &'static LkPcf {
+    // Ensure the tokio runtime and global handle are initialized before
+    // creating the libwebrtc PeerConnectionFactory (which spawns C++ threads
+    // that call livekit_runtime::spawn()).
+    crate::adapt::peer_connection::rt();
     PCF.get_or_init(|| LkPcf::default())
 }
 
 pub struct LiveKitRsFactory;
 
 impl Default for LiveKitRsFactory {
-    fn default() -> Self { Self }
+    fn default() -> Self {
+        Self
+    }
 }
 
 impl LiveKitRsFactory {
-    pub fn new() -> Self { Self }
+    pub fn new() -> Self {
+        // Force rt() initialization early — set_handle() must be called
+        // before libwebrtc creates its internal C++ threads, which call
+        // livekit_runtime::spawn() from any thread.
+        crate::adapt::peer_connection::rt();
+        Self
+    }
 }
 
 impl PeerConnectionFactory for LiveKitRsFactory {
-    fn backend_name(&self) -> &'static str { "google" }
+    fn backend_name(&self) -> &'static str {
+        "google"
+    }
 
     fn create_peer_connection(&self) -> MediaResult<Box<dyn PeerConnection>> {
         self.create_peer_connection_with_config(&RtcConfiguration::default())
