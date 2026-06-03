@@ -1,14 +1,62 @@
 # Conventions
 
-## FFI Directory Structure
+## Language Binding Architecture (iscc-lib pattern)
 
-- **C FFI crates**: `crates/gkit-{core,media}-ffi/` — workspace members, each has its own CMakeLists.txt
-  - Cargo package names stay as `gkit-{core,media}-c` (unchanged from original crate names)
-  - cbindgen output: `{crate_dir}/generated/` (not committed, generated at build time)
-  - Manual API headers: `{crate_dir}/gkit_media_api.h`, `gkit_core_api.h` (committed)
-- **Higher-level bindings**: `bindings/{cpp,python,wasm,node,flutter,csharp}/` — non-Rust wrappers/stubs
-  - C++ bindings are header-only RAII wrappers linking to C FFI
-  - Stub languages each have their own Cargo.toml (workspace members under `bindings/{lang}/*`)
+All language bindings follow the **iscc-lib pattern**: Rust crates go in `crates/`, non-Rust packaging goes in `bindings/`.
+
+### Crate Organization
+
+```
+crates/
+├── gkit-media/                 # Pure Rust core (no FFI concerns)
+├── gkit-media-ffi/             # C FFI (extern "C" + cbindgen) — system languages use this
+├── gkit-media-py/              # Python (PyO3 — direct Rust binding)
+├── gkit-media-node/            # Node.js (napi-rs — direct Rust binding)
+├── gkit-media-wasm/            # WASM (wasm-bindgen — direct Rust binding)
+├── gkit-media-flutter/         # Flutter (flutter_rust_bridge — direct Rust binding)
+├── gkit-core/                  # Pure Rust core (stub)
+├── gkit-core-ffi/              # C FFI (stub)
+├── gkit-core-py/               # Python stub
+└── ...
+
+bindings/
+├── cpp/gkit-media/             # C++ RAII headers (non-Rust, wraps C FFI)
+├── cpp/gkit-core/
+├── python/                     # maturin config, pyproject.toml (non-Rust packaging)
+├── node/                       # package.json, npm config
+└── ...
+```
+
+### Naming Convention
+
+- **Rust binding crates**: `gkit-{core-crate}-{target}` where target ∈ {ffi, py, node, wasm, flutter}
+  - Example: `gkit-media-py`, `gkit-core-ffi`
+  - Workspace member glob: `crates/gkit-media-*`
+- **C FFI crate names** (Cargo.toml `name`): historically `gkit-media-c`, `gkit-core-c` (kept for backward compatibility)
+- **Non-Rust packaging**: `bindings/{lang}/` — contains build scripts, configs, but NO Cargo.toml
+
+### Binding Strategy per Language
+
+| Language | Crate | Strategy | Reason |
+|----------|-------|----------|--------|
+| **C** | `crates/gkit-media-ffi/` | `extern "C"` + cbindgen | Only way to call Rust from C |
+| **C++** | `bindings/cpp/` | RAII headers on C FFI | Non-Rust, wraps C |
+| **Python** | `crates/gkit-media-py/` | PyO3 (direct) | Idiomatic, better perf for video frames |
+| **Node** | `crates/gkit-media-node/` | napi-rs (direct) | Idiomatic, no C FFI overhead |
+| **WASM** | `crates/gkit-media-wasm/` | wasm-bindgen (direct) | Only way; WASM has no C ABI |
+| **Flutter** | `crates/gkit-media-flutter/` | flutter_rust_bridge (direct) | Idiomatic Dart bindings |
+| **C#** | TBD | P/Invoke on C FFI | Simple, proven pattern |
+| **Go** | TBD | cgo on C FFI | Simple, proven pattern |
+
+**Principle**: system languages (C/C++/Go/C#) → C FFI; scripting/Web languages (Python/Node/WASM/Flutter) → direct Rust bindings. C FFI serves as the universal fallback.
+
+### C FFI as Universal Contract
+
+- The C FFI crate (`gkit-media-ffi`) is the **single source of truth** for the API surface
+- All new public API must be exposed through the C FFI first
+- C tests in `crates/gkit-media-ffi/tests/` serve as the conformance test suite for all language bindings
+- cbindgen headers are generated at build time into `{crate_dir}/generated/` (not committed)
+- Manual API macros (`gkit_media_api.h`, `gkit_core_api.h`) are committed alongside the crate
 
 ## Plugin Architecture
 
@@ -51,7 +99,8 @@
 ## Naming
 
 - C FFI: `gkit_{crate}_{subsystem}_{resource}_{verb}[_{qualifier}]`
-- Rust: `gkit_plugin_webrtc_libwebrtc` → CMake: `gkit_plugin_webrtc_libwebrtc`
+- Rust crate: `gkit-{crate}-{target}` (e.g., `gkit-media-py`, `gkit-core-ffi`)
+- Rust plugin: `gkit_plugin_webrtc_libwebrtc` → CMake: `gkit_plugin_webrtc_libwebrtc`
 
 ## Commit Convention
 

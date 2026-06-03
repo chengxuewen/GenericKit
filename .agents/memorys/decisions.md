@@ -71,3 +71,11 @@
 ## Channel Bridge: `set_on_track` callback → `mpsc::Sender` push, ICE loop poll
 **Decision**: C++ callbacks must do minimal work to avoid tokio context issues. `set_on_track` pushes the track through `tokio::sync::mpsc::unbounded_channel`; the ICE loop polls the channel and calls `add_sink()` in the runtime context. This eliminates C++ threads from executing complex Rust logic.
 **Date**: 2026-06-03
+
+## Multi-language binding architecture: iscc-lib pattern
+**Decision**: Follow the iscc-lib separation: Rust binding crates (`gkit-media-py`, `gkit-media-node`, `gkit-media-wasm`) live in `crates/` as workspace members; non-Rust packaging (C++ headers, maturin config, npm config) lives in `bindings/`. System languages (C/C++/Go/C#) use C FFI; scripting/Web languages (Python/Node/WASM/Flutter) use direct Rust bindings. The C FFI crate (`gkit-media-ffi`) is the single source of truth for the API surface — all new API must be exposed through the C FFI first.
+**Date**: 2026-06-03
+
+## FFI directory restructuring: `apis/` → `crates/*-ffi/` + `bindings/`
+**Decision**: C FFI crates moved from `apis/c/gkit-media/` to `crates/gkit-media-ffi/` (workspace member). Top-level renamed `apis/` → `bindings/` for non-Rust content. Crate names (`gkit-media-c`) and CMake target names (`gkit_media_c`) unchanged to minimize cascade. Each FFI crate has its own `CMakeLists.txt`.
+**Date**: 2026-06-03
