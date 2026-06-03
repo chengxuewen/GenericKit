@@ -93,10 +93,14 @@ impl PluginDiscovery {
     pub fn discover(search_paths: &[PluginSearchPath]) -> PluginResult<Vec<DiscoveredPlugin>> {
         let mut all = Vec::new();
         for sp in search_paths {
-            let dirs = sp.resolve()?;
+            let dirs = match sp.resolve() {
+                Ok(d) => d,
+                Err(_) => continue,
+            };
             for dir in &dirs {
-                let found = Self::scan(dir)?;
-                all.extend(found);
+                if let Ok(found) = Self::scan(dir) {
+                    all.extend(found);
+                }
             }
         }
         Ok(all)
@@ -132,6 +136,10 @@ impl PluginDiscovery {
             if path.is_file() {
                 if let Some(name) = Self::extract_plugin_name(&path) {
                     plugins.push(DiscoveredPlugin { name, path });
+                }
+            } else if path.is_dir() {
+                if let Ok(sub) = Self::scan(&path) {
+                    plugins.extend(sub);
                 }
             }
         }
