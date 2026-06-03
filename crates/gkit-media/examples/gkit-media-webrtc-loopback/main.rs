@@ -16,7 +16,6 @@ use eframe::egui;
 use gkit_media::capture::generator::VideoFrameGenerator;
 use gkit_media::protocols::rtc::peer::{
     RtcConfiguration, 
-    PeerConnection,
     VideoTrack,
     IceConnectionState, 
     IceCandidate, 
@@ -29,6 +28,20 @@ use gkit_media::video::source_sink::{VideoSink, VideoSinkWants, VideoSource};
 use gkit_media::video::frame::BoxVideoFrame;
 use tokio::runtime::Runtime;
 
+/// Wraps an `Arc<VideoFrameGenerator>` so it can be passed to `create_video_track`
+/// which requires `Box<dyn VideoSource<BoxVideoFrame>>`.
+struct ArcVideoSource {
+    inner: Arc<VideoFrameGenerator>,
+}
+impl VideoSource<BoxVideoFrame> for ArcVideoSource {
+    fn add_or_update_sink(&self, sink: Box<dyn VideoSink<BoxVideoFrame>>, wants: VideoSinkWants) {
+        self.inner.add_or_update_sink(sink, wants);
+    }
+    fn remove_sink(&self, sink: &dyn VideoSink<BoxVideoFrame>) {
+        self.inner.remove_sink(sink);
+    }
+}
+
 const W: u32 = 640;
 const H: u32 = 360;
 const FPS: u32 = 15;
@@ -38,7 +51,7 @@ enum P2pState {
     Idle,
     Connecting,
     Connected,
-    Error(String),
+    Error,
 }
 
 struct Pipeline {
@@ -56,6 +69,7 @@ struct Pipeline {
     tokio_handle: tokio::runtime::Handle,
     stop_requested: AtomicBool,
     receiver_stats: Mutex<String>,
+    generator: Arc<VideoFrameGenerator>,
 }
 
 fn default_ice_config() -> RtcConfiguration {
@@ -100,6 +114,11 @@ fn main() -> Result<(), eframe::Error> {
         && default_backend != "none"
         && !default_backend.is_empty();
 
+    // Shared frame generator — drives both sender display and video track
+    let mut generator = VideoFrameGenerator::new(W, H, FPS);
+    generator.start(); // must start before sharing (start() takes &mut self)
+    let generator = Arc::new(generator);
+
     let pipeline = Arc::new(Pipeline {
         sender_frame: Mutex::new(None),
         receiver_frame: Mutex::new(None),
@@ -115,34 +134,34 @@ fn main() -> Result<(), eframe::Error> {
         tokio_handle,
         stop_requested: AtomicBool::new(false),
         receiver_stats: Mutex::new(String::new()),
+        generator: generator.clone(),
     });
 
-    // Frame generator — always running
-    let dp = pipeline.clone();
-    let mut generator = VideoFrameGenerator::new(W, H, FPS);
-    struct LoopSink {
-        p: Arc<Pipeline>,
-    }
-    impl VideoSink<BoxVideoFrame> for LoopSink {
-        fn on_frame(&self, frame: &BoxVideoFrame) {
-            if let Ok(i420) = frame.buffer.to_i420() {
-                let w = i420.width;
-                let h = i420.height;
-                let mut rgba = vec![0u8; (w * h * 4) as usize];
-                i420_to_argb(&i420, &mut rgba, w * 4, VideoFormatType::RGBA);
-                *self.p.sender_frame.lock().unwrap() = Some((rgba, w, h));
-                *self.p.sender_count.lock().unwrap() += 1;
+    // Sender display sink — shows PC1's generated frames locally
+    {
+        struct LoopSink {
+            p: Arc<Pipeline>,
+        }
+        impl VideoSink<BoxVideoFrame> for LoopSink {
+            fn on_frame(&self, frame: &BoxVideoFrame) {
+                if let Ok(i420) = frame.buffer.to_i420() {
+                    let w = i420.width;
+                    let h = i420.height;
+                    let mut rgba = vec![0u8; (w * h * 4) as usize];
+                    i420_to_argb(&i420, &mut rgba, w * 4, VideoFormatType::RGBA);
+                    *self.p.sender_frame.lock().unwrap() = Some((rgba, w, h));
+                    *self.p.sender_count.lock().unwrap() += 1;
+                }
             }
         }
+        generator.add_or_update_sink(
+            Box::new(LoopSink { p: pipeline.clone() }),
+            VideoSinkWants {
+                is_active: true,
+                ..Default::default()
+            },
+        );
     }
-    generator.add_or_update_sink(
-        Box::new(LoopSink { p: dp }),
-        VideoSinkWants {
-            is_active: true,
-            ..Default::default()
-        },
-    );
-    generator.start();
 
     if auto_start {
         let p = pipeline.clone();
@@ -347,7 +366,7 @@ async fn run_p2p_async(p: Arc<Pipeline>, backend: String) {
         }
         Err(e) => {
             *p.status.lock().unwrap() = format!("Error: {}", e);
-            *p.p2p_state.lock().unwrap() = P2pState::Error(format!("{}", e));
+            *p.p2p_state.lock().unwrap() = P2pState::Error;
             return;
         }
     };
@@ -360,7 +379,7 @@ async fn run_p2p_async(p: Arc<Pipeline>, backend: String) {
         }
         Err(e) => {
             *p.status.lock().unwrap() = format!("PC1 create error: {}", e);
-            *p.p2p_state.lock().unwrap() = P2pState::Error(format!("{}", e));
+            *p.p2p_state.lock().unwrap() = P2pState::Error;
             return;
         }
     };
@@ -371,7 +390,7 @@ async fn run_p2p_async(p: Arc<Pipeline>, backend: String) {
         }
         Err(e) => {
             *p.status.lock().unwrap() = format!("PC2 create error: {}", e);
-            *p.p2p_state.lock().unwrap() = P2pState::Error(format!("{}", e));
+            *p.p2p_state.lock().unwrap() = P2pState::Error;
             pc1.close().ok();
             return;
         }
@@ -413,9 +432,8 @@ async fn run_p2p_async(p: Arc<Pipeline>, backend: String) {
         }));
     }
 
-    let mut track_gen = VideoFrameGenerator::new(W, H, FPS);
-    track_gen.start();
-    match pc1.create_video_track(Box::new(track_gen)) {
+    let source = ArcVideoSource { inner: p.generator.clone() };
+    match pc1.create_video_track(Box::new(source)) {
         Ok(track) => {
             log("PC1", &format!("VideoTrack added: {}", track.id()));
         }
@@ -454,7 +472,7 @@ async fn run_p2p_async(p: Arc<Pipeline>, backend: String) {
         Ok(())
     })() {
         log("SDP", &format!("Error: {}", e));
-        *p.p2p_state.lock().unwrap() = P2pState::Error(e);
+        *p.p2p_state.lock().unwrap() = P2pState::Error;
         pc1.close().ok();
         pc2.close().ok();
         return;
@@ -498,12 +516,12 @@ async fn run_p2p_async(p: Arc<Pipeline>, backend: String) {
             && matches!(*p.p2p_state.lock().unwrap(), P2pState::Connecting)
         {
             *p.status.lock().unwrap() = "ICE timeout (60s)".into();
-            *p.p2p_state.lock().unwrap() = P2pState::Error("ICE timeout".into());
+            *p.p2p_state.lock().unwrap() = P2pState::Error;
             pc1.close().ok();
             pc2.close().ok();
             break;
         }
-        if matches!(*p.p2p_state.lock().unwrap(), P2pState::Error(_)) {
+        if matches!(*p.p2p_state.lock().unwrap(), P2pState::Error) {
             pc1.close().ok();
             pc2.close().ok();
             break;

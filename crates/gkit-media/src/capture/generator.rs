@@ -9,7 +9,7 @@ use crate::video::source_sink::{
     VideoSink, VideoSource, VideoSinkWants, VideoBroadcaster,
 };
 
-pub trait FramePattern: Send {
+pub trait FramePattern: Send + Sync {
     fn draw(&mut self, y: &mut [u8], u: &mut [u8], v: &mut [u8],
             stride_y: u32, stride_u: u32, stride_v: u32);
 }
