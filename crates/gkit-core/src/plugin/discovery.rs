@@ -90,8 +90,14 @@ impl PluginDiscovery {
     ///
     /// Each `PluginSearchPath` is resolved to one or more directories, then each
     /// directory is scanned for plugin files matching the naming convention.
+    ///
+    /// Results are deduplicated by plugin name: if the same plugin appears in
+    /// multiple search paths (or overlapping directories), only the first
+    /// occurrence is kept. This prevents loading duplicate dylibs that would
+    /// cause ObjC class conflicts on macOS or undefined behavior elsewhere.
     pub fn discover(search_paths: &[PluginSearchPath]) -> PluginResult<Vec<DiscoveredPlugin>> {
         let mut all = Vec::new();
+        let mut seen = std::collections::HashSet::new();
         for sp in search_paths {
             let dirs = match sp.resolve() {
                 Ok(d) => d,
@@ -99,7 +105,11 @@ impl PluginDiscovery {
             };
             for dir in &dirs {
                 if let Ok(found) = Self::scan(dir) {
-                    all.extend(found);
+                    for plugin in found {
+                        if seen.insert(plugin.name.clone()) {
+                            all.push(plugin);
+                        }
+                    }
                 }
             }
         }

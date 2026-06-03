@@ -114,3 +114,10 @@
 - Workaround: use `std::thread::spawn` + `rt_handle.block_on()` instead
 - Root cause unclear — may be tokio worker pool configuration issue
 
+### Duplicate dylibs loaded → ObjC class conflict → SIGSEGV (macOS)
+- `PluginDiscovery::discover()` had no dedup → same dylib found in multiple search paths loaded N times
+- Each dlopen registers ObjC classes again → ObjC runtime error → segfault
+- CMake + cargo builds coexist → dylib in `build/plugins/`, `build/`, `build/cargo/.../deps/`, `build/cargo/.../debug/`, `target/debug/`
+- Fix: deduplicate by plugin name in `discover()` using `HashSet` (keep first occurrence)
+- Also: `RelativeToExe("..")` combined with explicit `build/plugins/webrtc` path → same dylib found twice
+
