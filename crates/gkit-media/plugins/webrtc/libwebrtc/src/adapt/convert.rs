@@ -1,4 +1,4 @@
-use gkit_media::protocols::rtc::peer::core::{
+use gkit_media::protocols::rtc::peer::{
     ConnectionState, GatheringState, IceConnectionState, SessionDescription, SignalingState,
 };
 
@@ -60,8 +60,8 @@ pub fn lk_sdp_to_core(
 
 pub fn lk_ice_candidate_to_core(
     ic: libwebrtc::ice_candidate::IceCandidate,
-) -> gkit_media::protocols::rtc::peer::core::IceCandidate {
-    gkit_media::protocols::rtc::peer::core::IceCandidate {
+) -> gkit_media::protocols::rtc::peer::IceCandidate {
+    gkit_media::protocols::rtc::peer::IceCandidate {
         candidate: ic.candidate(),
         sdp_mid: {
             let mid = ic.sdp_mid();
@@ -76,8 +76,8 @@ pub fn lk_ice_candidate_to_core(
 
 pub fn lk_dc_state(
     s: libwebrtc::data_channel::DataChannelState,
-) -> gkit_media::protocols::rtc::peer::core::DataChannelState {
-    use gkit_media::protocols::rtc::peer::core::DataChannelState as G;
+) -> gkit_media::protocols::rtc::peer::DataChannelState {
+    use gkit_media::protocols::rtc::peer::DataChannelState as G;
     use libwebrtc::data_channel::DataChannelState as L;
     match s {
         L::Connecting => G::Connecting,

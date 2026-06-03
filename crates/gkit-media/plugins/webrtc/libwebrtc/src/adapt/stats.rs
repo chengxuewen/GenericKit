@@ -6,7 +6,7 @@
 
 use libwebrtc::stats::RtcStats;
 
-use gkit_media::protocols::rtc::peer::core::{MediaError, MediaResult};
+use gkit_media::protocols::rtc::peer::{MediaError, MediaResult};
 
 /// Collect all stats from the peer connection and return them as a pretty-printed
 /// JSON string.

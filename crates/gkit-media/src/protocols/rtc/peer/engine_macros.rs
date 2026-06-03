@@ -4,7 +4,7 @@ macro_rules! gkit_register_rtc_backend {
         #[doc(hidden)]
         #[cfg_attr(not(test), ::ctor::ctor)]
         fn __gkit_rtc_register() {
-            $crate::protocols::rtc::peer::engine::RtcEngine::register(
+            $crate::protocols::rtc::peer::RtcEngine::register(
                 $name,
                 || Box::new(<$factory as Default>::default()),
             );

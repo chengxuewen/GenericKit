@@ -1,4 +1,4 @@
-use gkit_media::protocols::rtc::peer::core::{
+use gkit_media::protocols::rtc::peer::{
     ConnectionState, DataChannel, DataChannelState, GatheringState, IceConnectionState, IceServer,
     MediaError, MediaResult, PeerConnection, PeerConnectionFactory, RtcConfiguration,
     SessionDescription, SignalingState,

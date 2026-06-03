@@ -1,7 +1,7 @@
 // W3C SDP offer/answer exchange tests.
 // Backend-agnostic: uses factory functions.
 
-use gkit_media::protocols::rtc::peer::core::PeerConnection;
+use gkit_media::protocols::rtc::peer::PeerConnection;
 
 #[test]
 fn offer_answer_round_trip() {

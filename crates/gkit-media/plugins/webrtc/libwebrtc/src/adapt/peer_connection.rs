@@ -15,7 +15,7 @@ use libwebrtc::stats::RtcStats;
 use libwebrtc::video_source::VideoResolution;
 use libwebrtc::video_source::native::NativeVideoSource;
 
-use gkit_media::protocols::rtc::peer::core::{
+use gkit_media::protocols::rtc::peer::{
     ConnectionState, DataChannel, DataChannelState, GatheringState, IceConnectionState, MediaError,
     MediaResult, PeerConnection, SessionDescription, SignalingState, VideoTrack,
 };
@@ -153,10 +153,10 @@ impl PeerConnection for LiveKitPeerConnection {
 
     fn set_on_ice_candidate(
         &self,
-        cb: Box<dyn Fn(gkit_media::protocols::rtc::peer::core::IceCandidate) + Send>,
+        cb: Box<dyn Fn(gkit_media::protocols::rtc::peer::IceCandidate) + Send>,
     ) {
         let cb: Mutex<
-            Option<Box<dyn Fn(gkit_media::protocols::rtc::peer::core::IceCandidate) + Send>>,
+            Option<Box<dyn Fn(gkit_media::protocols::rtc::peer::IceCandidate) + Send>>,
         > = Mutex::new(Some(cb));
         self.inner.on_ice_candidate(Some(Box::new(move |lk_ic| {
             if let Ok(guard) = cb.lock() {

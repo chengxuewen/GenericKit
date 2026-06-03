@@ -3,7 +3,7 @@ use std::sync::OnceLock;
 use libwebrtc::peer_connection_factory::PeerConnectionFactory as LkPcf;
 use libwebrtc::peer_connection_factory::RtcConfiguration as LkRtcConfig;
 
-use gkit_media::protocols::rtc::peer::core::{
+use gkit_media::protocols::rtc::peer::{
     MediaError, MediaResult, PeerConnection, PeerConnectionFactory, RtcConfiguration,
 };
 

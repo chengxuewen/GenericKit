@@ -8,11 +8,11 @@
 
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use gkit_media::protocols::rtc::peer::core::{
+use gkit_media::protocols::rtc::peer::{
     PeerConnection, PeerConnectionFactory, IceCandidate, IceConnectionState,
     SessionDescription, VideoTrack,
 };
-use gkit_media::protocols::rtc::peer::engine::RtcEngine;
+use gkit_media::protocols::rtc::peer::RtcEngine;
 
 const DTLS_TIMEOUT_SECS: u64 = 15;
 

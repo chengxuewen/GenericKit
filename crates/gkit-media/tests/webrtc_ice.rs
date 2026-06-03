@@ -1,8 +1,8 @@
 use std::sync::{Arc, Mutex};
-use gkit_media::protocols::rtc::peer::core::{
+use gkit_media::protocols::rtc::peer::{
     IceCandidate, IceConnectionState, PeerConnection, PeerConnectionFactory,
 };
-use gkit_media::protocols::rtc::peer::engine::RtcEngine;
+use gkit_media::protocols::rtc::peer::RtcEngine;
 
 fn mock() { gkit_media::register_test_backend(); }
 

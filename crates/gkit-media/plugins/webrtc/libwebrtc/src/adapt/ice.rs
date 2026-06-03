@@ -1,6 +1,6 @@
 use libwebrtc::ice_candidate::IceCandidate as LkIceCandidate;
 
-use gkit_media::protocols::rtc::peer::core::IceCandidate;
+use gkit_media::protocols::rtc::peer::IceCandidate;
 
 // ---------------------------------------------------------------------------
 // LkIceCandidate → our IceCandidate (infallible)

@@ -10,11 +10,11 @@ use std::io::Write;
 use std::time::Duration;
 use eframe::egui;
 use gkit_media::capture::generator::VideoFrameGenerator;
-use gkit_media::protocols::rtc::peer::core::{
+use gkit_media::protocols::rtc::peer::{
     PeerConnection, IceCandidate, IceConnectionState, VideoTrack,
     RtcConfiguration, IceServer,
 };
-use gkit_media::protocols::rtc::peer::engine::RtcEngine;
+use gkit_media::protocols::rtc::peer::RtcEngine;
 use gkit_media::video::buffer::VideoFormatType;
 use gkit_media::video::convert::i420_to_argb;
 use gkit_media::video::source_sink::{VideoSink, VideoSinkWants, VideoSource};
