@@ -23,7 +23,7 @@ target_include_directories(${_example_name} PRIVATE "${_source_dir}")
 set_source_files_properties("${_source_dir}/viewer.c" PROPERTIES LANGUAGE CXX)
 
 set_target_properties(${_example_name} PROPERTIES
-    FOLDER "gkit_media/ffi/examples"
+    FOLDER "gkit_media_ffi/examples"
     RUNTIME_OUTPUT_DIRECTORY "${GKIT_BUILD_DIR}/${GKIT_INSTALL_BINDIR}"
     CXX_STANDARD 17
 )
@@ -36,4 +36,4 @@ add_custom_target(gkit_c_examples_assets
     VERBATIM)
 
 set_target_properties(gkit_c_examples_assets PROPERTIES
-    FOLDER "gkit_media/ffi/examples")
+    FOLDER "gkit_media_ffi/examples")
