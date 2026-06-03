@@ -395,29 +395,11 @@ async fn run_p2p_async(p: Arc<Pipeline>, backend: String) {
         }
     }
 
+    let (track_tx, mut track_rx) = tokio::sync::mpsc::unbounded_channel::<Box<dyn VideoTrack>>();
     let rp = p.clone();
     pc2.set_on_track(Box::new(move |track: Box<dyn VideoTrack>| {
-        let dp = rp.clone();
-        eprintln!("[RX] on_track fired: id={} kind={}", track.id(), track.kind());
-        dp.pc2_log.lock().unwrap().push(format!("[RX] Remote track received: id={}", track.id()));
-        struct P2PSink { p: Arc<Pipeline> }
-        impl VideoSink<BoxVideoFrame> for P2PSink {
-            fn on_frame(&self, frame: &BoxVideoFrame) {
-                if let Ok(i420) = frame.buffer.to_i420() {
-                    let w = i420.width;
-                    let h = i420.height;
-                    let ts = frame.timestamp_us;
-                    let mut rgba = vec![0u8; (w * h * 4) as usize];
-                    i420_to_argb(&i420, &mut rgba, w * 4, VideoFormatType::RGBA);
-                    let count = { let mut c = self.p.receiver_count.lock().unwrap(); *c += 1; *c };
-                    *self.p.receiver_frame.lock().unwrap() = Some((rgba, w, h));
-                    if count <= 3 || count % 30 == 0 {
-                        eprintln!("[RX] frame #{}: {}x{} ts={}", count, w, h, ts);
-                    }
-                }
-            }
-        }
-        track.add_sink(Box::new(P2PSink { p: dp }));
+        rp.pc2_log.lock().unwrap().push(format!("[RX] Remote track received: id={}", track.id()));
+        let _ = track_tx.send(track);
     }));
 
     *p.status.lock().unwrap() = "SDP negotiation...".into();
@@ -450,8 +432,29 @@ async fn run_p2p_async(p: Arc<Pipeline>, backend: String) {
     }
 
     *p.status.lock().unwrap() = format!("P2P active — {}x{} @ {}fps", W, H, FPS);
+    struct P2PSink { p: Arc<Pipeline> }
+    impl VideoSink<BoxVideoFrame> for P2PSink {
+        fn on_frame(&self, frame: &BoxVideoFrame) {
+            if let Ok(i420) = frame.buffer.to_i420() {
+                let w = i420.width;
+                let h = i420.height;
+                let mut rgba = vec![0u8; (w * h * 4) as usize];
+                i420_to_argb(&i420, &mut rgba, w * 4, VideoFormatType::RGBA);
+                let count = { let mut c = self.p.receiver_count.lock().unwrap(); *c += 1; *c };
+                *self.p.receiver_frame.lock().unwrap() = Some((rgba, w, h));
+                if count <= 3 || count % 30 == 0 {
+                    eprintln!("[RX] frame #{}: {}x{}", count, w, h);
+                }
+            }
+        }
+    }
     let start = std::time::Instant::now();
     loop {
+        while let Ok(track) = track_rx.try_recv() {
+            log("PC2", &format!("on_track: id={} kind={}", track.id(), track.kind()));
+            let _ = std::fs::write("/tmp/gkit_track_received.log", "1");
+            track.add_sink(Box::new(P2PSink { p: p.clone() }));
+        }
         while let Ok(c) = rx2.try_recv() {
             pc2.add_ice_candidate(&c.candidate, c.sdp_mid.as_deref().unwrap_or("")).ok();
             log("ICE", &format!("PC1→PC2: mid={:?} mline={:?} candidate={}",
