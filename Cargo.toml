@@ -2,6 +2,7 @@
 resolver = "3"
 members = [
     "crates/*",
+    "patches/livekit-runtime",
     "crates/gkit-media/plugins/webrtc/libwebrtc",
     "crates/gkit-media/plugins/webrtc/web-sys",
     "crates/gkit-core/tests/plugin/mock_plugin",
@@ -44,3 +45,6 @@ stabby = "72"
 libloading = "0.8"
 linkme = "0.3"
 thiserror = "2"
+
+[patch."https://github.com/livekit/rust-sdks"]
+livekit-runtime = { path = "patches/livekit-runtime" }
