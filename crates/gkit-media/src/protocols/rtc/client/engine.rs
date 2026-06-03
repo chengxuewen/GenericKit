@@ -51,7 +51,13 @@ impl RtcEngine {
     }
 
     pub fn registered_types() -> Vec<String> {
-        registry().read().unwrap().keys().map(|k| k.to_string()).collect()
+        let mut names = registry().read().unwrap().keys().map(|k| k.to_string()).collect::<Vec<_>>();
+        for name in plugin_registry().names() {
+            if !names.contains(&name) {
+                names.push(name);
+            }
+        }
+        names
     }
 
     pub fn create_default() -> MediaResult<Box<dyn PeerConnectionFactory>> {
@@ -80,10 +86,15 @@ impl RtcEngine {
     pub fn load_plugins() -> usize {
         static LOADED: OnceLock<usize> = OnceLock::new();
         *LOADED.get_or_init(|| {
-            let mut search_paths = vec![PluginSearchPath::CargoTargetDir, PluginSearchPath::RelativeToExe("../plugins")];
+            let mut search_paths = vec![
+                PluginSearchPath::RelativeToExe("../plugins"),
+                PluginSearchPath::RelativeToExe(".."),
+                PluginSearchPath::CargoTargetDir,
+            ];
             if let Ok(manifest) = std::env::var("CARGO_MANIFEST_DIR") {
                 let p = std::path::PathBuf::from(&manifest);
                 if let Some(ws) = p.parent().and_then(|x| x.parent()) {
+                    search_paths.push(PluginSearchPath::Directory(ws.join("build/plugins/webrtc")));
                     search_paths.push(PluginSearchPath::Directory(ws.join("target/debug")));
                     search_paths.push(PluginSearchPath::Directory(ws.join("target/release")));
                 }

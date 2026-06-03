@@ -32,6 +32,10 @@ impl<T> PluginRegistry<T> {
         });
     }
 
+    pub fn names(&self) -> Vec<String> {
+        self.entries.read().unwrap().iter().map(|e| e.name.clone()).collect()
+    }
+
     pub fn set_default_order(&self, order: Vec<String>) {
         *self.default_order.write().unwrap() = order;
     }
