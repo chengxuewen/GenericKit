@@ -6,18 +6,20 @@
 // Backends are discovered dynamically from target/debug/plugins/ via RtcEngine::load_plugins().
 
 use std::sync::{Arc, Mutex};
+use std::io::Write;
 use std::time::Duration;
 use eframe::egui;
 use gkit_media::capture::generator::VideoFrameGenerator;
 use gkit_media::protocols::rtc::client::core::{
     PeerConnection, IceCandidate, IceConnectionState, VideoTrack,
-    SessionDescription, RtcConfiguration, IceServer,
+    RtcConfiguration, IceServer,
 };
 use gkit_media::protocols::rtc::client::engine::RtcEngine;
 use gkit_media::video::buffer::VideoFormatType;
 use gkit_media::video::convert::i420_to_argb;
 use gkit_media::video::source_sink::{VideoSink, VideoSinkWants, VideoSource};
 use gkit_media::video::frame::BoxVideoFrame;
+use tokio::runtime::Runtime;
 
 const W: u32 = 640;
 const H: u32 = 360;
@@ -32,8 +34,8 @@ enum P2pState {
 }
 
 struct Pipeline {
-    sender_frame: Mutex<Option<Vec<u8>>>,
-    receiver_frame: Mutex<Option<Vec<u8>>>,
+    sender_frame: Mutex<Option<(Vec<u8>, u32, u32)>>,
+    receiver_frame: Mutex<Option<(Vec<u8>, u32, u32)>>,
     sender_count: Mutex<u64>,
     receiver_count: Mutex<u64>,
     pc1_log: Mutex<Vec<String>>,
@@ -43,6 +45,7 @@ struct Pipeline {
     selected_backend: Mutex<String>,
     available_backends: Mutex<Vec<String>>,
     ice_config: RtcConfiguration,
+    tokio_handle: tokio::runtime::Handle,
 }
 
 fn default_ice_config() -> RtcConfiguration {
@@ -57,15 +60,33 @@ fn default_ice_config() -> RtcConfiguration {
 }
 
 fn main() -> Result<(), eframe::Error> {
+    {
+        let mut f = std::fs::File::create("/tmp/gkit_loopback.log").unwrap();
+        writeln!(f, "loopback starting...").unwrap();
+    }
+    let tokio_rt = Runtime::new().expect("tokio runtime");
+    let _rt_thread = {
+        let h = tokio_rt.handle().clone();
+        std::thread::spawn(move || h.block_on(std::future::pending::<()>()));
+    };
+
     RtcEngine::load_plugins();
     let backends = RtcEngine::registered_types();
+    {
+        let mut f = std::fs::OpenOptions::new().append(true).open("/tmp/gkit_loopback.log").unwrap();
+        writeln!(f, "plugins loaded, backends: {:?}", backends).unwrap();
+    }
+    let _ = std::fs::write("/tmp/gkit_startup.log", format!("loopback started\nbackends: {:?}\n", backends));
+    let tokio_handle = tokio_rt.handle().clone();
+
     let default_backend = if backends.contains(&"libwebrtc".to_string()) {
-        "libwebrtc"
+        "libwebrtc".to_string()
     } else if backends.contains(&"webrtc-rs".to_string()) {
-        "webrtc-rs"
+        "webrtc-rs".to_string()
     } else {
-        backends.first().map(|s| s.as_str()).unwrap_or("none")
+        backends.first().map(|s| s.clone()).unwrap_or_else(|| "none".into())
     };
+    let auto_start = default_backend != "none" && !default_backend.is_empty();
 
     let pipeline = Arc::new(Pipeline {
         sender_frame: Mutex::new(None),
@@ -76,9 +97,10 @@ fn main() -> Result<(), eframe::Error> {
         pc2_log: Mutex::new(Vec::new()),
         status: Mutex::new(format!("Select backend and press Start")),
         p2p_state: Mutex::new(P2pState::Idle),
-        selected_backend: Mutex::new(default_backend.to_string()),
+        selected_backend: Mutex::new(default_backend.clone()),
         available_backends: Mutex::new(backends),
         ice_config: default_ice_config(),
+        tokio_handle,
     });
 
     // Frame generator — always running
@@ -90,9 +112,11 @@ fn main() -> Result<(), eframe::Error> {
     impl VideoSink<BoxVideoFrame> for LoopSink {
         fn on_frame(&self, frame: &BoxVideoFrame) {
             if let Ok(i420) = frame.buffer.to_i420() {
-                let mut rgba = vec![0u8; (W * H * 4) as usize];
-                i420_to_argb(&i420, &mut rgba, W * 4, VideoFormatType::RGBA);
-                *self.p.sender_frame.lock().unwrap() = Some(rgba);
+                let w = i420.width;
+                let h = i420.height;
+                let mut rgba = vec![0u8; (w * h * 4) as usize];
+                i420_to_argb(&i420, &mut rgba, w * 4, VideoFormatType::RGBA);
+                *self.p.sender_frame.lock().unwrap() = Some((rgba, w, h));
                 *self.p.sender_count.lock().unwrap() += 1;
             }
         }
@@ -105,6 +129,14 @@ fn main() -> Result<(), eframe::Error> {
         },
     );
     generator.start();
+
+    if auto_start {
+        let p = pipeline.clone();
+        let handle = pipeline.tokio_handle.clone();
+        let backend = default_backend.to_string();
+        *p.p2p_state.lock().unwrap() = P2pState::Connecting;
+        std::thread::spawn(move || run_p2p(p, backend, handle));
+    }
 
     eframe::run_native(
         "gkit-media P2P Video Loopback",
@@ -150,7 +182,8 @@ fn main() -> Result<(), eframe::Error> {
                                     *p.p2p_state.lock().unwrap() = P2pState::Connecting;
                                     p.pc1_log.lock().unwrap().clear();
                                     p.pc2_log.lock().unwrap().clear();
-                                    std::thread::spawn(move || run_p2p(p, backend));
+                                    let handle = p.tokio_handle.clone();
+                                    std::thread::spawn(move || run_p2p(p, backend, handle));
                                 }
                             });
 
@@ -167,11 +200,14 @@ fn main() -> Result<(), eframe::Error> {
                             // Sender (PC1)
                             cols[0].vertical_centered(|ui| {
                                 ui.heading(format!("📹 Sender (PC1) — {} frames", sc));
-                                if let Some(ref rgba) = *self.p.sender_frame.lock().unwrap() {
+                                if let Some(ref data) = *self.p.sender_frame.lock().unwrap() {
+                                    let (rgba, fw, fh) = data;
+                                    let fw = *fw as usize;
+                                    let fh = *fh as usize;
                                     self.gt = Some(ctx.load_texture(
                                         "s",
                                         egui::ColorImage::from_rgba_unmultiplied(
-                                            [W as usize, H as usize],
+                                            [fw, fh],
                                             rgba,
                                         ),
                                         egui::TextureOptions::LINEAR,
@@ -180,7 +216,7 @@ fn main() -> Result<(), eframe::Error> {
                                 if let Some(ref t) = self.gt {
                                     ui.image(egui::load::SizedTexture::new(
                                         t.id(),
-                                        [ui.available_width().min(W as f32), H as f32],
+                                        [ui.available_width().min(W as f32), (H as f32)],
                                     ));
                                 }
                                 ui.separator();
@@ -198,11 +234,14 @@ fn main() -> Result<(), eframe::Error> {
                             // Receiver (PC2)
                             cols[1].vertical_centered(|ui| {
                                 ui.heading(format!("📹 Receiver (PC2) — {} frames", rc));
-                                if let Some(ref rgba) = *self.p.receiver_frame.lock().unwrap() {
+                                if let Some(ref data) = *self.p.receiver_frame.lock().unwrap() {
+                                    let (rgba, fw, fh) = data;
+                                    let fw = *fw as usize;
+                                    let fh = *fh as usize;
                                     self.rt = Some(ctx.load_texture(
                                         "r",
                                         egui::ColorImage::from_rgba_unmultiplied(
-                                            [W as usize, H as usize],
+                                            [fw, fh],
                                             rgba,
                                         ),
                                         egui::TextureOptions::LINEAR,
@@ -211,7 +250,7 @@ fn main() -> Result<(), eframe::Error> {
                                 if let Some(ref t) = self.rt {
                                     ui.image(egui::load::SizedTexture::new(
                                         t.id(),
-                                        [ui.available_width().min(W as f32), H as f32],
+                                        [ui.available_width().min(W as f32), (H as f32)],
                                     ));
                                 }
                                 ui.separator();
@@ -241,22 +280,37 @@ fn main() -> Result<(), eframe::Error> {
     )
 }
 
-fn run_p2p(p: Arc<Pipeline>, backend: String) {
+fn run_p2p(p: Arc<Pipeline>, backend: String, handle: tokio::runtime::Handle) {
+    handle.block_on(async move {
+        run_p2p_async(p, backend).await
+    });
+}
+
+async fn run_p2p_async(p: Arc<Pipeline>, backend: String) {
+    use std::io::Write;
+    let log_file = std::fs::File::create("/tmp/gkit_loopback.log")
+        .map(|f| std::sync::Mutex::new(f))
+        .ok();
     let log = |peer: &str, msg: &str| {
         let ts = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs() % 100000)
             .unwrap_or(0);
         let line = format!("[{:05}] {}: {}", ts, peer, msg);
-        eprintln!("{}", line);
+        if let Some(ref f) = log_file {
+            let _ = writeln!(f.lock().unwrap(), "{}", line);
+        }
         match peer {
-            "PC1" => p.pc1_log.lock().unwrap().push(line),
-            "PC2" => p.pc2_log.lock().unwrap().push(line),
+            "PC1" | "SYS" => p.pc1_log.lock().unwrap().push(line.clone()),
+            "PC2" => p.pc2_log.lock().unwrap().push(line.clone()),
             _ => {}
+        }
+        if peer != "PC1" && peer != "PC2" {
+            p.pc1_log.lock().unwrap().push(line.clone());
+            p.pc2_log.lock().unwrap().push(line);
         }
     };
 
-    // Create factory via RtcEngine
     let factory = match RtcEngine::create(&backend) {
         Ok(f) => {
             log("SYS", &format!("Backend '{}' loaded", backend));
@@ -294,9 +348,8 @@ fn run_p2p(p: Arc<Pipeline>, backend: String) {
         }
     };
 
-    // --- ICE candidate relay ---
-    let (tx1, rx1) = std::sync::mpsc::channel::<IceCandidate>();
-    let (tx2, rx2) = std::sync::mpsc::channel::<IceCandidate>();
+    let (tx1, mut rx1) = tokio::sync::mpsc::unbounded_channel::<IceCandidate>();
+    let (tx2, mut rx2) = tokio::sync::mpsc::unbounded_channel::<IceCandidate>();
     pc1.set_on_ice_candidate(Box::new(move |c| {
         let _ = tx2.send(c);
     }));
@@ -304,35 +357,33 @@ fn run_p2p(p: Arc<Pipeline>, backend: String) {
         let _ = tx1.send(c);
     }));
 
-    // --- ICE state tracking ---
     {
         let p1 = p.clone();
         pc1.set_on_ice_connection_state_change(Box::new(move |s| {
-            p1.pc1_log
-                .lock()
-                .unwrap()
-                .push(format!("ICE state: {:?}", s));
+            p1.pc1_log.lock().unwrap().push(format!("ICE state: {:?}", s));
+            eprintln!("[ICE] PC1 state: {:?}", s);
             if s == IceConnectionState::Connected {
                 *p1.status.lock().unwrap() = "P2P Connected!".into();
                 *p1.p2p_state.lock().unwrap() = P2pState::Connected;
+            } else if s == IceConnectionState::Disconnected || s == IceConnectionState::Failed {
+                eprintln!("[ICE] PC1 DISCONNECTED/FAILED: {:?}", s);
             }
         }));
     }
     {
         let p2 = p.clone();
         pc2.set_on_ice_connection_state_change(Box::new(move |s| {
-            p2.pc2_log
-                .lock()
-                .unwrap()
-                .push(format!("ICE state: {:?}", s));
+            p2.pc2_log.lock().unwrap().push(format!("ICE state: {:?}", s));
+            eprintln!("[ICE] PC2 state: {:?}", s);
             if s == IceConnectionState::Connected {
                 *p2.status.lock().unwrap() = "P2P Connected!".into();
                 *p2.p2p_state.lock().unwrap() = P2pState::Connected;
+            } else if s == IceConnectionState::Disconnected || s == IceConnectionState::Failed {
+                eprintln!("[ICE] PC2 DISCONNECTED/FAILED: {:?}", s);
             }
         }));
     }
 
-    // --- Video track on PC1 ---
     let mut track_gen = VideoFrameGenerator::new(W, H, FPS);
     track_gen.start();
     match pc1.create_video_track(Box::new(track_gen)) {
@@ -344,39 +395,51 @@ fn run_p2p(p: Arc<Pipeline>, backend: String) {
         }
     }
 
-    // --- Receiver on PC2 ---
     let rp = p.clone();
     pc2.set_on_track(Box::new(move |track: Box<dyn VideoTrack>| {
         let dp = rp.clone();
-        struct P2PSink {
-            p: Arc<Pipeline>,
-        }
+        eprintln!("[RX] on_track fired: id={} kind={}", track.id(), track.kind());
+        dp.pc2_log.lock().unwrap().push(format!("[RX] Remote track received: id={}", track.id()));
+        struct P2PSink { p: Arc<Pipeline> }
         impl VideoSink<BoxVideoFrame> for P2PSink {
             fn on_frame(&self, frame: &BoxVideoFrame) {
                 if let Ok(i420) = frame.buffer.to_i420() {
-                    let mut rgba = vec![0u8; (W * H * 4) as usize];
-                    i420_to_argb(&i420, &mut rgba, W * 4, VideoFormatType::RGBA);
-                    *self.p.receiver_frame.lock().unwrap() = Some(rgba);
-                    *self.p.receiver_count.lock().unwrap() += 1;
+                    let w = i420.width;
+                    let h = i420.height;
+                    let ts = frame.timestamp_us;
+                    let mut rgba = vec![0u8; (w * h * 4) as usize];
+                    i420_to_argb(&i420, &mut rgba, w * 4, VideoFormatType::RGBA);
+                    let count = { let mut c = self.p.receiver_count.lock().unwrap(); *c += 1; *c };
+                    *self.p.receiver_frame.lock().unwrap() = Some((rgba, w, h));
+                    if count <= 3 || count % 30 == 0 {
+                        eprintln!("[RX] frame #{}: {}x{} ts={}", count, w, h, ts);
+                    }
                 }
             }
         }
         track.add_sink(Box::new(P2PSink { p: dp }));
     }));
 
-    // --- SDP exchange ---
     *p.status.lock().unwrap() = "SDP negotiation...".into();
     if let Err(e) = (|| -> Result<(), String> {
         let offer = pc1.create_offer().map_err(|e| format!("offer: {e}"))?;
-        log("PC1", &format!("Offer SDP ({} lines)", offer.sdp.lines().count()));
+        log("SDP", "=== PC1 Offer ===");
+        for line in offer.sdp.lines() {
+            log("SDP", line);
+        }
+        log("SDP", "=== End Offer ===");
         pc1.set_local_description(&offer).map_err(|e| format!("setLocal1: {e}"))?;
-
         pc2.set_remote_description(&offer).map_err(|e| format!("setRemote2: {e}"))?;
         let answer = pc2.create_answer().map_err(|e| format!("answer: {e}"))?;
-        log("PC2", &format!("Answer SDP ({} lines)", answer.sdp.lines().count()));
+        log("SDP", "=== PC2 Answer ===");
+        for line in answer.sdp.lines() {
+            log("SDP", line);
+        }
+        log("SDP", "=== End Answer ===");
         pc2.set_local_description(&answer).map_err(|e| format!("setLocal2: {e}"))?;
-
         pc1.set_remote_description(&answer).map_err(|e| format!("setRemote1: {e}"))?;
+        pc1.gather_complete().map_err(|e| format!("gather: {e}"))?;
+        pc2.gather_complete().map_err(|e| format!("gather: {e}"))?;
         Ok(())
     })() {
         log("SDP", &format!("Error: {}", e));
@@ -386,21 +449,19 @@ fn run_p2p(p: Arc<Pipeline>, backend: String) {
         return;
     }
 
-    // --- ICE candidate exchange loop ---
     *p.status.lock().unwrap() = format!("P2P active — {}x{} @ {}fps", W, H, FPS);
     let start = std::time::Instant::now();
     loop {
-        // Relay ICE candidates
-        for c in rx2.try_iter() {
+        while let Ok(c) = rx2.try_recv() {
             pc2.add_ice_candidate(&c.candidate, c.sdp_mid.as_deref().unwrap_or("")).ok();
-            log("ICE", &format!("PC1→PC2 candidate: mid={:?}", c.sdp_mid));
+            log("ICE", &format!("PC1→PC2: mid={:?} mline={:?} candidate={}",
+                c.sdp_mid, c.sdp_mline_index, &c.candidate[..c.candidate.len().min(80)]));
         }
-        for c in rx1.try_iter() {
+        while let Ok(c) = rx1.try_recv() {
             pc1.add_ice_candidate(&c.candidate, c.sdp_mid.as_deref().unwrap_or("")).ok();
-            log("ICE", &format!("PC2→PC1 candidate: mid={:?}", c.sdp_mid));
+            log("ICE", &format!("PC2→PC1: mid={:?} mline={:?} candidate={}",
+                c.sdp_mid, c.sdp_mline_index, &c.candidate[..c.candidate.len().min(80)]));
         }
-
-        // Timeout after 60s
         if start.elapsed() > Duration::from_secs(60)
             && matches!(*p.p2p_state.lock().unwrap(), P2pState::Connecting)
         {
@@ -410,11 +471,11 @@ fn run_p2p(p: Arc<Pipeline>, backend: String) {
             pc2.close().ok();
             break;
         }
-
-        if matches!(*p.p2p_state.lock().unwrap(), P2pState::Connected | P2pState::Error(_)) {
+        if matches!(*p.p2p_state.lock().unwrap(), P2pState::Error(_)) {
+            pc1.close().ok();
+            pc2.close().ok();
             break;
         }
-
-        std::thread::sleep(Duration::from_millis(500));
+        tokio::time::sleep(Duration::from_millis(500)).await;
     }
 }
