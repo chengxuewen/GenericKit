@@ -51,3 +51,19 @@
 ## CMake install rule for plugin dylibs
 **Decision**: `install(FILES "$<TARGET_FILE:${target}-shared>" DESTINATION lib/plugins/<category>/)` for `cmake --install` output.
 **Date**: 2026-05-26
+
+## `add_sink()` uses `std::thread::spawn` not `tokio::task::spawn`
+**Decision**: The `set_on_track` callback runs on libwebrtc C++ threads which have no tokio context. `std::thread::spawn` + `rt.block_on()` avoids the panic while still providing async `NativeVideoStream` frame delivery.
+**Date**: 2026-06-03
+
+## `livekit-runtime` patched via workspace member
+**Decision**: `patches/livekit-runtime/` is a workspace member with a modified `rt_tokio.rs` that uses `OnceLock<Handle>` globally (via `ensure_handle()`) instead of per-thread `Handle::current()`. This allows `spawn()` to work from any thread including C++ threads.
+**Date**: 2026-06-03
+
+## `SourceToSinkAdapter` leaked via `Box::leak`
+**Decision**: The adapter must outlive the track. Since the PCF is global and lives forever, leaking the adapter is safe and simpler than tracking its lifetime through `LkVideoTrack`.
+**Date**: 2026-06-03
+
+## Plugin search paths use `RelativeToExe("..")` for direct binary runs
+**Decision**: When the loopback binary is run directly (not via `cargo run`), `CARGO_MANIFEST_DIR` is not set. `RelativeToExe("..")` searches `target/debug/` from the examples directory, finding the plugin dylib without requiring environment variables.
+**Date**: 2026-06-03

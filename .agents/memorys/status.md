@@ -1,7 +1,7 @@
 # GenericKit Status
 
-**Last Updated**: 2026-05-26
-**Active Session**: Plugin Architecture Migration (P0-P5) + CMake Integration
+**Last Updated**: 2026-06-03
+**Active Session**: Loopback P2P Streaming — all milestones reached ✅
 
 ## Plugin Architecture
 
@@ -14,42 +14,67 @@
 | P4 | ✅ | RtcEngine PluginRegistry integration + dynamic plugin loading |
 | P5 | ✅ | WASM web-sys plugin (rlib static linking) |
 
-## Crates
+## Loopback P2P — Fully Working ✅
 
-| Crate | Type | Status |
-|-------|------|--------|
-| gkit-core | rlib | Plugin infrastructure |
-| gkit-media | rlib | Core traits + engine (backend-free) |
-| gkit-plugin-webrtc-libwebrtc | cdylib | Native libwebrtc plugin |
-| gkit-plugin-webrtc-web-sys | rlib | WASM browser WebRTC plugin |
+| Component | Status |
+|-----------|--------|
+| Plugin loads (discovery, dlopen) | ✅ |
+| Backend dropdown shows libwebrtc | ✅ |
+| PeerConnection creation | ✅ |
+| SDP negotiation with video tracks | ✅ (`add_track()` in `create_video_track`) |
+| ICE candidate exchange | ✅ |
+| ICE state → Connected | ✅ |
+| `set_on_track` callback fires | ✅ |
+| Sender produces frames | ✅ (~390 frames/30s) |
+| `add_sink()` receiver task starts | ✅ |
+| **Receiver decoded frames arrive** | ✅ (~400 frames/30s — matches sender) |
+| egui dual-panel display | ✅ |
+| macOS `-ObjC` linker flag | ✅ `.cargo/config.toml` |
 
-## CMake Plugin Build
+## Key Bug Fixes (This Session)
 
-| Feature | Status |
-|--------|--------|
-| GKitCargoPlugin.cmake | ✅ `gkit_cargo_add_plugin()` + `gkit_cargo_setup_plugins()` |
-| POST_BUILD copy to build/plugins/ | ✅ via `add_custom_target(copy-plugin-*)` DEPENDS cargo-build_ |
-| FOLDER property | ✅ main target + all Corrosion utility targets (12 prefix variants) |
-| install() rule | ✅ `install(FILES ... DESTINATION lib/plugins/<category>/)` |
-| Configure re-run safety | ✅ `if(NOT TARGET)` guards on target creation |
+| # | Root Cause | Fix | File |
+|---|-----------|-----|------|
+| 1 | `add_track()` missing → video not in SDP | Call `add_track()` in `create_video_track()` | `peer_connection.rs` |
+| 2 | `SourceToSinkAdapter` dropped → sender frames stop | `Box::leak` the adapter | `peer_connection.rs` |
+| 3 | `tokio::task::spawn` on C++ thread → panic | Use `std::thread::spawn` instead | `video_track.rs` |
+| 4 | Loop breaks on `Connected` → PC dropped → media stops | Remove `Connected` break condition | `loopback/main.rs` |
+| 5 | Frame stride/wrong → `i420_to_argb` index OOB | Use actual frame dimensions | `loopback/main.rs` |
+| 6 | Egui texture size mismatch → epaint panic | Store (data, w, h) tuple | `loopback/main.rs` |
+| 7 | `registered_types()` empty for plugins | Merge plugin registry names | `engine.rs` |
+| 8 | Plugin not found when running binary directly | `RelativeToExe("..")` search path | `engine.rs` |
+| 9 | Single dir scan misses subdirs | Recursive `scan()` | `discovery.rs` |
+| 10 | `discover()` abort on first error | Skip failed paths | `discovery.rs` |
+| 11 | `NSString+StdString` crash on macOS | `-ObjC` linker flag | `.cargo/config.toml` |
+| 12 | `livekit_runtime::spawn()` on C++ threads | `patches/livekit-runtime` workspace member | `Cargo.toml` |
+
+## Diagnostic Files (at runtime)
+
+| File | Content |
+|------|---------|
+| `/tmp/gkit_loopback.log` | P2P log: SDP, ICE, events |
+| `/tmp/gkit_sender_count.log` | Sender frame counter |
+| `/tmp/gkit_receiver_count.log` | Receiver frame counter |
+| `/tmp/gkit_rt_start.log` | Receiver task started marker |
+| `/tmp/gkit_rt_frame1.log` | First receiver frame arrived |
 
 ## Test Suite
 
-| Component | Pass | Ignored |
-|-----------|------|---------|
-| gkit-core | 19 | 5 |
-| gkit-media lib | 13 | 0 |
-| gkit-media webrtc | 21 | 6 |
-| Plugin loading | 4 | 2 |
+| Component | Pass | Ignored | Failed |
+|-----------|------|---------|--------|
+| gkit-core | 19 | 5 | 0 |
+| gkit-media lib | 13 | 0 | 0 |
 
-## Git State
+## Modified Files
 
-- 27 commits on main
-- Working tree: clean
-- Latest: CMake plugin build + install + FOLDER verified
-
-## Remaining Work
-
-- webrtc-rs plugin (temporarily postponed)
-- Full IStablePeerConnection stabby trait
-- P2P/ICE tests with real backends (current: #[ignore])
+| File | Change |
+|------|--------|
+| `video_track.rs` | `add_sink()` → `std::thread::spawn` + `NativeVideoStream` with unbounded queue |
+| `peer_connection.rs` | `rt()` multi-thread; `add_track()`; `SourceToSinkAdapter` leak; 640×360 source |
+| `factory.rs` | `rt()` call in `LiveKitRsFactory::new()` + `get_pcf()` |
+| `engine.rs` | `registered_types()` includes plugins; `RelativeToExe("..")`; `build/plugins/webrtc` |
+| `discovery.rs` | Error-tolerant `discover()` + recursive `scan()` |
+| `registry.rs` | `names()` method |
+| `loopback/main.rs` | Auto-start; file logging; frame dims; no break on Connected; `gather_complete()` |
+| `.cargo/config.toml` | `-ObjC` macOS linker flag |
+| `patches/livekit-runtime/` | Workspace member: `GLOBAL_HANDLE` + `set_handle()` + `ensure_handle()` |

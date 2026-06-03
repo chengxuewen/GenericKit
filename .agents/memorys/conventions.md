@@ -13,6 +13,20 @@
 - Native: `dlopen` via libloading + stabby ABI
 - WASM: static rlib + `gkit_register_rtc_backend!` macro + `#[ctor]`
 - RtcEngine::create() checks PluginRegistry first, then HashMap (static/WASM)
+- **Search paths** (in priority order):
+  1. `../plugins` (RelativeToExe — CMake build)
+  2. `..` (RelativeToExe — cargo run direct binary)
+  3. `CargoTargetDir` (CARGO_MANIFEST_DIR relative)
+  4. `build/plugins/webrtc` (workspace absolute)
+  5. `target/debug`, `target/release` (workspace absolute)
+
+## Plugin Development
+
+- **add_sink() must use `std::thread::spawn`**: called from C++ thread (no tokio context)
+- **`add_track()` must be called after `create_video_track()`**: otherwise video track not in SDP
+- **`SourceToSinkAdapter` must outlive track**: use `Box::leak` since PCF is global
+- **Match NativeVideoSource resolution to generator**: 640×360 in loopback
+- **Store frame dimensions with RGBA data**: `(Vec<u8>, u32, u32)` tuple for egui
 
 ## CMake Convention
 
