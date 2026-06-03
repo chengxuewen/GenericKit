@@ -76,6 +76,14 @@
 **Decision**: Follow the iscc-lib separation: Rust binding crates (`gkit-media-py`, `gkit-media-node`, `gkit-media-wasm`) live in `crates/` as workspace members; non-Rust packaging (C++ headers, maturin config, npm config) lives in `bindings/`. System languages (C/C++/Go/C#) use C FFI; scripting/Web languages (Python/Node/WASM/Flutter) use direct Rust bindings. The C FFI crate (`gkit-media-ffi`) is the single source of truth for the API surface — all new API must be exposed through the C FFI first.
 **Date**: 2026-06-03
 
+## Three-tier binding: ffi + uniffi + diplomat
+**Decision**: Adopt a three-tier multi-language binding strategy. Tier 1: C FFI (`gkit-media-ffi`, `gkit-core-ffi`) via `extern "C"` + cbindgen, serving C/C++ and system languages. Tier 2: UniFFI (`gkit-media-uniffi`) via mozilla/uniffi-rs for mobile (Kotlin/Swift) and scripting (Python/Ruby). Tier 3: Diplomat (`gkit-media-diplomat`) via rust-diplomat/diplomat for auto-generated idiomatic C++ RAII and JS/TS. Each tier is an independent Rust crate, created on-demand. C FFI remains the canonical API; UniFFI and Diplomat wrap it.
+**Date**: 2026-06-03
+
+## C++ bindings: cbindgen + manual RAII headers (not cxx)
+**Decision**: C++ bindings use C FFI (cbindgen-generated headers) + hand-written RAII wrapper headers, not cxx. cxx is designed for Rust↔C++ co-development within the same binary (Deno, Firefox), not for C++ consuming a Rust library. The C FFI approach keeps one universal API surface for all system languages (C, C++, Go, C#).
+**Date**: 2026-06-03
+
 ## FFI directory restructuring: `apis/` → `crates/*-ffi/` + `bindings/`
 **Decision**: C FFI crates moved from `apis/c/gkit-media/` to `crates/gkit-media-ffi/` (workspace member). Top-level renamed `apis/` → `bindings/` for non-Rust content. Crate names (`gkit-media-c`) and CMake target names (`gkit_media_c`) unchanged to minimize cascade. Each FFI crate has its own `CMakeLists.txt`.
 **Date**: 2026-06-03

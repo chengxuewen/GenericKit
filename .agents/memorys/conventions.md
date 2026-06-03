@@ -58,6 +58,29 @@ bindings/
 - cbindgen headers are generated at build time into `{crate_dir}/generated/` (not committed)
 - Manual API macros (`gkit_media_api.h`, `gkit_core_api.h`) are committed alongside the crate
 
+### Three-Tier Binding Architecture
+
+GenericKit's multi-language binding strategy uses three complementary layers:
+
+```
+gkit-media (core) ──────────────────────────────────────── 纯 Rust 逻辑
+    │
+    ├── gkit-media-ffi     extern "C" + cbindgen           C FFI 层
+    │   → C 直接使用                                       (✅ 已实现)
+    │   → C++ RAII 头文件                                  (✅ 已实现)
+    │   → Go (cgo), C# (P/Invoke)                          (将来)
+    │
+    ├── gkit-media-uniffi  UniFFI (mozilla/uniffi-rs)      (将来)
+    │   → Kotlin, Swift, Python, Ruby                      移动端 + 脚本语言
+    │
+    └── gkit-media-diplomat Diploma (rust-diplomat/diplomat) (将来)
+        → C++ RAII（自动生成）, JS/TS, Kotlin, Dart         多语言自动生成
+```
+
+**创建时**：每个 crate 按需创建，不预建 stub。
+**命名**：`gkit-{core-crate}-{ffi|uniffi|diplomat}`。
+**CMake FOLDER**：`gkit_media_ffi`, `gkit_media_uniffi`, `gkit_media_diplomat`。
+
 ## Plugin Architecture
 
 - **Plugin naming**: `libgkit_plugin_{name}.dylib` (macOS/Linux), `gkit_plugin_{name}.dll` (Windows)
@@ -99,7 +122,7 @@ bindings/
 ## Naming
 
 - C FFI: `gkit_{crate}_{subsystem}_{resource}_{verb}[_{qualifier}]`
-- Rust crate: `gkit-{crate}-{target}` (e.g., `gkit-media-py`, `gkit-core-ffi`)
+- Rust crate: `gkit-{crate}-{target}` where target ∈ {ffi, uniffi, diplomat, py, node, wasm, flutter}
 - Rust plugin: `gkit_plugin_webrtc_libwebrtc` → CMake: `gkit_plugin_webrtc_libwebrtc`
 
 ## Commit Convention
