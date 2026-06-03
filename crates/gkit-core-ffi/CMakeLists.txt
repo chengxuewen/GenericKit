@@ -22,7 +22,7 @@ gkit_cargo_setup_ffi_target(gkit_core_c
 	MANIFEST "${CMAKE_CURRENT_SOURCE_DIR}/Cargo.toml"
 	HEADER "gkit_core.h"
 	CRATE_NAME "gkit-core-c"
-	FOLDER "gkit_core/ffi/c")
+	FOLDER "gkit_core/ffi")
 
 # Include the manual API header
 target_include_directories(gkit_core_c INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}")

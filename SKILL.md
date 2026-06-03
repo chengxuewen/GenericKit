@@ -169,7 +169,7 @@ Selected via CMake cache string `GKIT_FEATURE_MEDIA_WEBRTC_BACKEND` → `CORROSI
 - Tests registered as CTest via `add_test(NAME ... COMMAND ...)`
 - C test targets linked with `gkit_media_c` + `GKitWrapUnity::WrapUnity`
 - C++ test targets linked with `gkit_media_cpp` + `GKitWrapGTest::WrapGTest`
-- FOLDER: `gkit_media/ffi/c/tests`, `gkit_media/bindings/cpp/tests`
+- FOLDER: `gkit_media/ffi/tests`, `gkit_media/bindings/cpp/tests`
 
 **Test commands:**
 ```bash

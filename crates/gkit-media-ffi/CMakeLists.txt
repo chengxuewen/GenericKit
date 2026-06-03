@@ -22,7 +22,7 @@ gkit_cargo_setup_ffi_target(gkit_media_c
 	MANIFEST "${CMAKE_CURRENT_SOURCE_DIR}/Cargo.toml"
 	HEADER "gkit_media.h"
 	CRATE_NAME "gkit-media-c"
-	FOLDER "gkit_media/ffi/c")
+	FOLDER "gkit_media/ffi")
 
 # API visibility macro (committed alongside the Rust crate)
 target_include_directories(gkit_media_c INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}")
