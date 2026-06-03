@@ -2,7 +2,7 @@
 
 use std::time::{Duration, Instant};
 
-use gkit_media::protocols::rtc::client::core::{IceConnectionState, PeerConnection};
+use gkit_media::protocols::rtc::peer::core::{IceConnectionState, PeerConnection};
 
 pub async fn wait_for_ice_connected(
     pc1: &dyn PeerConnection,

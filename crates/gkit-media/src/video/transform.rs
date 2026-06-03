@@ -1,4 +1,4 @@
-use crate::protocols::rtc::client::core::MediaError;
+use crate::protocols::rtc::peer::core::MediaError;
 
 use super::buffer::{I420Buffer, VideoBuffer};
 

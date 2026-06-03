@@ -1,9 +1,9 @@
 // W3C WebRTC: VideoTrack create_video_track / on_track tests
 use gkit_media::capture::generator::VideoFrameGenerator;
-use gkit_media::protocols::rtc::client::core::{
+use gkit_media::protocols::rtc::peer::core::{
     PeerConnection, PeerConnectionFactory, VideoTrack,
 };
-use gkit_media::protocols::rtc::client::engine::RtcEngine;
+use gkit_media::protocols::rtc::peer::engine::RtcEngine;
 use gkit_media::video::source_sink::{VideoSinkWants, VideoSource};
 
 #[test]

@@ -13,23 +13,23 @@ pub mod video;
 mod trait_mod;
 pub use trait_mod::{video_sink_stabby, webrtc_stabby};
 
-pub fn make_peer_connection() -> Box<dyn protocols::rtc::client::core::PeerConnection> {
+pub fn make_peer_connection() -> Box<dyn protocols::rtc::peer::core::PeerConnection> {
     register_test_backend();
-    use protocols::rtc::client::engine::RtcEngine;
+    use protocols::rtc::peer::engine::RtcEngine;
     RtcEngine::create_default()
         .expect("no RTC backend registered")
         .create_peer_connection()
         .expect("failed to create PeerConnection")
 }
 
-pub fn make_peer_connection_with_backend(name: &str) -> protocols::rtc::client::core::MediaResult<Box<dyn protocols::rtc::client::core::PeerConnection>> {
-    use protocols::rtc::client::engine::RtcEngine;
+pub fn make_peer_connection_with_backend(name: &str) -> protocols::rtc::peer::core::MediaResult<Box<dyn protocols::rtc::peer::core::PeerConnection>> {
+    use protocols::rtc::peer::engine::RtcEngine;
     RtcEngine::create(name)?.create_peer_connection()
 }
 
 pub fn register_test_backend() {
-    use protocols::rtc::client::engine::RtcEngine;
-    use protocols::rtc::client::core::{ConnectionState, DataChannel, DataChannelState, GatheringState, IceConnectionState, MediaError, MediaResult, PeerConnection, PeerConnectionFactory, RtcConfiguration, SessionDescription, SignalingState};
+    use protocols::rtc::peer::engine::RtcEngine;
+    use protocols::rtc::peer::core::{ConnectionState, DataChannel, DataChannelState, GatheringState, IceConnectionState, MediaError, MediaResult, PeerConnection, PeerConnectionFactory, RtcConfiguration, SessionDescription, SignalingState};
     use std::sync::OnceLock;
     static DONE: OnceLock<()> = OnceLock::new();
     DONE.get_or_init(|| {

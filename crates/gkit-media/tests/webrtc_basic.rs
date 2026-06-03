@@ -1,7 +1,7 @@
 // W3C PeerConnection basic lifecycle tests.
 // Backend-agnostic: uses factory functions, works with all backends.
 
-use gkit_media::protocols::rtc::client::core::PeerConnection;
+use gkit_media::protocols::rtc::peer::core::PeerConnection;
 
 #[test]
 fn create_and_close() {

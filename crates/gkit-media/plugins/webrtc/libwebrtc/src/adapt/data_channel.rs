@@ -2,7 +2,7 @@ use libwebrtc::data_channel::{
     DataChannel as LkDataChannel, DataChannelState as LkDataChannelState,
 };
 
-use gkit_media::protocols::rtc::client::core::{
+use gkit_media::protocols::rtc::peer::core::{
     DataChannel, DataChannelState, MediaError, MediaResult,
 };
 

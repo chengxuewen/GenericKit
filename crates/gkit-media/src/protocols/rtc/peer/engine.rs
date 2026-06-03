@@ -6,7 +6,7 @@ use gkit_core::plugin::discovery::{PluginDiscovery, PluginSearchPath};
 use gkit_core::plugin::loader::PluginLib;
 
 use crate::plugin::registry::PluginRegistry;
-use crate::protocols::rtc::client::core::{MediaError, MediaResult, PeerConnectionFactory};
+use crate::protocols::rtc::peer::core::{MediaError, MediaResult, PeerConnectionFactory};
 
 type FactoryCreator = fn() -> Box<dyn PeerConnectionFactory>;
 

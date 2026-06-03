@@ -1,7 +1,7 @@
 //! RTP sender / receiver / transceiver adapters.
 //!
 //! Thin wrappers around the corresponding libwebrtc types. The core
-//! [`PeerConnection`](gkit_media::protocols::rtc::client::core::PeerConnection)
+//! [`PeerConnection`](gkit_media::protocols::rtc::peer::core::PeerConnection)
 //! trait does not expose these directly; use them by downcasting a
 //! [`LiveKitPeerConnection`](crate::adapt::peer_connection::LiveKitPeerConnection)
 //! and calling the accessors on the inner
@@ -12,7 +12,7 @@ use libwebrtc::rtp_sender::RtpSender as LkRtpSender;
 use libwebrtc::rtp_transceiver::RtpTransceiver as LkRtpTransceiver;
 use libwebrtc::stats::RtcStats;
 
-use gkit_media::protocols::rtc::client::core::{MediaError, MediaResult};
+use gkit_media::protocols::rtc::peer::core::{MediaError, MediaResult};
 
 // ---------------------------------------------------------------------------
 // Re-export underlying libwebrtc RTP types for convenience

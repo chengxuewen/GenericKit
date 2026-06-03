@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use libwebrtc::session_description::{SdpType as LkSdpType, SessionDescription as LkSdp};
 
-use gkit_media::protocols::rtc::client::core::SessionDescription;
+use gkit_media::protocols::rtc::peer::core::SessionDescription;
 
 // ---------------------------------------------------------------------------
 // LkSdp → our SessionDescription (infallible — just accessor calls)

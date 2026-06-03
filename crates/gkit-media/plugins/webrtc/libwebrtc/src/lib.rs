@@ -1,6 +1,6 @@
 mod adapt;
 
-use gkit_media::protocols::rtc::client::core::PeerConnectionFactory;
+use gkit_media::protocols::rtc::peer::core::PeerConnectionFactory;
 use stabby::string::String as StabbyString;
 use std::ffi::c_void;
 
@@ -51,7 +51,7 @@ pub extern "C" fn gkit_plugin_destroy_pc(ptr: *mut c_void) {
     if !ptr.is_null() {
         unsafe {
             let _ = Box::from_raw(
-                ptr as *mut Box<dyn gkit_media::protocols::rtc::client::core::PeerConnection>,
+                ptr as *mut Box<dyn gkit_media::protocols::rtc::peer::core::PeerConnection>,
             );
         }
     }

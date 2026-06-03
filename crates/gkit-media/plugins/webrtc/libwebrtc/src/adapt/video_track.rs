@@ -5,7 +5,7 @@ use libwebrtc::video_stream::native::NativeVideoStream;
 use libwebrtc::video_stream::native::NativeVideoStreamOptions;
 use libwebrtc::video_track::RtcVideoTrack as LkRtcVideoTrack;
 
-use gkit_media::protocols::rtc::client::core::VideoTrack;
+use gkit_media::protocols::rtc::peer::core::VideoTrack;
 use gkit_media::video::frame::BoxVideoFrame;
 use gkit_media::video::source_sink::VideoSink;
 

@@ -71,7 +71,7 @@ fn create_peer_connection_from_plugin() {
 
 #[test]
 fn rtc_engine_loads_libwebrtc_plugin() {
-    use gkit_media::protocols::rtc::client::engine::RtcEngine;
+    use gkit_media::protocols::rtc::peer::engine::RtcEngine;
 
     let loaded = RtcEngine::load_plugins();
     assert!(loaded > 0, "no plugins loaded");
@@ -83,8 +83,8 @@ fn rtc_engine_loads_libwebrtc_plugin() {
 #[test]
 #[ignore = "libwebrtc PeerConnectionFactory init requires platform setup"]
 fn rtc_engine_creates_peer_connection_from_plugin() {
-    use gkit_media::protocols::rtc::client::engine::RtcEngine;
-    use gkit_media::protocols::rtc::client::core::ConnectionState;
+    use gkit_media::protocols::rtc::peer::engine::RtcEngine;
+    use gkit_media::protocols::rtc::peer::core::ConnectionState;
 
     RtcEngine::load_plugins();
     let factory = RtcEngine::create("libwebrtc").expect("libwebrtc not loaded");

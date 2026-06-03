@@ -4,10 +4,10 @@
 
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use gkit_media::protocols::rtc::client::core::{
+use gkit_media::protocols::rtc::peer::core::{
     PeerConnection, IceCandidate, IceConnectionState,
 };
-use gkit_media::protocols::rtc::client::engine::RtcEngine;
+use gkit_media::protocols::rtc::peer::engine::RtcEngine;
 
 const TIMEOUT_SECS: u64 = 10;
 

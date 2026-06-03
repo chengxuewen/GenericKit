@@ -1,7 +1,7 @@
 // Error handling tests.
 // Backend-agnostic: uses factory functions.
 
-use gkit_media::protocols::rtc::client::core::PeerConnection;
+use gkit_media::protocols::rtc::peer::core::PeerConnection;
 
 #[test]
 fn error_message_is_descriptive() {
@@ -24,7 +24,7 @@ fn operations_on_closed_peer_all_fail() {
     pc.close().unwrap();
     assert!(pc.create_offer().is_err());
     assert!(pc.create_answer().is_err());
-    let desc = gkit_media::protocols::rtc::client::core::SessionDescription {
+    let desc = gkit_media::protocols::rtc::peer::core::SessionDescription {
         sdp_type: "offer".into(),
         sdp: String::new(),
     };
