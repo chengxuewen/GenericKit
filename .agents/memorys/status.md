@@ -47,6 +47,19 @@
 | 10 | `discover()` abort on first error | Skip failed paths | `discovery.rs` |
 | 11 | `NSString+StdString` crash on macOS | `-ObjC` linker flag | `.cargo/config.toml` |
 | 12 | `livekit_runtime::spawn()` on C++ threads | `patches/livekit-runtime` workspace member | `Cargo.toml` |
+| 13 | `set_on_track` does heavy work on C++ thread | Channel Bridge: `mpsc::Sender` push, ICE loop poll | `loopback/main.rs` |
+| 14 | `rt().spawn()` doesn't execute (worker pool issue) | Keep `std::thread::spawn` + `rt_handle.block_on()` | `video_track.rs` |
+
+## Architecture: Channel Bridge
+
+```
+C++ callback (set_on_track) → mpsc::Sender → ICE loop poll → add_sink()
+                                    ↑                        ↑
+                              minimal work            std::thread::spawn
+                              (just tx.send)          + rt_handle.block_on
+```
+
+C++ 线程只做最轻量的 `tx.send()`，所有 Rust 逻辑在消费端线程执行。
 
 ## Diagnostic Files (at runtime)
 
@@ -55,8 +68,8 @@
 | `/tmp/gkit_loopback.log` | P2P log: SDP, ICE, events |
 | `/tmp/gkit_sender_count.log` | Sender frame counter |
 | `/tmp/gkit_receiver_count.log` | Receiver frame counter |
-| `/tmp/gkit_rt_start.log` | Receiver task started marker |
-| `/tmp/gkit_rt_frame1.log` | First receiver frame arrived |
+| `/tmp/gkit_track_received.log` | Channel Bridge track received marker |
+| `/tmp/gkit_rt_end.log` | Receiver stream ended marker |
 
 ## Test Suite
 
@@ -64,17 +77,15 @@
 |-----------|------|---------|--------|
 | gkit-core | 19 | 5 | 0 |
 | gkit-media lib | 13 | 0 | 0 |
+| Loopback P2P (30s) | sender~390 receiver~400 | — | crash:0 |
 
-## Modified Files
+## Git State
 
-| File | Change |
-|------|--------|
-| `video_track.rs` | `add_sink()` → `std::thread::spawn` + `NativeVideoStream` with unbounded queue |
-| `peer_connection.rs` | `rt()` multi-thread; `add_track()`; `SourceToSinkAdapter` leak; 640×360 source |
-| `factory.rs` | `rt()` call in `LiveKitRsFactory::new()` + `get_pcf()` |
-| `engine.rs` | `registered_types()` includes plugins; `RelativeToExe("..")`; `build/plugins/webrtc` |
-| `discovery.rs` | Error-tolerant `discover()` + recursive `scan()` |
-| `registry.rs` | `names()` method |
-| `loopback/main.rs` | Auto-start; file logging; frame dims; no break on Connected; `gather_complete()` |
-| `.cargo/config.toml` | `-ObjC` macOS linker flag |
-| `patches/livekit-runtime/` | Workspace member: `GLOBAL_HANDLE` + `set_handle()` + `ensure_handle()` |
+- 9 commits on main (unchanged from before), ~2 commits pending (Channel Bridge + cleanup)
+- Working tree: clean
+
+## Remaining Work
+
+- Investigate `rt().spawn()` not executing (tokio worker pool issue)
+- Clean up cached `~/.cargo/git/...` livekit-runtime modifications (redundant after `[patch]`)
+- Multi-backend loopback support (webrtc-rs, WASM)

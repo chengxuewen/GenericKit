@@ -67,3 +67,7 @@
 ## Plugin search paths use `RelativeToExe("..")` for direct binary runs
 **Decision**: When the loopback binary is run directly (not via `cargo run`), `CARGO_MANIFEST_DIR` is not set. `RelativeToExe("..")` searches `target/debug/` from the examples directory, finding the plugin dylib without requiring environment variables.
 **Date**: 2026-06-03
+
+## Channel Bridge: `set_on_track` callback → `mpsc::Sender` push, ICE loop poll
+**Decision**: C++ callbacks must do minimal work to avoid tokio context issues. `set_on_track` pushes the track through `tokio::sync::mpsc::unbounded_channel`; the ICE loop polls the channel and calls `add_sink()` in the runtime context. This eliminates C++ threads from executing complex Rust logic.
+**Date**: 2026-06-03

@@ -108,3 +108,9 @@
 - `set_handle()` sets one instance, `spawn()` reads another → panic
 - Workaround: `ensure_handle()` auto-initializes runtime on first `spawn()` call
 
+### `rt().spawn()` doesn't execute tasks on plugin runtime
+- `new_multi_thread()` + `block_on(pending())` on background thread should start worker pool
+- But tasks spawned via `rt().spawn()` don't execute
+- Workaround: use `std::thread::spawn` + `rt_handle.block_on()` instead
+- Root cause unclear — may be tokio worker pool configuration issue
+

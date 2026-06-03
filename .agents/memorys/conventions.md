@@ -22,7 +22,9 @@
 
 ## Plugin Development
 
-- **add_sink() must use `std::thread::spawn`**: called from C++ thread (no tokio context)
+- **C++ callbacks → Channel Bridge**: `set_on_track` and `set_on_ice_candidate` callbacks on C++ threads only do `tx.send()`; consuming side polls channels and does heavy work in runtime context
+- **add_sink() must use `std::thread::spawn`**: called from C++ thread (no tokio context); `std::thread::spawn` + `rt_handle.block_on()` is reliable
+- **`rt().spawn()` may not execute**: plugin's `new_multi_thread()` runtime worker pool doesn't process spawned tasks (root cause unclear)
 - **`add_track()` must be called after `create_video_track()`**: otherwise video track not in SDP
 - **`SourceToSinkAdapter` must outlive track**: use `Box::leak` since PCF is global
 - **Match NativeVideoSource resolution to generator**: 640×360 in loopback
