@@ -201,6 +201,10 @@ fn main() -> Result<(), eframe::Error> {
                                 if ui.button("⏹ Stop P2P").clicked() {
                                     self.p.stop_requested.store(true, Ordering::Relaxed);
                                     *self.p.status.lock().unwrap() = "Stopping...".into();
+                                    self.p.receiver_frame.lock().unwrap().take();
+                                    self.p.pc2_log.lock().unwrap().clear();
+                                    *self.p.receiver_count.lock().unwrap() = 0;
+                                    self.rt.take();
                                 }
                             }
 
