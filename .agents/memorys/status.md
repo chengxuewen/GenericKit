@@ -49,6 +49,8 @@
 | 12 | `livekit_runtime::spawn()` on C++ threads | `patches/livekit-runtime` workspace member | `Cargo.toml` |
 | 13 | `set_on_track` does heavy work on C++ thread | Channel Bridge: `mpsc::Sender` push, ICE loop poll | `loopback/main.rs` |
 | 14 | `rt().spawn()` doesn't execute (worker pool issue) | Keep `std::thread::spawn` + `rt_handle.block_on()` | `video_track.rs` |
+| 15 | Duplicate dylibs loaded via `discover()` → ObjC conflict → SIGSEGV | Deduplicate by plugin name with `HashSet` | `discovery.rs` |
+| 16 | Two separate `VideoFrameGenerator` instances → sender display ≠ actual transmitted frames | Share single `Arc<VideoFrameGenerator>` via `ArcVideoSource` wrapper; `FramePattern: Send + Sync` | `main.rs`, `generator.rs` |
 
 ## Architecture: Channel Bridge
 
