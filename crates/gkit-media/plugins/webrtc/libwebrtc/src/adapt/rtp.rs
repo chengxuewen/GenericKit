@@ -36,9 +36,7 @@ impl RtpSenderHandle {
         self.inner
     }
 
-    pub fn track(
-        &self,
-    ) -> Option<libwebrtc::media_stream_track::MediaStreamTrack> {
+    pub fn track(&self) -> Option<libwebrtc::media_stream_track::MediaStreamTrack> {
         self.inner.track()
     }
 
@@ -72,9 +70,7 @@ impl RtpReceiverHandle {
         self.inner
     }
 
-    pub fn track(
-        &self,
-    ) -> Option<libwebrtc::media_stream_track::MediaStreamTrack> {
+    pub fn track(&self) -> Option<libwebrtc::media_stream_track::MediaStreamTrack> {
         self.inner.track()
     }
 
@@ -116,15 +112,11 @@ impl RtpTransceiverHandle {
         self.inner.receiver()
     }
 
-    pub fn direction(
-        &self,
-    ) -> libwebrtc::rtp_transceiver::RtpTransceiverDirection {
+    pub fn direction(&self) -> libwebrtc::rtp_transceiver::RtpTransceiverDirection {
         self.inner.direction()
     }
 
-    pub fn current_direction(
-        &self,
-    ) -> Option<libwebrtc::rtp_transceiver::RtpTransceiverDirection> {
+    pub fn current_direction(&self) -> Option<libwebrtc::rtp_transceiver::RtpTransceiverDirection> {
         self.inner.current_direction()
     }
 }
@@ -133,6 +125,14 @@ impl RtpTransceiverHandle {
 // Re-export libwebrtc RTP parameter types
 // ---------------------------------------------------------------------------
 
+/// Priority for encoding parameters.
+pub use libwebrtc::rtp_parameters::Priority;
+/// RTCP parameters.
+pub use libwebrtc::rtp_parameters::RtcpParameters;
+/// RTP capabilities (codecs + header extensions).
+pub use libwebrtc::rtp_parameters::RtpCapabilities;
+/// RTP codec capabilities.
+pub use libwebrtc::rtp_parameters::RtpCodecCapability;
 /// RTP codec parameters.
 pub use libwebrtc::rtp_parameters::RtpCodecParameters;
 /// RTP encoding parameters (simulcast / SVC config).
@@ -141,15 +141,7 @@ pub use libwebrtc::rtp_parameters::RtpEncodingParameters;
 pub use libwebrtc::rtp_parameters::RtpHeaderExtensionParameters;
 /// Full RTP parameters (codecs + extensions + RTCP).
 pub use libwebrtc::rtp_parameters::RtpParameters;
-/// RTCP parameters.
-pub use libwebrtc::rtp_parameters::RtcpParameters;
-/// RTP codec capabilities.
-pub use libwebrtc::rtp_parameters::RtpCodecCapability;
-/// RTP capabilities (codecs + header extensions).
-pub use libwebrtc::rtp_parameters::RtpCapabilities;
 /// RTP transceiver direction.
 pub use libwebrtc::rtp_transceiver::RtpTransceiverDirection;
 /// RTP transceiver init options.
 pub use libwebrtc::rtp_transceiver::RtpTransceiverInit;
-/// Priority for encoding parameters.
-pub use libwebrtc::rtp_parameters::Priority;

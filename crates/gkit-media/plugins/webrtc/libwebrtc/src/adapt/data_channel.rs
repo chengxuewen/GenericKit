@@ -1,7 +1,10 @@
-use libwebrtc::data_channel::{DataChannel as LkDataChannel, DataChannelState as LkDataChannelState};
+use libwebrtc::data_channel::{
+    DataChannel as LkDataChannel, DataChannelState as LkDataChannelState,
+};
 
-use gkit_media::protocols::rtc::client::core::{DataChannel, DataChannelState, MediaError, MediaResult};
-
+use gkit_media::protocols::rtc::client::core::{
+    DataChannel, DataChannelState, MediaError, MediaResult,
+};
 
 /// Thin adapter wrapping a libwebrtc `DataChannel` to implement gkit's `DataChannel` trait.
 pub(super) struct LkDataChannelAdapter {

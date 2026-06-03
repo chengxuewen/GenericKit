@@ -21,9 +21,7 @@ pub async fn get_stats_json(
 }
 
 /// Collect stats for a single RTP sender and return as JSON string.
-pub async fn sender_stats_json(
-    sender: &libwebrtc::rtp_sender::RtpSender,
-) -> MediaResult<String> {
+pub async fn sender_stats_json(sender: &libwebrtc::rtp_sender::RtpSender) -> MediaResult<String> {
     let stats = sender
         .get_stats()
         .await
