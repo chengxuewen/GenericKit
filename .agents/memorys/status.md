@@ -1,7 +1,42 @@
 # GenericKit Status
 
 **Last Updated**: 2026-06-03
-**Active Session**: Loopback P2P Streaming — all milestones reached ✅
+**Active Session**: Binding Architecture Restructure — completed ✅
+
+## Binding Architecture
+
+| Tier | Crate | Technology | Status |
+|------|-------|------------|--------|
+| 1 | `gkit-media-ffi` | `extern "C"` + cbindgen | ✅ Implemented |
+| 1 | `gkit-core-ffi` | `extern "C"` + cbindgen | ✅ Implemented (stub) |
+| 2 | `gkit-media-uniffi` | UniFFI (mozilla/uniffi-rs) | 🔮 Future (mobile demand) |
+| 3 | `gkit-media-diplomat` | Diplomat (rust-diplomat/diplomat) | 🔮 Future (C++ API growth) |
+
+## Directory Structure (Final)
+
+```
+crates/                          # Rust workspace (10 crates, 2 active)
+├── gkit-media/                  # ★ Core (17K lines)
+├── gkit-media-ffi/              # ★ C FFI (1168 lines)
+├── gkit-core/                   # Stub
+├── gkit-core-ffi/               # Stub
+└── gkit-{network,graphics,service,native,profiling,crash}/  # Arch stubs
+
+bindings/
+└── cpp/                         # C++ RAII headers (active)
+```
+
+CMake FOLDER convention: each crate maps to a flat FOLDER with underscores:
+
+```
+gkit_core           (gkit-core)
+gkit_core_ffi       (gkit-core-ffi)
+  gkit_core_ffi/tests
+gkit_media          (gkit-media)
+gkit_media_ffi      (gkit-media-ffi)
+  gkit_media_ffi/tests
+  gkit_media_ffi/examples
+```
 
 ## Plugin Architecture
 
@@ -83,11 +118,14 @@ C++ 线程只做最轻量的 `tx.send()`，所有 Rust 逻辑在消费端线程�
 
 ## Git State
 
-- 9 commits on main (unchanged from before), ~2 commits pending (Channel Bridge + cleanup)
-- Working tree: clean
+- Branch: main, ahead of origin by multiple commits (not yet pushed)
+- Working tree: clean (after binding architecture restructure)
 
 ## Remaining Work
 
+- Push commits to origin
 - Investigate `rt().spawn()` not executing (tokio worker pool issue)
-- Clean up cached `~/.cargo/git/...` livekit-runtime modifications (redundant after `[patch]`)
 - Multi-backend loopback support (webrtc-rs, WASM)
+- Implement Python binding (`crates/gkit-media-py/`) when needed
+- Implement UniFFI crate (`crates/gkit-media-uniffi/`) when mobile demand arises
+- Implement Diplomat crate (`crates/gkit-media-diplomat/`) when C++ API outgrows manual RAII
