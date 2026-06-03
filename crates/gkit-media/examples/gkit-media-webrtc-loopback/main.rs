@@ -15,8 +15,12 @@ use std::time::Duration;
 use eframe::egui;
 use gkit_media::capture::generator::VideoFrameGenerator;
 use gkit_media::protocols::rtc::peer::{
-    PeerConnection, IceCandidate, IceConnectionState, VideoTrack,
-    RtcConfiguration, IceServer,
+    RtcConfiguration, 
+    PeerConnection,
+    VideoTrack,
+    IceConnectionState, 
+    IceCandidate, 
+    IceServer,
 };
 use gkit_media::protocols::rtc::peer::RtcEngine;
 use gkit_media::video::buffer::VideoFormatType;
@@ -51,6 +55,7 @@ struct Pipeline {
     ice_config: RtcConfiguration,
     tokio_handle: tokio::runtime::Handle,
     stop_requested: AtomicBool,
+    receiver_stats: Mutex<String>,
 }
 
 fn default_ice_config() -> RtcConfiguration {
@@ -109,6 +114,7 @@ fn main() -> Result<(), eframe::Error> {
         ice_config: default_ice_config(),
         tokio_handle,
         stop_requested: AtomicBool::new(false),
+        receiver_stats: Mutex::new(String::new()),
     });
 
     // Frame generator — always running
@@ -274,6 +280,8 @@ fn main() -> Result<(), eframe::Error> {
                                         [ui.available_width().min(W as f32), (H as f32)],
                                     ));
                                 }
+                                ui.separator();
+                                ui.label(self.p.receiver_stats.lock().unwrap().clone());
                                 ui.separator();
                                 ui.label("📡 Receiver Log");
                                 egui::ScrollArea::vertical()
@@ -508,6 +516,29 @@ async fn run_p2p_async(p: Arc<Pipeline>, backend: String) {
             pc2.close().ok();
             break;
         }
+
+        if start.elapsed().as_secs() % 2 == 0 {
+            let elapsed = start.elapsed().as_secs_f64().max(0.1);
+            let rc = *p.receiver_count.lock().unwrap();
+            let fps = rc as f64 / elapsed;
+            let kbps = fps * 640.0 * 360.0 * 1.5 / 1000.0;
+            let mut stats = format!("fps:{:.0}  kbps:{:.0}", fps, kbps);
+            if let Ok(json) = pc2.get_stats_json() {
+                for line in json.lines() {
+                    if line.contains("jitter:") && !line.contains("jitter_buffer") {
+                        if let Some(v) = line.split(':').nth(1) { stats.push_str(&format!("  jitter:{}", v.trim())); }
+                    }
+                    if line.contains("round_trip_time:") {
+                        if let Some(v) = line.split(':').nth(1) { stats.push_str(&format!("  rtt:{}", v.trim())); }
+                    }
+                    if line.contains("packets_lost:") {
+                        if let Some(v) = line.split(':').nth(1) { stats.push_str(&format!("  lost:{}", v.trim())); }
+                    }
+                }
+            }
+            *p.receiver_stats.lock().unwrap() = stats;
+        }
+
         tokio::time::sleep(Duration::from_millis(500)).await;
     }
 }

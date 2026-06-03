@@ -145,6 +145,8 @@ pub trait PeerConnection: Send {
     fn set_on_ice_connection_state_change(&self, _cb: Box<dyn Fn(IceConnectionState) + Send>) {}
     /// Wait until ICE gathering is complete.
     fn gather_complete(&self) -> MediaResult<()> { Ok(()) }
+
+    fn get_stats_json(&self) -> MediaResult<String> { Err(MediaError::new("not supported")) }
 }
 
 /// W3C RTCDataChannel trait.

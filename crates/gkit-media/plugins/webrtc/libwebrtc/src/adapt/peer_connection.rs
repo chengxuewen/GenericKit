@@ -184,6 +184,10 @@ impl PeerConnection for LiveKitPeerConnection {
         Ok(())
     }
 
+    fn get_stats_json(&self) -> MediaResult<String> {
+        rt().block_on(async { crate::adapt::stats::get_stats_json(&self.inner).await })
+    }
+
     fn create_video_track(
         &self,
         source: Box<dyn VideoSource<BoxVideoFrame>>,
