@@ -6,21 +6,24 @@ use gkit_media::protocols::rtc::peer::{
 use gkit_media::video::frame::BoxVideoFrame;
 use gkit_media::video::source_sink::{VideoSink, VideoSource};
 use pollster::block_on;
+use std::cell::RefCell;
 use std::sync::{Arc, Mutex};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{
-    CanvasRenderingContext2d, HtmlCanvasElement, MediaStream, MediaStreamTrack, RtcTrackEvent,
-    RtcConfiguration as WebRtcConfig, RtcIceCandidate as WebRtcIceCandidate,
-    RtcIceCandidateInit, RtcPeerConnection as WebRtcPeerConnection, RtcSdpType,
-    RtcSessionDescriptionInit,
+    BinaryType, CanvasRenderingContext2d, HtmlCanvasElement, MediaStream, MediaStreamTrack,
+    MessageEvent, RtcConfiguration as WebRtcConfig,
+    RtcIceCandidate as WebRtcIceCandidate, RtcIceCandidateInit,
+    RtcPeerConnection as WebRtcPeerConnection,
+    RtcPeerConnectionIceEvent, RtcSdpType, RtcSessionDescriptionInit, RtcTrackEvent, WebSocket,
 };
 
 // ─── WasmPeerConnection ────────────────────────────────────────────────
 
 pub struct WasmPeerConnection {
     pc: WebRtcPeerConnection,
+    ws: RefCell<Option<WebSocket>>,
 }
 
 impl WasmPeerConnection {
@@ -56,11 +59,173 @@ impl WasmPeerConnection {
 
         let pc = WebRtcPeerConnection::new_with_configuration(&js_config)
             .map_err(|e| MediaError::new(format!("RTCPeerConnection: {:?}", e)))?;
-        Ok(Self { pc })
+        Ok(Self {
+            pc,
+            ws: RefCell::new(None),
+        })
     }
 
     pub fn new_default() -> MediaResult<Self> {
         Self::new(&RtcConfiguration::default())
+    }
+
+    /// Create a WasmPeerConnection with built-in WebSocket signaling.
+    ///
+    /// The signaling channel auto-exchanges ICE candidates. Use
+    /// [`send_signaling`](Self::send_signaling) to manually send SDP offers/answers.
+    pub fn new_with_signaling(
+        config: &RtcConfiguration,
+        signaling_url: &str,
+    ) -> MediaResult<Self> {
+        let pc = Self::new(config)?;
+
+        let ws = WebSocket::new(signaling_url)
+            .map_err(|e| MediaError::new(format!("WebSocket: {:?}", e)))?;
+
+        ws.set_binary_type(BinaryType::Blob);
+
+        // ── Incoming messages (offers, answers, ICE candidates) ──────
+        let pc_for_msg = pc.pc.clone();
+
+        let onmessage = Closure::wrap(Box::new(move |event: MessageEvent| {
+            let data = event.data();
+            let txt = match data.as_string() {
+                Some(s) => s,
+                None => return,
+            };
+            let parsed =
+                js_sys::JSON::parse(&txt).unwrap_or(JsValue::NULL);
+            let msg_type =
+                js_sys::Reflect::get(&parsed, &JsValue::from_str("type"))
+                    .map(|v| v.as_string().unwrap_or_default())
+                    .unwrap_or_default();
+
+            match msg_type.as_str() {
+                "offer" => {
+                    if let Some(sdp) =
+                        js_sys::Reflect::get(&parsed, &JsValue::from_str("sdp"))
+                            .ok()
+                            .and_then(|v| v.as_string())
+                    {
+                        let desc =
+                            RtcSessionDescriptionInit::new(RtcSdpType::Offer);
+                        desc.set_sdp(&sdp);
+                        let _ = pc_for_msg.set_remote_description(&desc);
+                    }
+                }
+                "answer" => {
+                    if let Some(sdp) =
+                        js_sys::Reflect::get(&parsed, &JsValue::from_str("sdp"))
+                            .ok()
+                            .and_then(|v| v.as_string())
+                    {
+                        let desc =
+                            RtcSessionDescriptionInit::new(RtcSdpType::Answer);
+                        desc.set_sdp(&sdp);
+                        let _ = pc_for_msg.set_remote_description(&desc);
+                    }
+                }
+                "ice" | "candidate" => {
+                    let candidate = js_sys::Reflect::get(
+                        &parsed,
+                        &JsValue::from_str("candidate"),
+                    )
+                    .ok()
+                    .and_then(|v| v.as_string())
+                    .unwrap_or_default();
+                    let sdp_mid = js_sys::Reflect::get(
+                        &parsed,
+                        &JsValue::from_str("sdp_mid"),
+                    )
+                    .ok()
+                    .and_then(|v| v.as_string())
+                    .unwrap_or_default();
+                    if !candidate.is_empty() {
+                        let init =
+                            RtcIceCandidateInit::new(&candidate);
+                        if !sdp_mid.is_empty() {
+                            init.set_sdp_mid(Some(&sdp_mid));
+                        }
+                        if let Ok(ice) = WebRtcIceCandidate::new(&init) {
+                            let _ = pc_for_msg
+                                .add_ice_candidate_with_opt_rtc_ice_candidate(
+                                    Some(&ice),
+                                );
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }) as Box<dyn FnMut(_)>);
+
+        ws.set_onmessage(Some(onmessage.as_ref().unchecked_ref()));
+        onmessage.forget();
+
+        // ── Outgoing ICE candidates ─────────────────────────────────
+        let ws_for_ice = ws.clone();
+
+        let onicecandidate = Closure::wrap(Box::new(
+            move |event: RtcPeerConnectionIceEvent| {
+                if let Some(candidate) = event.candidate() {
+                    let candidate_str = candidate.candidate();
+                    let sdp_mid =
+                        candidate.sdp_mid().unwrap_or_default();
+
+                    let obj = js_sys::Object::new();
+                    js_sys::Reflect::set(
+                        &obj,
+                        &JsValue::from_str("type"),
+                        &JsValue::from_str("ice"),
+                    )
+                    .unwrap();
+                    js_sys::Reflect::set(
+                        &obj,
+                        &JsValue::from_str("candidate"),
+                        &JsValue::from_str(&candidate_str),
+                    )
+                    .unwrap();
+                    js_sys::Reflect::set(
+                        &obj,
+                        &JsValue::from_str("sdp_mid"),
+                        &JsValue::from_str(&sdp_mid),
+                    )
+                    .unwrap();
+                    if let Ok(msg) = js_sys::JSON::stringify(&obj) {
+                        if let Some(text) = msg.as_string() {
+                            let _ = ws_for_ice.send_with_str(&text);
+                        }
+                    }
+                }
+            },
+        )
+            as Box<dyn FnMut(_)>);
+
+        pc.pc
+            .set_onicecandidate(Some(onicecandidate.as_ref().unchecked_ref()));
+        onicecandidate.forget();
+
+        // Store ws on the struct to prevent garbage collection
+        *pc.ws.borrow_mut() = Some(ws);
+
+        Ok(pc)
+    }
+
+    /// Send a JSON signaling message through the WebSocket channel.
+    ///
+    /// Use this to send SDP offers/answers; ICE candidates are sent
+    /// automatically via the `onicecandidate` handler.
+    pub fn send_signaling(&self, msg: &JsValue) -> MediaResult<()> {
+        let ws_guard = self.ws.borrow();
+        let ws = ws_guard
+            .as_ref()
+            .ok_or_else(|| MediaError::new("no signaling WebSocket configured"))?;
+        let text = js_sys::JSON::stringify(msg)
+            .map_err(|e| MediaError::new(format!("JSON.stringify: {:?}", e)))?;
+        let text = text
+            .as_string()
+            .ok_or_else(|| MediaError::new("JSON.stringify returned non-string"))?;
+        ws.send_with_str(&text)
+            .map_err(|e| MediaError::new(format!("ws.send: {:?}", e)))
     }
 }
 

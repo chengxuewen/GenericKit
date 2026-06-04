@@ -35,6 +35,10 @@ web-sys = { version = "0.3", features = [
     "Window",
     "Document",
     "RtcTrackEvent",
+    "RtcPeerConnectionIceEvent",
+    "WebSocket",
+    "MessageEvent",
+    "BinaryType",
 ] }
 js-sys = "0.3"
 wasm-bindgen-futures = "0.4"
