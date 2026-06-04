@@ -290,7 +290,7 @@ pub unsafe extern "C" fn gkit_media_rtc_create_factory(
 
 ## 6. C++ RAII 封装
 
-新文件：`bindings/cpp/gkit-media/gkit_media_rtc.hpp`
+新文件：`packages/cpp/gkit-media/gkit_media_rtc.hpp`
 
 ```cpp
 namespace gkit {
@@ -556,8 +556,8 @@ fn test_engine() {
 | Rust — P2P 连通性 | `p2p_ice_connectivity` — 两个 PC SDP/ICE 交换，验证连接状态 | `cargo test -p gkit-media --test webrtc_p2p_conn -- --nocapture` |
 | Rust — 引擎注册 | `rtc_engine_register`, `rtc_engine_create`, `rtc_engine_default` | `cargo test -p gkit-media` |
 | Rust — 多后端 | 同一测试中分别创建 google_lk 和 webrtc-rs PC | `cargo test --features backend-native-all` |
-| C FFI | `test_rtc_factory.c` | `ctest -R gkit_media_c_test` |
-| C++ GTest | `test_rtc_factory.cpp` | `ctest -R gkit_media_cpp_test_rtc` |
+| C FFI | `test_rtc_factory.c` | `ctest -R gkit-media-c-test` |
+| C++ GTest | `test_rtc_factory.cpp` | `ctest -R gkit-media-cpp-test-rtc` |
 
 ### 验证命令
 

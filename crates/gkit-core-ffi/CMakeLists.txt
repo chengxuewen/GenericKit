@@ -18,21 +18,21 @@
 #
 ########################################################################################################################
 
-gkit_cargo_setup_ffi_target(gkit_core_c
+gkit_cargo_setup_ffi_target(gkit-core-c
 	MANIFEST "${CMAKE_CURRENT_SOURCE_DIR}/Cargo.toml"
 	HEADER "gkit_core.h"
 	CRATE_NAME "gkit-core-c"
-	FOLDER "gkit_core_ffi")
+	FOLDER "gkit-core-ffi")
 
 # Include the manual API header
-target_include_directories(gkit_core_c INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}")
+target_include_directories(gkit-core-c INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}")
 
 # API visibility macro (committed alongside the Rust crate)
 gkit_install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/gkit_core_api.h"
 	DESTINATION "${GKIT_INSTALL_INCLUDEDIR}"
 	COMPONENT Devel)
 
-gkit_cargo_install_config(gkit_core_c
+gkit_cargo_install_config(gkit-core-c
 	DESCRIPTION "GenericKit Core C FFI bindings"
 	LIB_NAME_STATIC "gkit_core_c"
 	LIB_NAME_SHARED "gkit_core_c")

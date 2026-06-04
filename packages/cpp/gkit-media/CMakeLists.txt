@@ -18,15 +18,15 @@
 #
 ########################################################################################################################
 
-gkit_cargo_setup_ffi_cpp_target(gkit_media_cpp
+gkit_cargo_setup_ffi_cpp_target(gkit-media-cpp
 	HEADER_DIR "${CMAKE_CURRENT_SOURCE_DIR}"
-	FFI_BASE_NAME "gkit_media_c"
+	FFI_BASE_NAME "gkit-media-c"
 	INSTALL_HEADERS "gkit_media.hpp" "gkit_media_video_frame.hpp"
-	FOLDER "gkit_media/bindings/cpp")
+	FOLDER "gkit-media-ffi/packages/cpp")
 
-gkit_cargo_install_config(gkit_media_cpp
+gkit_cargo_install_config(gkit-media-cpp
 	DESCRIPTION "GenericKit Media C++ bindings"
-	FFI_BASE_NAME "gkit_media_c")
+	FFI_BASE_NAME "gkit-media-c")
 
 if(GKIT_BUILD_TESTS)
 	add_subdirectory(tests)

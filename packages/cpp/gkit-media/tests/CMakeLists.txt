@@ -18,12 +18,11 @@
 #
 ########################################################################################################################
 
-gkit_cargo_setup_ffi_cpp_target(gkit_core_cpp
-	HEADER_DIR "${CMAKE_CURRENT_SOURCE_DIR}"
-	FFI_BASE_NAME "gkit_core_c"
-	INSTALL_HEADERS "gkit_core.hpp"
-	FOLDER "gkit_core/cpp")
+gkit_find_package(WrapGTest PROVIDED_TARGETS GKitWrapGTest::WrapGTest)
 
-gkit_cargo_install_config(gkit_core_cpp
-	DESCRIPTION "GenericKit Core C++ bindings"
-	FFI_BASE_NAME "gkit_core_c")
+set(_test_dir "${CMAKE_CURRENT_SOURCE_DIR}")
+
+add_executable(gkit-media-cpp-test-video-frame "${_test_dir}/test_video_frame.cpp")
+target_link_libraries(gkit-media-cpp-test-video-frame gkit-media-cpp gkit-media-c GKitWrapGTest::WrapGTest)
+set_target_properties(gkit-media-cpp-test-video-frame PROPERTIES FOLDER "gkit-media-ffi/packages/cpp/tests")
+add_test(NAME gkit-media-cpp-test-video-frame COMMAND gkit-media-cpp-test-video-frame)

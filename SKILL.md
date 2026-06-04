@@ -51,13 +51,7 @@ GenericKit/
 │   ├── gkit-service/        # Service library (stub)
 │   ├── gkit-profiling/      # Profiling (stub)
 │   └── gkit-graphics/       # Graphics (stub)
-├── bindings/                # Multi-language FFI bindings (6 languages)
-│   ├── cpp/                 # C++ wrappers (RAII classes)
-│   ├── python/              # Python (pyo3 + maturin)
-│   ├── wasm/                # WebAssembly (wasm-bindgen + wasm-pack)
-│   ├── node/                # Node.js (napi-rs)
-│   ├── csharp/              # C# (csbindgen codegen)
-│   └── flutter/             # Flutter (flutter_rust_bridge)
+├── packages/                # C++ packages (RAII headers)
 ├── cmake/                   # CMake helper modules (16+)
 ├── tools/                   # CLI tools
 │   ├── gkit-vcpkg/          # vcpkg helper (clap, 8 subcommands)
@@ -84,7 +78,7 @@ GenericKit/
 ### CMake + Cargo (Corrosion) Integration
 
 - Uses Corrosion (`InstallCorrosion.cmake`) as Rust-CMake bridge
-- `corrosion_import_crate()` imports workspace members conditionally based on `GKIT_BUILD_API_*` options
+- `corrosion_import_crate()` imports workspace members conditionally based on `GKIT_BUILD_CRATE_*` options
 - Each crate gets `gkit_cargo_set_folder()` for IDE organization
 - All Rust build output redirected away from `build/` root via generator expressions
 - Feature flags injected via `CORROSION_FEATURES` target property
@@ -160,23 +154,23 @@ Selected via CMake cache string `GKIT_FEATURE_MEDIA_WEBRTC_BACKEND` → `CORROSI
 |-------|----------|-----------|----------|-------|
 | Rust trait | Rust | `#[test]` | `crates/gkit-media/tests/` | 21 |
 | C FFI | C | Unity | `crates/gkit-media-ffi/tests/` | 5 |
-| C++ FFI | C++ | GTest | `bindings/cpp/gkit-media/tests/` | 1 |
+| C++ FFI | C++ | GTest | `packages/cpp/gkit-media/tests/` | 1 |
 
 **Test naming conventions:**
 - Rust: `snake_case` descriptive (e.g., `create_and_close`, `error_on_closed_connection`)
 - C: `test_<feature>.c` (e.g., `test_basic.c`, `test_sdp.c`, `test_video_frame.c`)
 - C++: `test_<feature>.cpp`
 - Tests registered as CTest via `add_test(NAME ... COMMAND ...)`
-- C test targets linked with `gkit_media_c` + `GKitWrapUnity::WrapUnity`
-- C++ test targets linked with `gkit_media_cpp` + `GKitWrapGTest::WrapGTest`
-- FOLDER: `gkit_media_ffi/tests`, `gkit_media/bindings/cpp/tests`
+- C test targets linked with `gkit-media-c` + `GKitWrapUnity::WrapUnity`
+- C++ test targets linked with `gkit-media-cpp` + `GKitWrapGTest::WrapGTest`
+- FOLDER: `gkit-media/ffi/tests`, `gkit-media-ffi/packages/cpp/tests`
 
 **Test commands:**
 ```bash
 cargo test -p gkit-media                          # Rust tests (native backend)
 cargo test -p gkit-media --features backend-native  # All tests (mock backend)
 ctest --test-dir build-auto                       # All CTest-registered tests
-ctest -R gkit_media_c_test                        # C FFI tests only
+ctest -R gkit-media-c-test                        # C FFI tests only
 ```
 
 ### Code Style
@@ -200,8 +194,8 @@ For each new API binding crate:
 1. Add to `[workspace].members` in root `Cargo.toml`
 2. Conditionally add to `_gkit_corrosion_crates` in root `CMakeLists.txt`
 3. Add `gkit_cargo_set_folder()` call matching the import condition
-4. Create `crates/<crate>/CMakeLists.txt` (for C FFI) or `bindings/<api>/<module>/CMakeLists.txt` (for other bindings) with target definitions
-5. Create `bindings/<api>/CMakeLists.txt` (or add to root `CMakeLists.txt` for C FFI crates) with `add_subdirectory()`
+4. Create `crates/<crate>/CMakeLists.txt` (for C FFI) or `packages/<lang>/<module>/CMakeLists.txt` (for other packages) with target definitions
+5. Create `packages/<lang>/CMakeLists.txt` (or add to root `CMakeLists.txt` for C FFI crates) with `add_subdirectory()`
 6. Verify FOLDER tree: cargo-build targets are correctly grouped
 7. Ensure all Rust output is redirected away from `build/` root
 8. `cargo build` (default members) compiles cleanly

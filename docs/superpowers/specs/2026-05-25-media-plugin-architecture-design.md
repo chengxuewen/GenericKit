@@ -787,11 +787,11 @@ members = [
     "crates/gkit-media/plugins/*",
     "crates/gkit-core-ffi",
     "crates/gkit-media-ffi",
-    "bindings/python/*",
-    "bindings/wasm/*",
-    "bindings/node/*",
-    "bindings/flutter/*",
-    "bindings/csharp/*",
+    "packages/python/*",
+    "packages/wasm/*",
+    "packages/node/*",
+    "packages/flutter/*",
+    "packages/csharp/*",
     "tools/gkit-vcpkg",
 ]
 

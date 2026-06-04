@@ -66,10 +66,11 @@ gkit_fetch_3rdparty(
 ```
 
 ### 3. Naming Convention
-Rust crate names with hyphens → CMake targets with underscores:
-- `gkit-media` → `gkit_media` (Corrosion target)
-- `gkit-media-c` → `gkit_media_c` (C FFI target)
-- `gkit-media-cpp` → `gkit_media_cpp` (C++ wrapper target)
+Custom CMake targets use hyphen style (matching Rust crate names). Corrosion-generated internal targets use underscore style:
+- `gkit-media` → `gkit_media` (Corrosion auto-generated target — underscores)
+- `gkit-media-c` → `gkit-media-c` (C FFI wrapper target — hyphens)
+- `gkit-media-cpp` → `gkit-media-cpp` (C++ wrapper target — hyphens)
+- Corrosion internal: `gkit_media_c`, `gkit_media_c-shared`, `cargo-build_gkit_media_c` (auto-generated — underscores)
 
 ### 4. Build Options (gkit_option)
 ```cmake
@@ -88,7 +89,7 @@ gkit_option(
 - **Corrosion target features**: set via `set_target_properties(... CORROSION_FEATURES ...)`
 - **Cargo output redirection**: `build-auto/cargo/<crate>/` per crate
 - **Stamp files**: `<Name>-stamp.txt` in build dir — idempotent configure
-- **IDE folders**: `gkit_cargo_set_folder(target "gkit_media/c")` for IDE tree
+- **IDE folders**: `gkit_cargo_set_folder(crate "gkit-media/ffi")` for IDE tree
 - **Debug postfixes**: macOS: `_debug`, Windows: `d`, Linux: none
 
 ## NOTES

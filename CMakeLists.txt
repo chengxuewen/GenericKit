@@ -347,19 +347,16 @@ gkit_option(GKIT_BUILD_EXAMPLES "Enable this to build examples" ON
 	OR_CONDITION GKIT_BUILD_ALL)
 gkit_option(GKIT_BUILD_INSTALL "Enable this to build the installer" ${GKIT_WILL_INSTALL_VALUE}
 	OR_CONDITION GKIT_BUILD_ALL)
-gkit_option(GKIT_BUILD_API_C "Enable this to build C FFI bindings" ON
+
+gkit_option(GKIT_BUILD_CRATE_FFI "Enable this to build C FFI bindings" ON
 	OR_CONDITION GKIT_BUILD_ALL)
-gkit_option(GKIT_BUILD_API_CPP "Enable this to build C++ bindings" ON
+gkit_option(GKIT_BUILD_CRATE_WASM "Enable this to build WebAssembly bindings (requires wasm-pack)" OFF
 	OR_CONDITION GKIT_BUILD_ALL)
-gkit_option(GKIT_BUILD_API_PYTHON "Enable this to build Python bindings (requires maturin)" OFF
+gkit_option(GKIT_BUILD_CRATE_UNIFFI "Enable this to build UniFFI bindings (Kotlin, Swift, Python, Ruby)" OFF
 	OR_CONDITION GKIT_BUILD_ALL)
-gkit_option(GKIT_BUILD_API_WASM "Enable this to build WebAssembly bindings (requires wasm-pack)" OFF
-	OR_CONDITION GKIT_BUILD_ALL)
-gkit_option(GKIT_BUILD_API_NODE "Enable this to build Node.js bindings (napi-rs)" OFF
-	OR_CONDITION GKIT_BUILD_ALL)
-gkit_option(GKIT_BUILD_API_CSHARP "Enable this to include C# bindings (csbindgen)" OFF
-	OR_CONDITION GKIT_BUILD_ALL)
-gkit_option(GKIT_BUILD_API_FLUTTER "Enable this to build Flutter bindings (requires flutter_rust_bridge_codegen)" OFF
+
+gkit_option(GKIT_BUILD_PACKAGE_CPP "Enable this to build C++ packages" ON
+	DEPENDS GKIT_BUILD_CRATE_FFI
 	OR_CONDITION GKIT_BUILD_ALL)
 
 # WebRTC backend selection
@@ -553,10 +550,10 @@ endif()
 # Set custom build target
 #-----------------------------------------------------------------------------------------------------------------------
 if(GKIT_PROJECT_IS_TOP_LEVEL)
-	add_custom_target(gkit_build
+	add_custom_target(gkit-build
 		COMMAND ${CMAKE_COMMAND} --build ./ --parallel ${GKIT_NUMBER_OF_ASYNC_JOBS} --config ${CMAKE_BUILD_TYPE}
 		WORKING_DIRECTORY "${GKIT_BUILD_DIR}")
-	add_custom_target(gkit_build_install
+	add_custom_target(gkit-build-install
 		COMMAND ${CMAKE_COMMAND} --build ./ --parallel ${GKIT_NUMBER_OF_ASYNC_JOBS} --config ${CMAKE_BUILD_TYPE}
 		COMMAND ${CMAKE_COMMAND} --install ./
 		WORKING_DIRECTORY "${GKIT_BUILD_DIR}")
@@ -632,7 +629,7 @@ if(GKIT_BUILD_TESTS)
 	gkit_find_package(WrapBenchmark PROVIDED_TARGETS GKitWrapBenchmark::WrapBenchmark)
 
 	find_program(GKIT_CARGO_EXECUTABLE cargo REQUIRED)
-	add_test(NAME gkit_media_tests_native
+	add_test(NAME gkit-media-tests-native
 		COMMAND "${GKIT_CARGO_EXECUTABLE}" test -p gkit-media --features backend-native
 		WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}")
 endif()
@@ -642,9 +639,10 @@ endif()
 # add subdirectory
 #-----------------------------------------------------------------------------------------------------------------------
 set(_gkit_corrosion_crates gkit-core gkit-media gkit-native gkit-crash gkit-network gkit-service)
-if(GKIT_BUILD_API_C)
+if(GKIT_BUILD_CRATE_FFI)
 	list(APPEND _gkit_corrosion_crates gkit-core-c gkit-media-c)
 endif()
+list(APPEND _gkit_corrosion_crates gkit-core-wasm gkit-core-uniffi gkit-media-wasm gkit-media-uniffi)
 
 # --- Plugin crates ---
 gkit_cargo_add_plugin(
@@ -667,12 +665,13 @@ if(TARGET gkit_plugin_webrtc_web_sys)
     get_target_property(_wstype gkit_plugin_webrtc_web_sys TYPE)
     if(NOT _wstype STREQUAL "INTERFACE_LIBRARY")
         set_target_properties(gkit_plugin_webrtc_web_sys PROPERTIES
-            FOLDER "gkit_media/plugins/webrtc")
+            FOLDER "gkit-media/plugins/webrtc")
     endif()
 endif()
 
-# Direct internal/Python/Wasm/Node/Flutter crate output to a cargo subdir to avoid cluttering build/
+# Direct internal/binding crate output to a cargo subdir to avoid cluttering build/
 set(_gkit_redirect_crates gkit_core gkit_media gkit_native gkit_crash gkit_network gkit_service)
+list(APPEND _gkit_redirect_crates gkit-core-wasm gkit-core-uniffi gkit-media-wasm gkit-media-uniffi)
 foreach(_gkit_crate ${_gkit_redirect_crates})
 	if(TARGET ${_gkit_crate})
 		set_target_properties(${_gkit_crate} PROPERTIES
@@ -688,24 +687,28 @@ foreach(_gkit_crate ${_gkit_redirect_crates})
 endforeach()
 
 # organize corrosion targets into IDE folder tree
-gkit_cargo_set_folder("gkit-core"    "gkit_core")
-gkit_cargo_set_folder("gkit-media"   "gkit_media")
-gkit_cargo_set_folder("gkit-native"  "gkit_native")
-gkit_cargo_set_folder("gkit-crash"   "gkit_crash")
-gkit_cargo_set_folder("gkit-network" "gkit_network")
-gkit_cargo_set_folder("gkit-service" "gkit_service")
-	if(GKIT_BUILD_API_C)
-		gkit_cargo_set_folder("gkit-core-c"  "gkit_core_ffi")
-		gkit_cargo_set_folder("gkit-media-c" "gkit_media_ffi")
-	endif()
+gkit_cargo_set_folder("gkit-core"    "gkit-core")
+gkit_cargo_set_folder("gkit-media"   "gkit-media")
+gkit_cargo_set_folder("gkit-native"  "gkit-native")
+gkit_cargo_set_folder("gkit-crash"   "gkit-crash")
+gkit_cargo_set_folder("gkit-network" "gkit-network")
+gkit_cargo_set_folder("gkit-service" "gkit-service")
+if(GKIT_BUILD_CRATE_FFI)
+	gkit_cargo_set_folder("gkit-core-c"  "gkit-core-ffi")
+	gkit_cargo_set_folder("gkit-media-c" "gkit-media-ffi")
+endif()
+gkit_cargo_set_folder("gkit-core-wasm" "gkit-core-wasm")
+gkit_cargo_set_folder("gkit-core-uniffi" "gkit-core-uniffi")
+gkit_cargo_set_folder("gkit-media-wasm" "gkit-media-wasm")
+gkit_cargo_set_folder("gkit-media-uniffi" "gkit-media-uniffi")
 
 # add API subdirectories (conditional on build options)
-if(GKIT_BUILD_API_C)
+if(GKIT_BUILD_CRATE_FFI)
 	add_subdirectory(crates/gkit-media-ffi)
 	add_subdirectory(crates/gkit-core-ffi)
 endif()
-if(GKIT_BUILD_API_CPP)
-	add_subdirectory(bindings/cpp)
+if(GKIT_BUILD_PACKAGE_CPP)
+	add_subdirectory(packages/cpp)
 endif()
 #add_subdirectory(src/tools)
 #add_subdirectory(src/libs)

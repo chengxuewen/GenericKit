@@ -22,7 +22,7 @@ crates/                          # Rust workspace (10 crates, 2 active)
 ├── gkit-core-ffi/               # Stub
 └── gkit-{network,graphics,service,native,profiling,crash}/  # Arch stubs
 
-bindings/
+packages/
 └── cpp/                         # C++ RAII headers (active)
 ```
 

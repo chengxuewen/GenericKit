@@ -77,12 +77,12 @@ Thumbs.db
 
 # Generated csbindgen C# files
 # --------
-**/bindings/csharp/**/*.g.cs
+**/packages/csharp/**/*.g.cs
 build/csharp/
 
 # Generated flutter_rust_bridge files
 # --------
-**/bindings/flutter/**/src/frb_generated.rs
+**/packages/flutter/**/src/frb_generated.rs
 
 # IDE files
 # --------
@@ -112,3 +112,4 @@ stash
 
 # Don't ignore files
 # --------
+!build.rs

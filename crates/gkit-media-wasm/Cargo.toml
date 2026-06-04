@@ -1,0 +1,11 @@
+[package]
+name = "gkit-media-wasm"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+gkit-media.workspace = true
+wasm-bindgen = { workspace = true }
+
+[lib]
+crate-type = ["cdylib"]

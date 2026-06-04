@@ -164,7 +164,7 @@ impl PeerConnectionFactory for NativeFactory {
 ### 3.6 Verification
 - `cargo test -p gkit-media` — 21 tests pass with real webrtc-rs backend (not stubs)
 - `cargo test -p gkit-media --features backend-native-webrtc-rs` — same result
-- C FFI tests (5 C + 1 C++): `ctest -R gkit_media_c_test` — unchanged, still pass
+- C FFI tests (5 C + 1 C++): `ctest -R gkit-media-c-test` — unchanged, still pass
 - `cargo check -p gkit-media --features backend-native-google` — compiles (google stubs still)
 
 ---
@@ -235,7 +235,7 @@ Confirm build.rs:
 
 ### 5.1 PeerConnection RAII Wrapper
 
-New file: `bindings/cpp/gkit-media/gkit_media_rtc.hpp`
+New file: `packages/cpp/gkit-media/gkit_media_rtc.hpp`
 
 ```cpp
 namespace gkit {
@@ -310,19 +310,19 @@ private:
 ### 5.3 GTest Tests
 
 New test files:
-- `bindings/cpp/gkit-media/tests/test_rtc_basic.cpp` — create/destroy, move semantics
-- `bindings/cpp/gkit-media/tests/test_rtc_sdp.cpp` — offer/answer round-trip via C FFI
-- `bindings/cpp/gkit-media/tests/test_rtc_dc.cpp` — DataChannel label, send, close
+- `packages/cpp/gkit-media/tests/test_rtc_basic.cpp` — create/destroy, move semantics
+- `packages/cpp/gkit-media/tests/test_rtc_sdp.cpp` — offer/answer round-trip via C FFI
+- `packages/cpp/gkit-media/tests/test_rtc_dc.cpp` — DataChannel label, send, close
 
 ### 5.4 CMake Wiring
 
 New targets:
-- `gkit_media_cpp_test_rtc_basic`, `gkit_media_cpp_test_rtc_sdp`, `gkit_media_cpp_test_rtc_dc`
-- FOLDER: `gkit_media/bindings/cpp/tests`
+- `gkit-media-cpp-test-rtc-basic`, `gkit-media-cpp-test-rtc-sdp`, `gkit-media-cpp-test-rtc-dc`
+- FOLDER: `gkit-media/packages/cpp/tests`
 - Registered in CTest
 
 ### 5.5 Verification
-- `ctest -R gkit_media_cpp_test_rtc` — 3 new tests pass
+- `ctest -R gkit-media-cpp-test-rtc` — 3 new tests pass
 - All 8 existing tests still pass (no regression)
 
 ---
@@ -387,9 +387,9 @@ Error states:
 |-------|-------|---------|
 | Rust trait (webrtc-rs) | 21 | `cargo test -p gkit-media` |
 | Rust trait (google) | 21 | `cargo test -p gkit-media --features backend-native-google` |
-| C FFI (Unity) | 5 existing | `ctest -R gkit_media_c_test` |
-| C++ FFI (GTest) — VideoFrame | 1 existing | `ctest -R gkit_media_cpp_test_video_frame` |
-| C++ FFI (GTest) — RTC | 3 new | `ctest -R gkit_media_cpp_test_rtc` |
+| C FFI (Unity) | 5 existing | `ctest -R gkit-media-c-test` |
+| C++ FFI (GTest) — VideoFrame | 1 existing | `ctest -R gkit-media-cpp-test-video-frame` |
+| C++ FFI (GTest) — RTC | 3 new | `ctest -R gkit-media-cpp-test-rtc` |
 | **Total** | **51** | `ctest --test-dir build-auto && cargo test -p gkit-media` |
 
 ---
@@ -446,8 +446,8 @@ Error states:
 #### Examples
 - `gkit-media-square-gen` — Rust egui generator demo (640×480 30fps)
 - `gkit-media-webrtc-loopback` — Rust egui P2P loopback (640×360 15fps, gkit API)
-- `gkit_media_cpp_example_square_gen` — C++ ImGui generator demo
-- `gkit_media_cpp_example_rtc_loopback` — C++ ImGui P2P loopback (1280×720 30fps)
+- `gkit-media-cpp-example-square-gen` — C++ ImGui generator demo
+- `gkit-media-cpp-example-rtc-loopback` — C++ ImGui P2P loopback (1280×720 30fps)
 
 #### Tests (53 total)
 - 21 WebRTC core tests + 17 source/sink tests + 15 new W3C tests (track/ICE/P2P)

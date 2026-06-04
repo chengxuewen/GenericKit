@@ -42,4 +42,4 @@ add_custom_target(${_tool_name}
 	VERBATIM)
 
 set_target_properties(${_tool_name} ${_tool_name}_build ${_tool_name}_run
-	PROPERTIES FOLDER "gkit_tools")
+	PROPERTIES FOLDER "gkit/tools")

@@ -1,0 +1,15 @@
+[package]
+name = "gkit-media-uniffi"
+version.workspace = true
+edition = "2021"  # UniFFI 0.28 generates #[no_mangle], incompatible with edition 2024
+
+[dependencies]
+gkit-core.workspace = true
+gkit-media.workspace = true
+uniffi = { workspace = true, features = ["build"] }
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[build-dependencies]
+uniffi = { workspace = true, features = ["build"] }

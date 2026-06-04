@@ -1,0 +1,4 @@
+namespace gkit_media {
+    string get_version_string();
+    string hello();
+};

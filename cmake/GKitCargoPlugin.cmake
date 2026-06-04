@@ -114,7 +114,7 @@ function(gkit_cargo_setup_plugins)
         endif()
 
         set_target_properties(${_target} PROPERTIES
-            FOLDER "gkit_media/plugins/${_category}")
+            FOLDER "gkit-media/plugins/${_category}")
 
         foreach(_prefix cargo-build_ _cargo-build_ cargo-clean_ _cargo-clean_
                       cargo-check_ _cargo-check_ cargo-test_ _cargo-test_
@@ -122,7 +122,7 @@ function(gkit_cargo_setup_plugins)
             set(_util_target ${_prefix}${_target})
             if(TARGET ${_util_target})
                 set_target_properties(${_util_target} PROPERTIES
-                    FOLDER "gkit_media/plugins/${_category}")
+                    FOLDER "gkit-media/plugins/${_category}")
             endif()
         endforeach()
 
@@ -147,7 +147,7 @@ function(gkit_cargo_setup_plugins)
         endif()
 
         set_target_properties(copy-plugin-${_plugin} PROPERTIES
-            FOLDER "gkit_media/plugins/${_category}")
+            FOLDER "gkit-media/plugins/${_category}")
 
         install(FILES "$<TARGET_FILE:${_target}-shared>"
             DESTINATION "${CMAKE_INSTALL_LIBDIR}/plugins/${_category}")

@@ -23,13 +23,8 @@ GenericKit/
 │   └── gkit-crash/      # STUB — crash reporting
 ├── crates/gkit-media-ffi/  # C FFI (extern "C" + cbindgen) — working
 ├── crates/gkit-core-ffi/   # C FFI (core primitives)
-├── bindings/               # Non-Rust language bindings
-│   ├── cpp/             # C++ RAII wrappers on C FFI
-│   ├── python/          # PyO3 + maturin — stub
-│   ├── wasm/            # wasm-bindgen — stub
-│   ├── node/            # napi-rs — stub
-│   ├── flutter/         # flutter_rust_bridge — stub
-│   └── csharp/          # csbindgen — scaffold (broken)
+├── packages/               # Non-Rust language packages
+│   └── cpp/             # C++ RAII wrappers on C FFI
 ├── cmake/               # CMake build modules (19 files)
 ├── tools/               # CLI tools
 │   ├── gkit-vcpkg/      # vcpkg integration CLI
@@ -47,7 +42,7 @@ GenericKit/
 |------|----------|-------|
 | Rust changes | `crates/gkit-media/src/` | Only active crate |
 | C FFI changes | `crates/gkit-media-ffi/src/lib.rs` | 1,168-line FFI binding |
-| C++ wrapper changes | `bindings/cpp/gkit-media/*.hpp` | RAII headers on C handles |
+| C++ wrapper changes | `packages/cpp/gkit-media/*.hpp` | RAII headers on C handles |
 | Build system changes | `CMakeLists.txt` + `cmake/GKitCargoHelpers.cmake` | Corrosion + FFI target setup |
 | AI coding rules | `.agents/rules/common/` + `.agents/rules/rust/` | Layered: specific overrides general |
 | Test infrastructure | See AGENTS.md notes; only gkit-media has tests | C: Unity, C++: GTest, Rust: `#[test]` |
@@ -70,25 +65,20 @@ cmake --build build-auto
 ctest --test-dir build-auto --output-on-failure
 ```
 
-**Key CMake options**: `GKIT_BUILD_TESTS`, `GKIT_BUILD_API_C`, `GKIT_BUILD_API_CPP`, `GKIT_BUILD_API_PYTHON`, `GKIT_BUILD_API_*`
+**Key CMake options**: `GKIT_BUILD_TESTS`, `GKIT_BUILD_CRATE_FFI`, `GKIT_BUILD_PACKAGE_CPP`, `GKIT_BUILD_CRATE_WASM`, `GKIT_BUILD_CRATE_UNIFFI`
 **WebRTC backend**: `GKIT_FEATURE_MEDIA_WEBRTC_BACKEND` ∈ {`webrtc-rs`, `libwebrtc`, `wasm`}
 **First build**: Corrosion 0.6.1 extracted from `3rdparty/corrosion-0.6.1.tar.gz`, built at configure time (~minutes). vcpkg clones and bootstraps if not present.
 
 ## API BINDINGS
 
-6 language bindings in `bindings/`, plus C FFI in `crates/gkit-media-ffi/` and `crates/gkit-core-ffi/`. Each wraps exactly 2 crates (`gkit-core` + `gkit-media`). Only C and C++ are functional; all others are stubs.
+C++ packages in `packages/cpp/`, plus C FFI in `crates/gkit-media-ffi/` and `crates/gkit-core-ffi/`. Each wraps exactly 2 crates (`gkit-core` + `gkit-media`). Only C and C++ are functional.
 
 | Lang | Dir | FFI Tech | Status | Notes |
 |------|-----|----------|--------|-------|
 | C | `crates/gkit-media-ffi/` | extern "C" + cbindgen 0.29 | **Working** | RTC, VideoFrame, SCTP, 7 callback types |
-| C++ | `bindings/cpp/` | Headers on C FFI | **Working** | RAII wrappers, GTest suite, 3 examples |
-| Python | `bindings/python/` | PyO3 0.24 + maturin | Stub | `hello()` only |
-| Node | `bindings/node/` | napi-rs 2 | Stub | `hello()` only |
-| WASM | `bindings/wasm/` | wasm-bindgen 0.2 | Stub | `hello()` only |
-| Flutter | `bindings/flutter/` | flutter_rust_bridge 2 | Stub | `hello()` only |
-| C# | `bindings/csharp/` | csbindgen 1 | Broken | No build.rs, lib.rs is a comment |
+| C++ | `packages/cpp/` | Headers on C FFI | **Working** | RAII wrappers, GTest suite, 3 examples |
 
-Enable via `GKIT_BUILD_API_<LANG>` CMake options. Build helpers: `cmake/GKitCargoHelpers.cmake`.
+Enable via `GKIT_BUILD_CRATE_*` / `GKIT_BUILD_PACKAGE_*` CMake options. Build helpers: `cmake/GKitCargoHelpers.cmake`.
 
 ## CONVENTIONS
 

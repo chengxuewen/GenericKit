@@ -45,8 +45,8 @@ crates/gkit-media/src/
 
 crates/gkit-media-ffi/src/lib.rs                # +14 new C FFI functions
 crates/gkit-media-ffi/tests/test_source_sink.c  # [NEW] 5 C Unity tests
-bindings/cpp/gkit-media/gkit_media_source_sink.hpp  # [NEW] C++ RAII wrappers
-bindings/cpp/gkit-media/tests/test_source_sink.cpp  # [NEW] 7 GTest tests
+packages/cpp/gkit-media/gkit_media_source_sink.hpp  # [NEW] C++ RAII wrappers
+packages/cpp/gkit-media/tests/test_source_sink.cpp  # [NEW] 7 GTest tests
 crates/gkit-media/tests/test_source_sink.rs   # [DONE] 8 Rust tests (partial)
 ```
 crates/gkit-media/src/
@@ -64,8 +64,8 @@ crates/gkit-media/src/
 
 crates/gkit-media-ffi/src/lib.rs                # +24 new C FFI functions
 crates/gkit-media-ffi/tests/test_source_sink.c  # [NEW] 5 C Unity tests
-bindings/cpp/gkit-media/gkit_media_source_sink.hpp  # [NEW] C++ RAII wrappers
-bindings/cpp/gkit-media/tests/test_source_sink.cpp  # [NEW] 7 GTest tests
+packages/cpp/gkit-media/gkit_media_source_sink.hpp  # [NEW] C++ RAII wrappers
+packages/cpp/gkit-media/tests/test_source_sink.cpp  # [NEW] 7 GTest tests
 crates/gkit-media/tests/test_source_sink.rs   # [NEW] 18 Rust unit tests
 ```
 
@@ -344,7 +344,7 @@ int   gkit_media_rtc_audio_source_remove_sink(void* src, void* sink);
 
 ---
 
-## 8. C++ Wrappers (new file `bindings/cpp/gkit-media/gkit_media_source_sink.hpp`)
+## 8. C++ Wrappers (new file `packages/cpp/gkit-media/gkit_media_source_sink.hpp`)
 
 ```cpp
 namespace gkit {
@@ -447,7 +447,7 @@ Referencing libwebrtc `video_broadcaster_unittest.cc`, `video_adapter_unittests.
 | 4 | `test_remove_sink` | Removed sink gets no frames |
 | 5 | `test_null_source_safety` | Null handle returns error -1 |
 
-### 9.3 C++ Tests (`bindings/cpp/gkit-media/tests/test_source_sink.cpp`)
+### 9.3 C++ Tests (`packages/cpp/gkit-media/tests/test_source_sink.cpp`)
 
 | # | Test | Description |
 |---|------|-------------|
@@ -622,11 +622,11 @@ impl eframe::App for SquareDemoApp {
 | 4 | `crates/gkit-media/src/video/generator.rs` | NEW | ~250 |
 | 5 | `crates/gkit-media/src/video/mod.rs` | MODIFY | +1 line |
 | 6 | `crates/gkit-media-ffi/src/lib.rs` | MODIFY | +180 lines |
-| 7 | `bindings/cpp/gkit-media/gkit_media_source_sink.hpp` | NEW | ~120 |
+| 7 | `packages/cpp/gkit-media/gkit_media_source_sink.hpp` | NEW | ~120 |
 | 8 | `crates/gkit-media-ffi/tests/test_source_sink.c` | NEW | ~80 |
 | 9 | `crates/gkit-media-ffi/tests/CMakeLists.txt` | MODIFY | +10 lines |
-| 10 | `bindings/cpp/gkit-media/tests/test_source_sink.cpp` | NEW | ~100 |
-| 11 | `bindings/cpp/gkit-media/tests/CMakeLists.txt` | MODIFY | +10 lines |
+| 10 | `packages/cpp/gkit-media/tests/test_source_sink.cpp` | NEW | ~100 |
+| 11 | `packages/cpp/gkit-media/tests/CMakeLists.txt` | MODIFY | +10 lines |
 | 12 | `crates/gkit-media/tests/test_source_sink.rs` | NEW | ~250 |
 | 13 | `crates/gkit-media/examples/gkit-media-square-gen/main.rs` | NEW | ~150 |
 | 14 | `crates/gkit-media/examples/gkit-media-square-gen/CMakeLists.txt` | NEW | ~30 |

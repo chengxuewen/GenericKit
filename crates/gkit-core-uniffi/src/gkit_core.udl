@@ -1,0 +1,5 @@
+namespace gkit_core {
+    string get_version_string();
+    string get_target_arch();
+    string get_target_os();
+};

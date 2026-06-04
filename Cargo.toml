@@ -41,6 +41,7 @@ stabby = "72"
 libloading = "0.8"
 linkme = "0.3"
 thiserror = "2"
+uniffi = "0.28"
 
 [patch."https://github.com/livekit/rust-sdks"]
 livekit-runtime = { path = "patches/livekit-runtime" }

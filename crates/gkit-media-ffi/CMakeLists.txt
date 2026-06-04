@@ -18,20 +18,20 @@
 #
 ########################################################################################################################
 
-gkit_cargo_setup_ffi_target(gkit_media_c
+gkit_cargo_setup_ffi_target(gkit-media-c
 	MANIFEST "${CMAKE_CURRENT_SOURCE_DIR}/Cargo.toml"
 	HEADER "gkit_media.h"
 	CRATE_NAME "gkit-media-c"
-	FOLDER "gkit_media_ffi")
+	FOLDER "gkit-media-ffi")
 
 # API visibility macro (committed alongside the Rust crate)
-target_include_directories(gkit_media_c INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}")
+target_include_directories(gkit-media-c INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}")
 
 gkit_install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/gkit_media_api.h"
 	DESTINATION "${GKIT_INSTALL_INCLUDEDIR}"
 	COMPONENT Devel)
 
-gkit_cargo_install_config(gkit_media_c
+gkit_cargo_install_config(gkit-media-c
 	DESCRIPTION "GenericKit Media C FFI bindings"
 	LIB_NAME_STATIC "gkit_media_c"
 	LIB_NAME_SHARED "gkit_media_c")

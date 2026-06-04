@@ -26,37 +26,37 @@ set(_test_dir "${CMAKE_CURRENT_SOURCE_DIR}")
 gkit_find_package(WrapUnity PROVIDED_TARGETS GKitWrapUnity::WrapUnity)
 
 # test_basic — PeerConnection create/destroy lifecycle
-add_executable(gkit_media_c_test_basic "${_test_dir}/test_basic.c")
-target_link_libraries(gkit_media_c_test_basic gkit_media_c GKitWrapUnity::WrapUnity)
-set_target_properties(gkit_media_c_test_basic PROPERTIES FOLDER "gkit_media_ffi/tests")
-add_test(NAME gkit_media_c_test_basic COMMAND gkit_media_c_test_basic)
+add_executable(gkit-media-c-test-basic "${_test_dir}/test_basic.c")
+target_link_libraries(gkit-media-c-test-basic gkit-media-c GKitWrapUnity::WrapUnity)
+set_target_properties(gkit-media-c-test-basic PROPERTIES FOLDER "gkit-media-ffi/tests")
+add_test(NAME gkit-media-c-test-basic COMMAND gkit-media-c-test-basic)
 
 # test_sdp — SDP offer/answer exchange + ICE
-add_executable(gkit_media_c_test_sdp "${_test_dir}/test_sdp.c")
-target_link_libraries(gkit_media_c_test_sdp gkit_media_c GKitWrapUnity::WrapUnity)
-set_target_properties(gkit_media_c_test_sdp PROPERTIES FOLDER "gkit_media_ffi/tests")
-add_test(NAME gkit_media_c_test_sdp COMMAND gkit_media_c_test_sdp)
+add_executable(gkit-media-c-test-sdp "${_test_dir}/test_sdp.c")
+target_link_libraries(gkit-media-c-test-sdp gkit-media-c GKitWrapUnity::WrapUnity)
+set_target_properties(gkit-media-c-test-sdp PROPERTIES FOLDER "gkit-media-ffi/tests")
+add_test(NAME gkit-media-c-test-sdp COMMAND gkit-media-c-test-sdp)
 
 # test_data_channel — DataChannel label/send/close/state
-add_executable(gkit_media_c_test_dc "${_test_dir}/test_data_channel.c")
-target_link_libraries(gkit_media_c_test_dc gkit_media_c GKitWrapUnity::WrapUnity)
-set_target_properties(gkit_media_c_test_dc PROPERTIES FOLDER "gkit_media_ffi/tests")
-add_test(NAME gkit_media_c_test_dc COMMAND gkit_media_c_test_dc)
+add_executable(gkit-media-c-test-dc "${_test_dir}/test_data_channel.c")
+target_link_libraries(gkit-media-c-test-dc gkit-media-c GKitWrapUnity::WrapUnity)
+set_target_properties(gkit-media-c-test-dc PROPERTIES FOLDER "gkit-media-ffi/tests")
+add_test(NAME gkit-media-c-test-dc COMMAND gkit-media-c-test-dc)
 
 # test_errors — null handles, closed peer error codes
-add_executable(gkit_media_c_test_errors "${_test_dir}/test_errors.c")
-target_link_libraries(gkit_media_c_test_errors gkit_media_c GKitWrapUnity::WrapUnity)
-set_target_properties(gkit_media_c_test_errors PROPERTIES FOLDER "gkit_media_ffi/tests")
-add_test(NAME gkit_media_c_test_errors COMMAND gkit_media_c_test_errors)
+add_executable(gkit-media-c-test-errors "${_test_dir}/test_errors.c")
+target_link_libraries(gkit-media-c-test-errors gkit-media-c GKitWrapUnity::WrapUnity)
+set_target_properties(gkit-media-c-test-errors PROPERTIES FOLDER "gkit-media-ffi/tests")
+add_test(NAME gkit-media-c-test-errors COMMAND gkit-media-c-test-errors)
 
 # test_video_frame — VideoFrame create/destroy, scale/crop/rotate
-add_executable(gkit_media_c_test_video_frame "${_test_dir}/test_video_frame.c")
-target_link_libraries(gkit_media_c_test_video_frame gkit_media_c GKitWrapUnity::WrapUnity)
-set_target_properties(gkit_media_c_test_video_frame PROPERTIES FOLDER "gkit_media_ffi/tests")
-add_test(NAME gkit_media_c_test_video_frame COMMAND gkit_media_c_test_video_frame)
+add_executable(gkit-media-c-test-video-frame "${_test_dir}/test_video_frame.c")
+target_link_libraries(gkit-media-c-test-video-frame gkit-media-c GKitWrapUnity::WrapUnity)
+set_target_properties(gkit-media-c-test-video-frame PROPERTIES FOLDER "gkit-media-ffi/tests")
+add_test(NAME gkit-media-c-test-video-frame COMMAND gkit-media-c-test-video-frame)
 
 # test_rtc_factory — Factory create/destroy, backend names, registered backends
-add_executable(gkit_media_c_test_rtc_factory "${_test_dir}/test_rtc_factory.c")
-target_link_libraries(gkit_media_c_test_rtc_factory gkit_media_c GKitWrapUnity::WrapUnity)
-set_target_properties(gkit_media_c_test_rtc_factory PROPERTIES FOLDER "gkit_media_ffi/tests")
-add_test(NAME gkit_media_c_test_rtc_factory COMMAND gkit_media_c_test_rtc_factory)
+add_executable(gkit-media-c-test-rtc-factory "${_test_dir}/test_rtc_factory.c")
+target_link_libraries(gkit-media-c-test-rtc-factory gkit-media-c GKitWrapUnity::WrapUnity)
+set_target_properties(gkit-media-c-test-rtc-factory PROPERTIES FOLDER "gkit-media-ffi/tests")
+add_test(NAME gkit-media-c-test-rtc-factory COMMAND gkit-media-c-test-rtc-factory)
