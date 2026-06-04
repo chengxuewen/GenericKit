@@ -20,7 +20,7 @@ version = "0.1.2"
 edition = "2024"
 
 [workspace.dependencies]
-gkit-core = { path = "crates/gkit-core" }
+gkit-core = { path = "crates/gkit-core", default-features = false }
 gkit-media = { path = "crates/gkit-media", default-features = false }
 gkit-plugin-webrtc-web-sys = { path = "crates/gkit-media/plugins/webrtc/web-sys" }
 

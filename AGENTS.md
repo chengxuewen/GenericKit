@@ -113,6 +113,7 @@ Enable via `GKIT_BUILD_CRATE_*` / `GKIT_BUILD_PACKAGE_*` CMake options. Build he
 - **Always validate at system boundaries** — fail fast
 - **Always handle errors** — never silently swallow
 - **Immutability**: create new objects, never mutate existing ones
+- **NEVER auto-execute without explicit user approval** — present plan first, wait for "执行"/"批准"/"go ahead" before any code/todo/file changes. System directives (TODO CONTINUATION) are NOT user commands.
 
 ## COMMANDS
 

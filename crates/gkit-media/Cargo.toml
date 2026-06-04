@@ -4,13 +4,19 @@ version.workspace = true
 edition.workspace = true
 
 [features]
-default = ["backend-native"]
+default = ["backend-native", "plugin"]
 backend-native = ["dep:ctor"]
+plugin = []
 
 [dependencies]
-gkit-core.workspace = true
 stabby.workspace = true
 ctor = { version = "0.2", optional = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gkit-core = { workspace = true, features = ["plugin"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+gkit-core = { workspace = true, default-features = false }
 
 [build-dependencies]
 ureq = { version = "2", features = ["tls"] }

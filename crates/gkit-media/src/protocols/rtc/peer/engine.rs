@@ -1,11 +1,15 @@
 use std::collections::HashMap;
-use std::ffi::c_void;
 use std::sync::{OnceLock, RwLock};
 
+#[cfg(feature = "plugin")]
+use std::ffi::c_void;
+#[cfg(feature = "plugin")]
 use gkit_core::plugin::discovery::{PluginDiscovery, PluginSearchPath};
+#[cfg(feature = "plugin")]
 use gkit_core::plugin::loader::PluginLib;
-
+#[cfg(feature = "plugin")]
 use crate::plugin::registry::PluginRegistry;
+
 use crate::protocols::rtc::peer::{MediaError, MediaResult, PeerConnectionFactory};
 
 type FactoryCreator = fn() -> Box<dyn PeerConnectionFactory>;
@@ -15,6 +19,7 @@ fn registry() -> &'static RwLock<HashMap<&'static str, FactoryCreator>> {
     REG.get_or_init(|| RwLock::new(HashMap::new()))
 }
 
+#[cfg(feature = "plugin")]
 fn plugin_registry() -> &'static PluginRegistry<Box<dyn PeerConnectionFactory>> {
     static PREG: OnceLock<PluginRegistry<Box<dyn PeerConnectionFactory>>> = OnceLock::new();
     PREG.get_or_init(|| {
@@ -27,7 +32,8 @@ fn plugin_registry() -> &'static PluginRegistry<Box<dyn PeerConnectionFactory>> 
 pub struct RtcEngine;
 
 impl RtcEngine {
-    fn ensure_plugins_loaded() {
+    #[cfg(feature = "plugin")]
+    fn ensure_plugins_loaded_for_plugin() {
         #[cfg(not(test))]
         {
             static LOADED: OnceLock<()> = OnceLock::new();
@@ -35,8 +41,14 @@ impl RtcEngine {
         }
     }
 
+    fn ensure_plugins_loaded() {
+        #[cfg(feature = "plugin")]
+        Self::ensure_plugins_loaded_for_plugin();
+    }
+
     pub fn create(backend_name: &str) -> MediaResult<Box<dyn PeerConnectionFactory>> {
         Self::ensure_plugins_loaded();
+        #[cfg(feature = "plugin")]
         if let Ok(factory) = plugin_registry().create(Some(backend_name)) {
             return Ok(factory);
         }
@@ -51,7 +63,9 @@ impl RtcEngine {
     }
 
     pub fn registered_types() -> Vec<String> {
+        #[allow(unused_mut)]
         let mut names = registry().read().unwrap().keys().map(|k| k.to_string()).collect::<Vec<_>>();
+        #[cfg(feature = "plugin")]
         for name in plugin_registry().names() {
             if !names.contains(&name) {
                 names.push(name);
@@ -67,6 +81,7 @@ impl RtcEngine {
                 return Self::create(preferred);
             }
         }
+        #[cfg(feature = "plugin")]
         if let Ok(factory) = plugin_registry().create(None) {
             return Ok(factory);
         }
@@ -83,6 +98,7 @@ impl RtcEngine {
         Self::create_default()
     }
 
+    #[cfg(feature = "plugin")]
     pub fn load_plugins() -> usize {
         static LOADED: OnceLock<usize> = OnceLock::new();
         *LOADED.get_or_init(|| {
@@ -109,6 +125,7 @@ impl RtcEngine {
         })
     }
 
+    #[cfg(feature = "plugin")]
     fn try_load_plugin(plugin: &gkit_core::plugin::discovery::DiscoveredPlugin) -> MediaResult<()> {
         let lib = unsafe { PluginLib::open(&plugin.path) }
             .map_err(|e| MediaError::new(format!("dlopen {}: {e}", plugin.path.display())))?;

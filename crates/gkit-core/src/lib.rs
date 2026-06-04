@@ -1,3 +1,4 @@
+#[cfg(feature = "plugin")]
 pub mod plugin;
 pub mod version;
 

@@ -114,6 +114,12 @@
 - Workaround: use `std::thread::spawn` + `rt_handle.block_on()` instead
 - Root cause unclear — may be tokio worker pool configuration issue
 
+### AI Agent auto-executes without user approval
+- Agent presents a plan, user says "继续" (meaning "keep discussing"), agent interprets it as approval and starts implementing code
+- System directives (TODO CONTINUATION) are automated reminders, NOT user commands to start work
+- Fix: always wait for explicit approval words ("执行", "批准", "go ahead") before touching code/todos/files
+- Present plan → wait for approval → only then execute. Never skip the waiting step.
+
 ### Duplicate dylibs loaded → ObjC class conflict → SIGSEGV (macOS)
 - `PluginDiscovery::discover()` had no dedup → same dylib found in multiple search paths loaded N times
 - Each dlopen registers ObjC classes again → ObjC runtime error → segfault

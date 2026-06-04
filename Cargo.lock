@@ -2137,6 +2137,7 @@ dependencies = [
 name = "gkit-media-wasm"
 version = "0.1.2"
 dependencies = [
+ "gkit-core",
  "gkit-media",
  "wasm-bindgen",
 ]

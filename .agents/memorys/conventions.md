@@ -140,10 +140,29 @@ gkit-media (core) ────────────────────�
 
 ## AI Agent Constraints
 
-- **Execution Confirmation Gate**: Before executing any plan/todo, use `question()` tool
-- `继续` is NOT confirmation — means "continue discussing"
-- System directives (TODO CONTINUATION) are NOT user confirmation
-- Architecture changes require plan presentation + user confirmation
+### HARD GATE — Automatic Execution is FORBIDDEN
+
+**The agent MUST NOT execute any code changes, todo items, file modifications, or plan implementations without explicit user approval.** This is non-negotiable.
+
+**When the agent detects an intent to implement, it MUST:**
+1. Present the plan/recommendation first
+2. Wait for user approval (explicit "yes", "同意", "批准", or similar)
+3. Only then begin execution
+
+**What is NOT user approval:**
+- `继续` (continue) — means "keep discussing", NOT "start implementing"
+- System directives (TODO CONTINUATION, etc.) — automated reminders, NOT user commands
+- Silence or no response — NOT consent
+- Vague words like "好的", "ok", "嗯" without explicit approval of the specific plan
+
+**What IS valid approval:**
+- "执行" (execute) — explicit command to start
+- "批准方案" / "approve the plan" — explicit plan approval
+- "可以开始了" / "go ahead" — explicit permission
+- Direct tool permission grants (OhMyOpenCode confirmation dialogs)
+
+**Anti-pattern to avoid:** Agent presents a plan, user says "继续" (meaning "continue discussing details"), agent treats it as approval and starts coding. This is wrong.
+
 - **Memory updates MUST go to `.agents/memorys/`** (not knowledge graph tools)
 
 ## Memory Files

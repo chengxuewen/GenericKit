@@ -6,6 +6,7 @@ pub fn media_hello() {
 }
 
 pub mod capture;
+#[cfg(feature = "plugin")]
 pub mod plugin;
 pub mod protocols;
 pub mod video;
@@ -13,6 +14,7 @@ pub mod video;
 mod trait_mod;
 pub use trait_mod::{video_sink_stabby, webrtc_stabby};
 
+#[cfg(feature = "plugin")]
 pub fn make_peer_connection() -> Box<dyn protocols::rtc::peer::PeerConnection> {
     register_test_backend();
     use protocols::rtc::peer::RtcEngine;
@@ -22,11 +24,13 @@ pub fn make_peer_connection() -> Box<dyn protocols::rtc::peer::PeerConnection> {
         .expect("failed to create PeerConnection")
 }
 
+#[cfg(feature = "plugin")]
 pub fn make_peer_connection_with_backend(name: &str) -> protocols::rtc::peer::MediaResult<Box<dyn protocols::rtc::peer::PeerConnection>> {
     use protocols::rtc::peer::RtcEngine;
     RtcEngine::create(name)?.create_peer_connection()
 }
 
+#[cfg(feature = "plugin")]
 pub fn register_test_backend() {
     use protocols::rtc::peer::RtcEngine;
     use protocols::rtc::peer::{ConnectionState, DataChannel, DataChannelState, GatheringState, IceConnectionState, MediaError, MediaResult, PeerConnection, PeerConnectionFactory, RtcConfiguration, SessionDescription, SignalingState};
