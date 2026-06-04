@@ -352,7 +352,7 @@ gkit_option(GKIT_BUILD_CRATE_FFI "Enable this to build C FFI bindings" ON
 	OR_CONDITION GKIT_BUILD_ALL)
 gkit_option(GKIT_BUILD_CRATE_WASM "Enable this to build WebAssembly bindings" OFF
 	OR_CONDITION GKIT_BUILD_ALL)
-gkit_option(GKIT_BUILD_CRATE_WASM_OPTIMIZE "Enable this to build WebAssembly bindings optimize" OFF
+gkit_option(GKIT_BUILD_CRATE_WASM_OPTIMIZE "Enable this to build WebAssembly bindings optimize" ON
 	DEPENDS GKIT_BUILD_CRATE_WASM
 	OR_CONDITION GKIT_BUILD_ALL)
 gkit_option(GKIT_BUILD_CRATE_UNIFFI "Enable this to build UniFFI bindings (Kotlin, Swift, Python, Ruby)" OFF
