@@ -9,3 +9,22 @@ crate-type = ["rlib"]
 [dependencies]
 gkit-media.workspace = true
 ctor = "0.2"
+wasm-bindgen = { workspace = true }
+web-sys = { version = "0.3", features = [
+    "RtcPeerConnection",
+    "RtcConfiguration",
+    "RtcSessionDescriptionInit",
+    "RtcDataChannel",
+    "RtcDataChannelInit",
+    "RtcSdpType",
+    "RtcIceCandidate",
+    "RtcIceCandidateInit",
+    "RtcIceConnectionState",
+    "RtcPeerConnectionState",
+    "RtcSignalingState",
+    "RtcIceGatheringState",
+    "RtcDataChannelState",
+] }
+js-sys = "0.3"
+wasm-bindgen-futures = "0.4"
+pollster = "0.3"
