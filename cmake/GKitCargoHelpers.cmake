@@ -430,28 +430,25 @@ function(gkit_cargo_setup_wasm_target crate_name)
         find_program(WASM_BINDGEN_EXECUTABLE wasm-bindgen REQUIRED)
     endif()
 
-    # wasm-opt: controlled by GKIT_BUILD_CRATE_WASM_OPTIMIZE
-    if(GKIT_BUILD_CRATE_WASM_OPTIMIZE)
-        find_program(WASM_OPT_EXECUTABLE wasm-opt
-            DOC "Path to wasm-opt (binaryen) for WASM optimization")
-        if(NOT WASM_OPT_EXECUTABLE)
-            message(STATUS "gkit_cargo_setup_wasm_target: wasm-opt not found. Attempting auto-install...")
-            if(APPLE)
-                execute_process(COMMAND brew install binaryen
-                    RESULT_VARIABLE _wasm_opt_brew_result)
-                if(_wasm_opt_brew_result EQUAL 0)
-                    find_program(WASM_OPT_EXECUTABLE wasm-opt REQUIRED)
-                endif()
+    # wasm-opt: always enabled for WASM builds
+    find_program(WASM_OPT_EXECUTABLE wasm-opt
+        DOC "Path to wasm-opt (binaryen) for WASM optimization")
+    if(NOT WASM_OPT_EXECUTABLE)
+        message(STATUS "gkit_cargo_setup_wasm_target: wasm-opt not found. Attempting auto-install...")
+        if(APPLE)
+            execute_process(COMMAND brew install binaryen
+                RESULT_VARIABLE _wasm_opt_brew_result)
+            if(_wasm_opt_brew_result EQUAL 0)
+                find_program(WASM_OPT_EXECUTABLE wasm-opt REQUIRED)
             endif()
-            if(NOT WASM_OPT_EXECUTABLE)
-                message(FATAL_ERROR
-                    "gkit_cargo_setup_wasm_target: wasm-opt not found and auto-install failed.\n"
-                    "Install manually: brew install binaryen (macOS) or apt install binaryen (Linux)\n"
-                    "Or disable with: -DGKIT_BUILD_CRATE_WASM_OPTIMIZE=OFF")
-            endif()
-        else()
-            message(STATUS "gkit_cargo_setup_wasm_target: wasm-opt found at ${WASM_OPT_EXECUTABLE}")
         endif()
+        if(NOT WASM_OPT_EXECUTABLE)
+            message(FATAL_ERROR
+                "gkit_cargo_setup_wasm_target: wasm-opt not found and auto-install failed.\n"
+                "Install manually: brew install binaryen (macOS) or apt install binaryen (Linux)")
+        endif()
+    else()
+        message(STATUS "gkit_cargo_setup_wasm_target: wasm-opt found at ${WASM_OPT_EXECUTABLE}")
     endif()
 
     set(_build_target   "cargo-build_${name_underscore}")
@@ -483,8 +480,8 @@ function(gkit_cargo_setup_wasm_target crate_name)
         )
     endif()
 
-    # --- Target 3: wasm-opt optimization (ALL build, controlled by GKIT_BUILD_CRATE_WASM_OPTIMIZE) ---
-    if(GKIT_BUILD_CRATE_WASM_OPTIMIZE AND NOT TARGET ${_optimize_target})
+    # --- Target 3: wasm-opt optimization (ALL build) ---
+    if(NOT TARGET ${_optimize_target})
         add_custom_target(${_optimize_target} ALL
             COMMAND ${WASM_OPT_EXECUTABLE} -O
                 "${wasm_out_dir}/${name_underscore}_bg.wasm"
