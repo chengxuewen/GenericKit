@@ -2139,6 +2139,7 @@ version = "0.1.2"
 dependencies = [
  "gkit-core",
  "gkit-media",
+ "js-sys",
  "wasm-bindgen",
 ]
 

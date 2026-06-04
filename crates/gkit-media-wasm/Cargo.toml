@@ -7,6 +7,7 @@ edition.workspace = true
 gkit-core.workspace = true
 gkit-media.workspace = true
 wasm-bindgen = { workspace = true }
+js-sys = "0.3"
 
 [lib]
 crate-type = ["cdylib"]

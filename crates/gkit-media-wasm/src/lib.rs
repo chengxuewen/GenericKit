@@ -1,5 +1,6 @@
 //! WASM bindings for gkit-media — WebRTC API for JavaScript via wasm-bindgen.
 
+use js_sys;
 use wasm_bindgen::prelude::*;
 
 // ─── RtcConfiguration ─────────────────────────────────────────────────
@@ -138,6 +139,24 @@ impl RtcDataChannel {
     }
 }
 
+// ─── RtcVideoTrack ────────────────────────────────────────────────────
+
+#[wasm_bindgen]
+pub struct RtcVideoTrack {
+    inner: Box<dyn gkit_media::protocols::rtc::peer::VideoTrack>,
+}
+
+#[wasm_bindgen]
+impl RtcVideoTrack {
+    pub fn id(&self) -> String {
+        self.inner.id().to_string()
+    }
+
+    pub fn kind(&self) -> String {
+        self.inner.kind().to_string()
+    }
+}
+
 // ─── RtcPeerConnection ────────────────────────────────────────────────
 
 #[wasm_bindgen]
@@ -271,6 +290,33 @@ impl RtcPeerConnection {
         self.inner
             .get_stats_json()
             .map_err(|e| JsValue::from_str(&e.message))
+    }
+
+    pub fn set_on_track(&self, callback: js_sys::Function) {
+        let cb = move |track: Box<dyn gkit_media::protocols::rtc::peer::VideoTrack>| {
+            let js_track = RtcVideoTrack { inner: track };
+            let _ = callback.call1(&JsValue::NULL, &JsValue::from(js_track));
+        };
+        self.inner.set_on_track(Box::new(cb));
+    }
+
+    pub fn set_on_ice_candidate(&self, callback: js_sys::Function) {
+        let cb = move |candidate: gkit_media::protocols::rtc::peer::IceCandidate| {
+            let js_candidate = RtcIceCandidate {
+                candidate: candidate.candidate,
+                sdp_mid: candidate.sdp_mid,
+                sdp_mline_index: candidate.sdp_mline_index,
+            };
+            let _ = callback.call1(&JsValue::NULL, &JsValue::from(js_candidate));
+        };
+        self.inner.set_on_ice_candidate(Box::new(cb));
+    }
+
+    pub fn set_on_ice_connection_state_change(&self, callback: js_sys::Function) {
+        let cb = move |state: gkit_media::protocols::rtc::peer::IceConnectionState| {
+            let _ = callback.call1(&JsValue::NULL, &JsValue::from_str(&format!("{:?}", state)));
+        };
+        self.inner.set_on_ice_connection_state_change(Box::new(cb));
     }
 }
 
