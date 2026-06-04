@@ -8,6 +8,10 @@ use wasm_bindgen::prelude::*;
 pub struct RtcConfiguration {
     #[wasm_bindgen(getter_with_clone)]
     pub ice_servers: Vec<IceServer>,
+    #[wasm_bindgen(getter_with_clone)]
+    pub ice_transport_policy: Option<String>,
+    #[wasm_bindgen(getter_with_clone)]
+    pub ice_candidate_pool_size: Option<u32>,
 }
 
 #[wasm_bindgen]
@@ -16,6 +20,8 @@ impl RtcConfiguration {
     pub fn new() -> Self {
         Self {
             ice_servers: vec![],
+            ice_transport_policy: None,
+            ice_candidate_pool_size: None,
         }
     }
 
@@ -49,6 +55,34 @@ impl IceServer {
     }
 }
 
+// ─── RtcIceCandidate ──────────────────────────────────────────────────
+
+#[wasm_bindgen]
+pub struct RtcIceCandidate {
+    #[wasm_bindgen(getter_with_clone)]
+    pub candidate: String,
+    #[wasm_bindgen(getter_with_clone)]
+    pub sdp_mid: Option<String>,
+    #[wasm_bindgen(getter_with_clone)]
+    pub sdp_mline_index: Option<u16>,
+}
+
+#[wasm_bindgen]
+impl RtcIceCandidate {
+    #[wasm_bindgen(constructor)]
+    pub fn new(
+        candidate: String,
+        sdp_mid: Option<String>,
+        sdp_mline_index: Option<u16>,
+    ) -> Self {
+        Self {
+            candidate,
+            sdp_mid,
+            sdp_mline_index,
+        }
+    }
+}
+
 // ─── RtcSessionDescription ────────────────────────────────────────────
 
 #[wasm_bindgen]
@@ -65,6 +99,42 @@ impl From<gkit_media::protocols::rtc::peer::SessionDescription> for RtcSessionDe
             sdp_type: desc.sdp_type,
             sdp: desc.sdp,
         }
+    }
+}
+
+// ─── RtcDataChannel ───────────────────────────────────────────────────
+
+#[wasm_bindgen]
+pub struct RtcDataChannel {
+    inner: Box<dyn gkit_media::protocols::rtc::peer::DataChannel>,
+}
+
+#[wasm_bindgen]
+impl RtcDataChannel {
+    pub fn label(&self) -> String {
+        self.inner.label().to_string()
+    }
+
+    pub fn ready_state(&self) -> String {
+        format!("{:?}", self.inner.ready_state())
+    }
+
+    pub fn send_text(&self, data: &str) -> Result<(), JsValue> {
+        self.inner
+            .send_text(data)
+            .map_err(|e| JsValue::from_str(&e.message))
+    }
+
+    pub fn send_bytes(&self, data: &[u8]) -> Result<(), JsValue> {
+        self.inner
+            .send_bytes(data)
+            .map_err(|e| JsValue::from_str(&e.message))
+    }
+
+    pub fn close(&mut self) -> Result<(), JsValue> {
+        self.inner
+            .close()
+            .map_err(|e| JsValue::from_str(&e.message))
     }
 }
 
@@ -137,6 +207,71 @@ impl RtcPeerConnection {
     pub fn connection_state(&self) -> String {
         format!("{:?}", self.inner.connection_state())
     }
+
+    pub fn add_ice_candidate(&mut self, candidate: &str, sdp_mid: &str) -> Result<(), JsValue> {
+        self.inner
+            .add_ice_candidate(candidate, sdp_mid)
+            .map_err(|e| JsValue::from_str(&e.message))
+    }
+
+    pub fn create_data_channel(&self, label: &str) -> Result<RtcDataChannel, JsValue> {
+        self.inner
+            .create_data_channel(label)
+            .map(|dc| RtcDataChannel { inner: dc })
+            .map_err(|e| JsValue::from_str(&e.message))
+    }
+
+    pub fn gathering_state(&self) -> String {
+        format!("{:?}", self.inner.gathering_state())
+    }
+
+    pub fn signaling_state(&self) -> String {
+        format!("{:?}", self.inner.signaling_state())
+    }
+
+    pub fn local_description(&self) -> Result<RtcSessionDescription, JsValue> {
+        self.inner
+            .local_description()
+            .map(RtcSessionDescription::from)
+            .map_err(|e| JsValue::from_str(&e.message))
+    }
+
+    pub fn remote_description(&self) -> Result<RtcSessionDescription, JsValue> {
+        self.inner
+            .remote_description()
+            .map(RtcSessionDescription::from)
+            .map_err(|e| JsValue::from_str(&e.message))
+    }
+
+    pub fn local_address(&self) -> Result<String, JsValue> {
+        self.inner
+            .local_address()
+            .map_err(|e| JsValue::from_str(&e.message))
+    }
+
+    pub fn remote_address(&self) -> Result<String, JsValue> {
+        self.inner
+            .remote_address()
+            .map_err(|e| JsValue::from_str(&e.message))
+    }
+
+    pub fn max_data_channel_stream(&self) -> Result<u32, JsValue> {
+        self.inner
+            .max_data_channel_stream()
+            .map_err(|e| JsValue::from_str(&e.message))
+    }
+
+    pub fn remote_max_message_size(&self) -> Result<usize, JsValue> {
+        self.inner
+            .remote_max_message_size()
+            .map_err(|e| JsValue::from_str(&e.message))
+    }
+
+    pub fn get_stats_json(&self) -> Result<String, JsValue> {
+        self.inner
+            .get_stats_json()
+            .map_err(|e| JsValue::from_str(&e.message))
+    }
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────
@@ -153,7 +288,8 @@ fn to_gkit_config(config: &RtcConfiguration) -> gkit_media::protocols::rtc::peer
                 credential: s.credential.clone(),
             })
             .collect(),
-        ..Default::default()
+        ice_transport_policy: config.ice_transport_policy.clone(),
+        ice_candidate_pool_size: config.ice_candidate_pool_size,
     }
 }
 
