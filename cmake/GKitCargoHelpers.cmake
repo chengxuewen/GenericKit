@@ -414,9 +414,20 @@ function(gkit_cargo_setup_wasm_target crate_name)
     find_program(WASM_BINDGEN_EXECUTABLE wasm-bindgen
         DOC "Path to wasm-bindgen-cli (wasm-bindgen command)")
     if(NOT WASM_BINDGEN_EXECUTABLE)
-        message(FATAL_ERROR
-            "gkit_cargo_setup_wasm_target: wasm-bindgen not found. "
-            "Install with: cargo install wasm-bindgen-cli --version 0.2")
+        message(STATUS "gkit_cargo_setup_wasm_target: wasm-bindgen not found. Auto-installing via cargo...")
+        execute_process(
+            COMMAND cargo install wasm-bindgen-cli --version 0.2.120
+            WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+            RESULT_VARIABLE _wasm_bindgen_install_result
+            OUTPUT_VARIABLE _wasm_bindgen_install_output)
+        if(NOT _wasm_bindgen_install_result EQUAL 0)
+            message(FATAL_ERROR
+                "gkit_cargo_setup_wasm_target: failed to install wasm-bindgen-cli.\n"
+                "Output: ${_wasm_bindgen_install_output}\n"
+                "Please install manually: cargo install wasm-bindgen-cli --version 0.2.120")
+        endif()
+        message(STATUS "gkit_cargo_setup_wasm_target: wasm-bindgen-cli installed successfully")
+        find_program(WASM_BINDGEN_EXECUTABLE wasm-bindgen REQUIRED)
     endif()
 
     # Optional: wasm-opt (only if found)
@@ -447,6 +458,7 @@ function(gkit_cargo_setup_wasm_target crate_name)
                 "${wasm_wasm_file}"
                 --out-dir "${wasm_out_dir}"
                 --out-name "${name_underscore}"
+            WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
             DEPENDS cargo-build-wasm_${crate_name}
             COMMENT "Running wasm-bindgen for ${crate_name}"
         )
