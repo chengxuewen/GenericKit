@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GkitMedia — Square Pattern Generator (WASM)</title>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #1a1a2e; color: #e0e0e0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+.container { max-width: 700px; width: 100%; padding: 20px; }
+h1 { text-align: center; font-size: 1.3rem; color: #e94560; margin-bottom: 4px; }
+.version { text-align: center; font-size: 0.7rem; color: #666; margin-bottom: 12px; }
+canvas { display: block; margin: 0 auto; border: 1px solid #333; background: #0a0a1a; }
+.controls { display: flex; gap: 10px; justify-content: center; margin: 12px 0; }
+button { padding: 8px 24px; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9rem; }
+#start-btn { background: #2ecc71; color: #fff; }
+#start-btn:disabled { background: #555; cursor: default; }
+#stop-btn { background: #e74c3c; color: #fff; }
+#stop-btn:disabled { background: #555; cursor: default; }
+.status { text-align: center; font-size: 0.85rem; margin: 8px 0; }
+.status.ok { color: #2ecc71; }
+.status.warn { color: #f39c12; }
+.status.error { color: #e74c3c; }
+.stats { text-align: center; font-size: 0.8rem; color: #aaa; }
+.stats span { color: #e0e0e0; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="container">
+    <h1>GkitMedia — Square Pattern Generator</h1>
+    <div class="version" id="version">Loading…</div>
+    <canvas id="display" width="640" height="480"></canvas>
+    <div class="controls">
+        <button id="start-btn" disabled>▶ Start</button>
+        <button id="stop-btn" disabled>■ Stop</button>
+    </div>
+    <div class="status ok" id="status">Ready</div>
+    <div class="stats">Frames: <span id="frame-count">0</span>  |  FPS: <span id="fps">—</span></div>
+</div>
+
+<script type="module">
+import init, { RtcVideoSource, get_version } from './gkit_media_wasm.js';
+
+const canvas = document.getElementById('display');
+const ctx = canvas.getContext('2d');
+const startBtn = document.getElementById('start-btn');
+const stopBtn  = document.getElementById('stop-btn');
+const statusEl = document.getElementById('status');
+const versionEl = document.getElementById('version');
+const frameCountEl = document.getElementById('frame-count');
+const fpsEl = document.getElementById('fps');
+
+let source = null, frameCount = 0, fpsCounter = 0, lastFpsTime = 0;
+
+function setStatus(text, cls) { statusEl.textContent = text; statusEl.className = 'status ' + (cls || 'ok'); }
+
+async function start() {
+    try {
+        frameCount = 0; fpsCounter = 0; lastFpsTime = performance.now();
+        frameCountEl.textContent = '0'; fpsEl.textContent = '—';
+
+        source = new RtcVideoSource(640, 480, 30);
+        source.add_sink((rgba, w, h) => {
+            frameCount++; fpsCounter++;
+            frameCountEl.textContent = frameCount;
+            const clamped = new Uint8ClampedArray(rgba.buffer, rgba.byteOffset, rgba.byteLength);
+            ctx.putImageData(new ImageData(clamped, w, h), 0, 0);
+        });
+        source.start();
+
+        startBtn.disabled = true; stopBtn.disabled = false;
+        setStatus('Running — 640×480 @ 30fps', 'ok');
+    } catch (e) {
+        setStatus('Error: ' + e, 'error');
+        console.error(e);
+    }
+}
+
+async function stop() {
+    if (source) { source.stop(); source = null; }
+    startBtn.disabled = false; stopBtn.disabled = true;
+    setStatus('Stopped', 'warn');
+}
+
+setInterval(() => {
+    const now = performance.now(), elapsed = (now - lastFpsTime) / 1000;
+    if (elapsed >= 1) { fpsEl.textContent = Math.round(fpsCounter / elapsed); fpsCounter = 0; lastFpsTime = now; }
+}, 1000);
+
+(async () => {
+    await init();
+    versionEl.textContent = 'GkitMedia v' + get_version();
+    startBtn.disabled = false; stopBtn.disabled = true;
+    startBtn.onclick = start; stopBtn.onclick = stop;
+    setStatus('Ready', 'ok');
+})().catch(e => { setStatus('Init error: ' + e, 'error'); });
+</script>
+</body>
+</html>

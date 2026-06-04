@@ -268,8 +268,8 @@
                 startBtn.disabled = true;
                 setStatus('Creating video source...', 'warn');
 
-                // Create video source (640x480, 20fps)
-                source = new RtcVideoSource(640, 480, 20);
+                // Create video source (640x480, 15fps)
+                source = new RtcVideoSource(640, 480, 15);
 
                 // Sender visualization: add a sink to the source for local display
                 source.add_sink((rgba, w, h) => {
@@ -335,10 +335,16 @@
                 
                 // Step 1: pc1 creates offer
                 pc1.create_offer();
-                // Wait for spawn_local to complete
+                // Wait for spawn_local to complete ICE gathering
                 await new Promise(r => setTimeout(r, 2000));
-                
-                // Read the actual offer from pc1 (stored async by spawn_local)
+                // Poll until ICE gathering complete for offer
+                for (let i = 0; i < 20; i++) {
+                    if (pc1.gathering_state() === 'Complete') break;
+                    await new Promise(r => setTimeout(r, 500));
+                }
+                setStatus('ICE gathering complete for offer ✅', 'ok');
+
+                // Re-read offer with ICE candidates
                 const offer = pc1.local_description();
                 if (!offer || !offer.sdp) {
                     setStatus('Error: offer not ready', 'err');
@@ -352,8 +358,13 @@
                 // Step 3: pc2 creates answer
                 pc2.create_answer();
                 await new Promise(r => setTimeout(r, 2000));
-                
-                // Step 4: read answer
+                // Poll until ICE gathering complete for answer
+                for (let i = 0; i < 20; i++) {
+                    if (pc2.gathering_state() === 'Complete') break;
+                    await new Promise(r => setTimeout(r, 500));
+                }
+
+                // Step 4: read answer with ICE candidates
                 const answer = pc2.local_description();
                 if (!answer || !answer.sdp) {
                     setStatus('Error: answer not ready', 'err');
@@ -363,7 +374,7 @@
                 // Step 5: pc1 sets remote description
                 pc1.set_remote_description(answer);
                 
-                setStatus('SDP exchanged via spawn_local async ✅', 'ok');
+                setStatus('SDP + ICE exchanged via spawn_local ✅', 'ok');
                 stopBtn.disabled = false;
 
             } catch (e) {

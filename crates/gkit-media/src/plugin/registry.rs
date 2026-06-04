@@ -1,3 +1,4 @@
+#[cfg(not(target_arch = "wasm32"))]
 use gkit_core::plugin::loader::PluginLib;
 
 use std::collections::HashMap;

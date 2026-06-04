@@ -1,6 +1,8 @@
 use std::sync::{Arc};
 use std::sync::atomic::{AtomicBool, Ordering};
+#[cfg(not(target_arch = "wasm32"))]
 use std::thread;
+#[cfg(not(target_arch = "wasm32"))]
 use std::time::Duration;
 
 use crate::video::buffer::{I420Buffer, VideoBuffer};
@@ -209,11 +211,18 @@ fn draw_glyph_610(plane: &mut [u8], stride: u32, gx: u32, gy: u32, gi: usize, sc
 }
 
 fn draw_timestamp(y: &mut [u8], stride_y: u32, u: &mut [u8], stride_u: u32, x: u32, y_pos: u32, scale: u32) {
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap();
-    let total_secs = now.as_secs();
-    let millis = now.subsec_millis();
+    #[cfg(target_arch = "wasm32")]
+    let (total_secs, millis) = {
+        let now_ms = js_sys::Date::now() as u64;
+        ((now_ms / 1000), (now_ms % 1000) as u32)
+    };
+    #[cfg(not(target_arch = "wasm32"))]
+    let (total_secs, millis) = {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap();
+        (now.as_secs(), now.subsec_millis())
+    };
 
     let (year, month, day) = unix_to_date(total_secs);
     let sod = total_secs % 86400;
@@ -274,7 +283,10 @@ fn is_leap(year: u64) -> bool {
 pub struct VideoFrameGenerator {
     broadcaster: Arc<VideoBroadcaster<VideoFrame<Box<dyn VideoBuffer>>>>,
     running: Arc<AtomicBool>,
+    #[cfg(not(target_arch = "wasm32"))]
     thread_handle: Option<thread::JoinHandle<()>>,
+    #[cfg(target_arch = "wasm32")]
+    interval_handle: Option<i32>,
     // Lazy-start parameters (consumed on first start)
     start_config: Option<(u32, u32, u32, Option<Box<dyn FramePattern>>)>,
 }
@@ -291,43 +303,93 @@ impl VideoFrameGenerator {
         Self {
             broadcaster,
             running,
+            #[cfg(not(target_arch = "wasm32"))]
             thread_handle: None,
+            #[cfg(target_arch = "wasm32")]
+            interval_handle: None,
             start_config: Some((width, height, fps, Some(pattern))),
         }
     }
 
     pub fn start(&mut self) {
+        #[cfg(not(target_arch = "wasm32"))]
         if self.thread_handle.is_some() { return; }
+        #[cfg(target_arch = "wasm32")]
+        if self.interval_handle.is_some() { return; }
+
         let Some((width, height, fps, pattern_opt)) = self.start_config.take() else { return; };
+        #[cfg_attr(target_arch = "wasm32", allow(unused_mut))]
         let mut pattern = pattern_opt.unwrap_or_else(|| Box::new(SquarePattern::new(width, height, 10)));
         let rt = self.running.clone();
         let bc = self.broadcaster.clone();
-        let frame_interval = Duration::from_micros((1_000_000 / fps as u64).max(1));
         rt.store(true, Ordering::Relaxed);
 
-        let handle = thread::spawn(move || {
-            while rt.load(Ordering::Relaxed) {
-                let start = std::time::Instant::now();
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let frame_interval = Duration::from_micros((1_000_000 / fps as u64).max(1));
+            let handle = thread::spawn(move || {
+                while rt.load(Ordering::Relaxed) {
+                    let start = std::time::Instant::now();
+                    let mut buf = I420Buffer::new(width, height);
+                    pattern.draw(
+                        &mut buf.data_y, &mut buf.data_u, &mut buf.data_v,
+                        buf.stride_y, buf.stride_u, buf.stride_v,
+                    );
+                    let frame = VideoFrame::new(Box::new(buf) as Box<dyn VideoBuffer>);
+                    bc.on_frame(&frame);
+                    let elapsed = start.elapsed();
+                    if elapsed < frame_interval {
+                        thread::sleep(frame_interval - elapsed);
+                    }
+                }
+            });
+            self.thread_handle = Some(handle);
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        {
+            use std::cell::RefCell;
+            use std::rc::Rc;
+            use wasm_bindgen::JsCast;
+            use wasm_bindgen::closure::Closure;
+            let pattern = Rc::new(RefCell::new(pattern));
+            let interval_ms = (1000 / fps) as i32;
+            let ih: Rc<RefCell<Option<i32>>> = Rc::new(RefCell::new(None));
+            let ih_clone = ih.clone();
+            let rt_clone = rt.clone();
+            let cb = Closure::wrap(Box::new(move || {
+                if !rt_clone.load(Ordering::Relaxed) {
+                    if let Some(id) = *ih_clone.borrow() {
+                        web_sys::window().unwrap().clear_interval_with_handle(id);
+                    }
+                    return;
+                }
                 let mut buf = I420Buffer::new(width, height);
-                pattern.draw(
+                pattern.borrow_mut().draw(
                     &mut buf.data_y, &mut buf.data_u, &mut buf.data_v,
                     buf.stride_y, buf.stride_u, buf.stride_v,
                 );
                 let frame = VideoFrame::new(Box::new(buf) as Box<dyn VideoBuffer>);
                 bc.on_frame(&frame);
-                let elapsed = start.elapsed();
-                if elapsed < frame_interval {
-                    thread::sleep(frame_interval - elapsed);
-                }
-            }
-        });
-        self.thread_handle = Some(handle);
+            }) as Box<dyn FnMut()>);
+            let handle = web_sys::window().unwrap()
+                .set_interval_with_callback_and_timeout_and_arguments_0(cb.as_ref().unchecked_ref(), interval_ms)
+                .unwrap();
+            *ih.borrow_mut() = Some(handle);
+            cb.forget();
+            self.interval_handle = Some(handle);
+        }
     }
 
     pub fn stop(&mut self) {
         self.running.store(false, Ordering::Relaxed);
+        #[cfg(not(target_arch = "wasm32"))]
         if let Some(handle) = self.thread_handle.take() {
             let _ = handle.join();
+        }
+        #[cfg(target_arch = "wasm32")]
+        if let Some(id) = self.interval_handle.take() {
+            web_sys::window().unwrap().clear_interval_with_handle(id);
         }
     }
 

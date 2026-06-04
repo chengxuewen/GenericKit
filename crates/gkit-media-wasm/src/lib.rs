@@ -254,6 +254,7 @@ impl RtcVideoSource {
             let interval_handle: Rc<RefCell<Option<i32>>> = Rc::new(RefCell::new(None));
             let ih_clone = interval_handle.clone();
             let running_clone = running.clone();
+            let mut pattern = SquarePattern::new(width, height, 10);
 
             let cb = Closure::wrap(Box::new(move || {
                 if !running_clone.load(Ordering::Relaxed) {
@@ -262,24 +263,12 @@ impl RtcVideoSource {
                     }
                     return;
                 }
-                // Simple gray I420 buffer: Y=127 (mid-gray), U/V=127 (no color).
-                // Avoid I420Buffer::new() + SquarePattern::draw() which panic on wasm32.
-                let stride_y = width;
-                let stride_u = (width + 1) / 2;
-                let stride_v = (width + 1) / 2;
-                let y_size = (stride_y * height) as usize;
-                let uv_size = (stride_u * ((height + 1) / 2)) as usize;
-                let i420 = I420Buffer {
-                    width,
-                    height,
-                    stride_y,
-                    stride_u,
-                    stride_v,
-                    data_y: vec![127u8; y_size],
-                    data_u: vec![127u8; uv_size],
-                    data_v: vec![127u8; uv_size],
-                };
-                let frame = VideoFrame::new(Box::new(i420) as Box<dyn VideoBuffer>);
+                let mut buf = I420Buffer::new(width, height);
+                pattern.draw(
+                    &mut buf.data_y, &mut buf.data_u, &mut buf.data_v,
+                    buf.stride_y, buf.stride_u, buf.stride_v,
+                );
+                let frame = VideoFrame::new(Box::new(buf) as Box<dyn VideoBuffer>);
                 broadcaster.on_frame(&frame);
             }) as Box<dyn FnMut()>);
 
