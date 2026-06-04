@@ -379,3 +379,98 @@ function(gkit_cargo_install_config base_name)
 		DESTINATION "${GKIT_INSTALL_LIBDIR}/pkgconfig"
 		COMPONENT Devel)
 endfunction()
+
+
+#-----------------------------------------------------------------------------------------------------------------------
+# Set up WASM build target for a Rust crate.
+# Creates a CMake target that compiles the crate for wasm32-unknown-unknown and
+# runs wasm-bindgen-cli to generate JS glue code.
+#
+# Pipeline:
+#   cargo build --target wasm32-unknown-unknown --release
+#   → wasm-bindgen-cli --target web <wasm-file> --out-dir build/wasm/<crate>/
+#   → wasm-opt -O (optional, only if found)
+#
+# Usage:
+#   gkit_cargo_setup_wasm_target(<crate_name>)
+#   gkit_cargo_setup_wasm_target(gkit-core-wasm)
+#   gkit_cargo_setup_wasm_target(gkit-media-wasm)
+#
+# Output files (in GKIT_BUILD_DIR/wasm/<crate_name>/):
+#   <crate_name_underscore>.js          — JS glue code (ES module)
+#   <crate_name_underscore>.d.ts        — TypeScript definitions
+#   <crate_name_underscore>_bg.wasm     — WASM binary
+#   <crate_name_underscore>_bg.wasm.d.ts — WASM TS definitions
+#-----------------------------------------------------------------------------------------------------------------------
+function(gkit_cargo_setup_wasm_target crate_name)
+    # Resolve crate name for target output
+    string(REPLACE "-" "_" name_underscore "${crate_name}")
+
+    set(wasm_release_dir "target/wasm32-unknown-unknown/release")
+    set(wasm_wasm_file "${wasm_release_dir}/${name_underscore}.wasm")
+    set(wasm_out_dir "${GKIT_BUILD_DIR}/wasm/${crate_name}")
+
+    # Find required tools
+    find_program(WASM_BINDGEN_EXECUTABLE wasm-bindgen
+        DOC "Path to wasm-bindgen-cli (wasm-bindgen command)")
+    if(NOT WASM_BINDGEN_EXECUTABLE)
+        message(FATAL_ERROR
+            "gkit_cargo_setup_wasm_target: wasm-bindgen not found. "
+            "Install with: cargo install wasm-bindgen-cli --version 0.2")
+    endif()
+
+    # Optional: wasm-opt (only if found)
+    find_program(WASM_OPT_EXECUTABLE wasm-opt
+        DOC "Path to wasm-opt (binaryen) for WASM optimization")
+    if(WASM_OPT_EXECUTABLE)
+        message(STATUS "gkit_cargo_setup_wasm_target: wasm-opt found at ${WASM_OPT_EXECUTABLE}")
+    else()
+        message(STATUS "gkit_cargo_setup_wasm_target: wasm-opt not found (skipping optimization)")
+    endif()
+
+    # --- Target 1: cargo build for wasm32 ---
+    if(NOT TARGET cargo-build-wasm_${crate_name})
+        add_custom_target(cargo-build-wasm_${crate_name}
+            COMMAND cargo build --release --target wasm32-unknown-unknown -p ${crate_name}
+            WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+            COMMENT "Building ${crate_name} for wasm32-unknown-unknown"
+            USES_TERMINAL
+        )
+    endif()
+
+    # --- Target 2: wasm-bindgen post-processing (ALL build) ---
+    if(NOT TARGET wasm-bindgen_${crate_name})
+        add_custom_target(wasm-bindgen_${crate_name} ALL
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${wasm_out_dir}"
+            COMMAND ${WASM_BINDGEN_EXECUTABLE}
+                --target web
+                "${wasm_wasm_file}"
+                --out-dir "${wasm_out_dir}"
+                --out-name "${name_underscore}"
+            DEPENDS cargo-build-wasm_${crate_name}
+            COMMENT "Running wasm-bindgen for ${crate_name}"
+        )
+    endif()
+
+    # --- Target 3: wasm-opt optimization (if available) ---
+    if(WASM_OPT_EXECUTABLE AND NOT TARGET wasm-opt_${crate_name})
+        add_custom_target(wasm-opt_${crate_name} ALL
+            COMMAND ${WASM_OPT_EXECUTABLE} -O
+                "${wasm_out_dir}/${name_underscore}_bg.wasm"
+                -o "${wasm_out_dir}/${name_underscore}_bg.wasm"
+            DEPENDS wasm-bindgen_${crate_name}
+            COMMENT "Running wasm-opt for ${crate_name}"
+        )
+    endif()
+
+    # --- IDE FOLDER ---
+    foreach(target_suffix
+            cargo-build-wasm_${crate_name}
+            wasm-bindgen_${crate_name}
+            wasm-opt_${crate_name})
+        if(TARGET ${target_suffix})
+            set_target_properties(${target_suffix} PROPERTIES
+                FOLDER "wasm/${crate_name}")
+        endif()
+    endforeach()
+endfunction()

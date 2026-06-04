@@ -642,7 +642,7 @@ set(_gkit_corrosion_crates gkit-core gkit-media gkit-native gkit-crash gkit-netw
 if(GKIT_BUILD_CRATE_FFI)
 	list(APPEND _gkit_corrosion_crates gkit-core-c gkit-media-c)
 endif()
-list(APPEND _gkit_corrosion_crates gkit-core-wasm gkit-core-uniffi gkit-media-wasm gkit-media-uniffi)
+list(APPEND _gkit_corrosion_crates gkit-core-uniffi gkit-media-uniffi)
 
 # --- Plugin crates ---
 gkit_cargo_add_plugin(
@@ -671,7 +671,7 @@ endif()
 
 # Direct internal/binding crate output to a cargo subdir to avoid cluttering build/
 set(_gkit_redirect_crates gkit_core gkit_media gkit_native gkit_crash gkit_network gkit_service)
-list(APPEND _gkit_redirect_crates gkit-core-wasm gkit-core-uniffi gkit-media-wasm gkit-media-uniffi)
+list(APPEND _gkit_redirect_crates gkit-core-uniffi gkit-media-uniffi)
 foreach(_gkit_crate ${_gkit_redirect_crates})
 	if(TARGET ${_gkit_crate})
 		set_target_properties(${_gkit_crate} PROPERTIES
@@ -697,10 +697,14 @@ if(GKIT_BUILD_CRATE_FFI)
 	gkit_cargo_set_folder("gkit-core-c"  "gkit-core-ffi")
 	gkit_cargo_set_folder("gkit-media-c" "gkit-media-ffi")
 endif()
-gkit_cargo_set_folder("gkit-core-wasm" "gkit-core-wasm")
 gkit_cargo_set_folder("gkit-core-uniffi" "gkit-core-uniffi")
-gkit_cargo_set_folder("gkit-media-wasm" "gkit-media-wasm")
 gkit_cargo_set_folder("gkit-media-uniffi" "gkit-media-uniffi")
+
+# WASM binding targets: build with cargo + wasm-bindgen-cli (not Corrosion)
+if(GKIT_BUILD_CRATE_WASM)
+    gkit_cargo_setup_wasm_target(gkit-core-wasm)
+    gkit_cargo_setup_wasm_target(gkit-media-wasm)
+endif()
 
 # add API subdirectories (conditional on build options)
 if(GKIT_BUILD_CRATE_FFI)
