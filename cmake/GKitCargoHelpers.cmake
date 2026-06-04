@@ -439,9 +439,13 @@ function(gkit_cargo_setup_wasm_target crate_name)
         message(STATUS "gkit_cargo_setup_wasm_target: wasm-opt not found (skipping optimization)")
     endif()
 
+    set(_build_target   "cargo-build_${name_underscore}")
+    set(_bindgen_target "cargo-build_${name_underscore}_bindgen")
+    set(_optimize_target "cargo-build_${name_underscore}_optimize")
+
     # --- Target 1: cargo build for wasm32 ---
-    if(NOT TARGET cargo-build-wasm_${crate_name})
-        add_custom_target(cargo-build-wasm_${crate_name}
+    if(NOT TARGET ${_build_target})
+        add_custom_target(${_build_target}
             COMMAND cargo build --release --target wasm32-unknown-unknown -p ${crate_name}
             WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
             COMMENT "Building ${crate_name} for wasm32-unknown-unknown"
@@ -450,8 +454,8 @@ function(gkit_cargo_setup_wasm_target crate_name)
     endif()
 
     # --- Target 2: wasm-bindgen post-processing (ALL build) ---
-    if(NOT TARGET wasm-bindgen_${crate_name})
-        add_custom_target(wasm-bindgen_${crate_name} ALL
+    if(NOT TARGET ${_bindgen_target})
+        add_custom_target(${_bindgen_target} ALL
             COMMAND ${CMAKE_COMMAND} -E make_directory "${wasm_out_dir}"
             COMMAND ${WASM_BINDGEN_EXECUTABLE}
                 --target web
@@ -459,30 +463,27 @@ function(gkit_cargo_setup_wasm_target crate_name)
                 --out-dir "${wasm_out_dir}"
                 --out-name "${name_underscore}"
             WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
-            DEPENDS cargo-build-wasm_${crate_name}
+            DEPENDS ${_build_target}
             COMMENT "Running wasm-bindgen for ${crate_name}"
         )
     endif()
 
-    # --- Target 3: wasm-opt optimization (if available) ---
-    if(WASM_OPT_EXECUTABLE AND NOT TARGET wasm-opt_${crate_name})
-        add_custom_target(wasm-opt_${crate_name} ALL
+    # --- Target 3: wasm-opt optimization (ALL build, if available) ---
+    if(WASM_OPT_EXECUTABLE AND NOT TARGET ${_optimize_target})
+        add_custom_target(${_optimize_target} ALL
             COMMAND ${WASM_OPT_EXECUTABLE} -O
                 "${wasm_out_dir}/${name_underscore}_bg.wasm"
                 -o "${wasm_out_dir}/${name_underscore}_bg.wasm"
-            DEPENDS wasm-bindgen_${crate_name}
+            DEPENDS ${_bindgen_target}
             COMMENT "Running wasm-opt for ${crate_name}"
         )
     endif()
 
     # --- IDE FOLDER ---
-    foreach(target_suffix
-            cargo-build-wasm_${crate_name}
-            wasm-bindgen_${crate_name}
-            wasm-opt_${crate_name})
-        if(TARGET ${target_suffix})
-            set_target_properties(${target_suffix} PROPERTIES
-                FOLDER "wasm/${crate_name}")
+    foreach(_target ${_build_target} ${_bindgen_target} ${_optimize_target})
+        if(TARGET ${_target})
+            set_target_properties(${_target} PROPERTIES
+                FOLDER "${crate_name}")
         endif()
     endforeach()
 endfunction()
