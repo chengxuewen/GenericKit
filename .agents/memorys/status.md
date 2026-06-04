@@ -1,6 +1,6 @@
 # GenericKit Status
 
-**Last Updated**: 2026-06-03
+**Last Updated**: 2026-06-04
 **Active Session**: Binding Architecture Restructure — completed ✅
 
 ## Binding Architecture
@@ -9,34 +9,49 @@
 |------|-------|------------|--------|
 | 1 | `gkit-media-ffi` | `extern "C"` + cbindgen | ✅ Implemented |
 | 1 | `gkit-core-ffi` | `extern "C"` + cbindgen | ✅ Implemented (stub) |
-| 2 | `gkit-media-uniffi` | UniFFI (mozilla/uniffi-rs) | 🔮 Future (mobile demand) |
-| 3 | `gkit-media-diplomat` | Diplomat (rust-diplomat/diplomat) | 🔮 Future (C++ API growth) |
+| 2 | `gkit-media-wasm` | wasm-bindgen | ✅ Implemented (stub) |
+| 2 | `gkit-core-wasm` | wasm-bindgen | ✅ Implemented (stub) |
+| 3 | `gkit-media-uniffi` | UniFFI (mozilla/uniffi-rs) | ✅ Implemented (stub) |
+| 3 | `gkit-core-uniffi` | UniFFI (mozilla/uniffi-rs) | ✅ Implemented (stub) |
 
 ## Directory Structure (Final)
 
 ```
-crates/                          # Rust workspace (10 crates, 2 active)
+crates/                          # Rust workspace (14 crates, 6 binding)
 ├── gkit-media/                  # ★ Core (17K lines)
 ├── gkit-media-ffi/              # ★ C FFI (1168 lines)
+├── gkit-media-wasm/             # WASM binding
+├── gkit-media-uniffi/           # UniFFI binding
 ├── gkit-core/                   # Stub
-├── gkit-core-ffi/               # Stub
+├── gkit-core-ffi/               # C FFI (stub)
+├── gkit-core-wasm/              # WASM binding (stub)
+├── gkit-core-uniffi/            # UniFFI binding (stub)
 └── gkit-{network,graphics,service,native,profiling,crash}/  # Arch stubs
 
 packages/
 └── cpp/                         # C++ RAII headers (active)
 ```
 
-CMake FOLDER convention: each crate maps to a flat FOLDER with underscores:
+CMake FOLDER convention: each crate maps to a flat FOLDER matching its directory name with hyphens:
 
 ```
-gkit_core           (gkit-core)
-gkit_core_ffi       (gkit-core-ffi)
-  gkit_core_ffi/tests
-gkit_media          (gkit-media)
-gkit_media_ffi      (gkit-media-ffi)
-  gkit_media_ffi/tests
-  gkit_media_ffi/examples
+gkit-core              (gkit-core)
+gikit-core-ffi          (gkit-core-ffi)
+  gkit-core-ffi/packages/cpp
+gkit-core-wasm         (gkit-core-wasm)
+gkit-core-uniffi       (gkit-core-uniffi)
+gkit-media             (gkit-media)
+gkit-media-ffi         (gkit-media-ffi)
+  gkit-media-ffi/tests
+  gkit-media-ffi/examples
+  gkit-media-ffi/packages/cpp  (C++ nested under FFI)
+gkit-media-wasm
+gkit-media-uniffi
 ```
+
+Corrosion-generated targets use underscores (unavoidable per Corrosion v0.5+).
+
+CMake options: `GKIT_BUILD_CRATE_FFI/WASM/UNIFFI`, `GKIT_BUILD_PACKAGE_CPP`.
 
 ## Plugin Architecture
 
@@ -127,5 +142,4 @@ C++ 线程只做最轻量的 `tx.send()`，所有 Rust 逻辑在消费端线程�
 - Investigate `rt().spawn()` not executing (tokio worker pool issue)
 - Multi-backend loopback support (webrtc-rs, WASM)
 - Implement Python binding (`crates/gkit-media-py/`) when needed
-- Implement UniFFI crate (`crates/gkit-media-uniffi/`) when mobile demand arises
-- Implement Diplomat crate (`crates/gkit-media-diplomat/`) when C++ API outgrows manual RAII
+- Implement Kotlin/Swift/Python export for UniFFI crates

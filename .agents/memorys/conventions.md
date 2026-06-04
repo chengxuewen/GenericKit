@@ -10,14 +10,12 @@ All language bindings follow the **iscc-lib pattern**: Rust crates go in `crates
 crates/
 ├── gkit-media/                 # Pure Rust core (no FFI concerns)
 ├── gkit-media-ffi/             # C FFI (extern "C" + cbindgen) — system languages use this
-├── gkit-media-py/              # Python (PyO3 — direct Rust binding)
-├── gkit-media-node/            # Node.js (napi-rs — direct Rust binding)
 ├── gkit-media-wasm/            # WASM (wasm-bindgen — direct Rust binding) ✅
 ├── gkit-media-uniffi/          # UniFFI (mozilla/uniffi-rs — mobile/scripting) ✅
-├── gkit-media-flutter/         # Flutter (flutter_rust_bridge — direct Rust binding)
 ├── gkit-core/                  # Pure Rust core (stub)
 ├── gkit-core-ffi/              # C FFI (stub)
-├── gkit-core-py/               # Python stub
+├── gkit-core-wasm/             # WASM binding (stub)
+├── gkit-core-uniffi/           # UniFFI binding (stub)
 └── ...
 
 packages/
@@ -27,8 +25,8 @@ packages/
 
 ### Naming Convention
 
-- **Rust binding crates**: `gkit-{core-crate}-{target}` where target ∈ {ffi, py, node, wasm, flutter}
-  - Example: `gkit-media-py`, `gkit-core-ffi`
+- **Rust binding crates**: `gkit-{core-crate}-{target}` where target ∈ {ffi, wasm, uniffi}
+  - Example: `gkit-media-wasm`, `gkit-core-ffi`
   - Workspace member glob: `crates/gkit-media-*`
 - **C FFI crate names** (Cargo.toml `name`): historically `gkit-media-c`, `gkit-core-c` (kept for backward compatibility)
 - **Non-Rust packaging**: `packages/{lang}/` — contains build scripts, configs, but NO Cargo.toml
@@ -87,7 +85,7 @@ gkit-media (core) ────────────────────�
 
 **创建时**：每个 crate 按需创建，不预建 stub。
 **命名**：`gkit-{core-crate}-{ffi|wasm|uniffi}`。
-**CMake FOLDER**：`gkit_media_ffi`, `gkit_media_wasm`, `gkit_media_uniffi`。
+**CMake FOLDER**：`gkit-media-ffi`, `gkit-media-wasm`, `gkit-media-uniffi`。
 
 ## Plugin Architecture
 
@@ -121,10 +119,13 @@ gkit-media (core) ────────────────────�
 
 ## CMake Convention
 
-- **Plugin crate names**: hyphens in Cargo.toml → underscores in CMake targets (Corrosion convention)
+- **Custom CMake targets**: hyphens in names (e.g., `gkit-media-c`, `gkit-media-cpp`) — matches Rust crate naming
+- **Corrosion-generated targets**: underscores (e.g., `gkit_media_c-shared`, `cargo-build_gkit_media_c`) — unavoidable per Corrosion v0.5+
+- **FOLDER property**: each crate's FOLDER matches its directory name with hyphens (e.g., `gkit-media-ffi`)
+- **C++ packages nested under FFI FOLDER**: `gkit-media-ffi/packages/cpp`
+- **Build options**: `GKIT_BUILD_CRATE_FFI/WASM/UNIFFI` for workspace members, `GKIT_BUILD_PACKAGE_CPP` for non-Rust packaging
 - **Corrosion creates 3 targets per cdylib**: INTERFACE (alias), -shared (IMPORTED), cargo-build_ (UTILITY)
 - **Plugin dylib copy**: `add_custom_target` + DEPENDS on `cargo-build_` (NOT POST_BUILD — UTILITY targets don't support it)
-- **FOLDER property**: set on main target AND all Corrosion utility prefixes (`cargo-build_`, `_cargo-build_`, `cargo-clean_`, etc.)
 - **install()**: use `$<TARGET_FILE:${target}-shared>` for IMPORTED library file path
 
 ## Naming
