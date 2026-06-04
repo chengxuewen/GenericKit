@@ -8,8 +8,6 @@ use wasm_bindgen::prelude::*;
 pub struct RtcConfiguration {
     #[wasm_bindgen(getter_with_clone)]
     pub ice_servers: Vec<IceServer>,
-    #[wasm_bindgen(getter_with_clone)]
-    pub signaling_url: Option<String>,
 }
 
 #[wasm_bindgen]
@@ -18,16 +16,11 @@ impl RtcConfiguration {
     pub fn new() -> Self {
         Self {
             ice_servers: vec![],
-            signaling_url: None,
         }
     }
 
     pub fn add_ice_server(&mut self, server: IceServer) {
         self.ice_servers.push(server);
-    }
-
-    pub fn set_signaling_url(&mut self, url: String) {
-        self.signaling_url = Some(url);
     }
 }
 
@@ -95,11 +88,6 @@ impl RtcPeerConnection {
             .create_peer_connection_with_config(&gkit_config)
             .map_err(|e| JsValue::from_str(&e.message))?;
         Ok(Self { inner: pc })
-    }
-
-    /// Create a new RtcPeerConnection with signaling server.
-    pub fn new_with_signaling(config: &RtcConfiguration) -> Result<RtcPeerConnection, JsValue> {
-        Self::new(config)
     }
 
     pub fn create_offer(&self) -> Result<RtcSessionDescription, JsValue> {
