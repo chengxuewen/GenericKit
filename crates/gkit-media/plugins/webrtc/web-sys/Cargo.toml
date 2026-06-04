@@ -24,6 +24,17 @@ web-sys = { version = "0.3", features = [
     "RtcSignalingState",
     "RtcIceGatheringState",
     "RtcDataChannelState",
+    "RtcRtpSender",
+    "HtmlCanvasElement",
+    "CanvasRenderingContext2d",
+    "HtmlVideoElement",
+    "MediaStream",
+    "MediaStreamTrack",
+    "MediaStreamConstraints",
+    "VideoTrack",
+    "Window",
+    "Document",
+    "RtcTrackEvent",
 ] }
 js-sys = "0.3"
 wasm-bindgen-futures = "0.4"

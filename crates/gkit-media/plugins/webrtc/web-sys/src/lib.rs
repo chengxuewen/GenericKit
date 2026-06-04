@@ -1,12 +1,17 @@
 use gkit_media::protocols::rtc::peer::{
     ConnectionState, DataChannel, DataChannelState, GatheringState, IceConnectionState,
     MediaError, MediaResult, PeerConnection, PeerConnectionFactory, RtcConfiguration,
-    SessionDescription, SignalingState,
+    SessionDescription, SignalingState, VideoTrack as GkVideoTrack,
 };
+use gkit_media::video::frame::BoxVideoFrame;
+use gkit_media::video::source_sink::{VideoSink, VideoSource};
 use pollster::block_on;
+use std::sync::{Arc, Mutex};
 use wasm_bindgen::prelude::*;
+use wasm_bindgen::closure::Closure;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{
+    CanvasRenderingContext2d, HtmlCanvasElement, MediaStream, MediaStreamTrack, RtcTrackEvent,
     RtcConfiguration as WebRtcConfig, RtcIceCandidate as WebRtcIceCandidate,
     RtcIceCandidateInit, RtcPeerConnection as WebRtcPeerConnection, RtcSdpType,
     RtcSessionDescriptionInit,
@@ -148,6 +153,70 @@ impl PeerConnection for WasmPeerConnection {
         extract_session_description(&js_value)
     }
 
+    fn create_video_track(
+        &self,
+        _source: Box<dyn VideoSource<BoxVideoFrame>>,
+    ) -> MediaResult<Box<dyn GkVideoTrack>> {
+        let window = web_sys::window().ok_or(MediaError::new("no window"))?;
+        let document = window
+            .document()
+            .ok_or(MediaError::new("no document"))?;
+        let canvas: HtmlCanvasElement = document
+            .create_element("canvas")
+            .map_err(|e| MediaError::new(format!("create canvas: {:?}", e)))?
+            .dyn_into()
+            .map_err(|_| MediaError::new("failed to cast to canvas"))?;
+        canvas.set_width(640);
+        canvas.set_height(480);
+        let ctx: CanvasRenderingContext2d = canvas
+            .get_context("2d")
+            .map_err(|e| MediaError::new(format!("getContext: {:?}", e)))?
+            .ok_or(MediaError::new("no 2d context"))?
+            .dyn_into()
+            .map_err(|_| MediaError::new("failed to cast context"))?;
+
+        let stream = canvas
+            .capture_stream()
+            .map_err(|_| MediaError::new("canvas.captureStream() failed"))?;
+        let video_tracks = stream.get_video_tracks();
+        let track = video_tracks.get(0);
+        if track.is_undefined() {
+            return Err(MediaError::new("no video track from canvas"));
+        }
+        let track: MediaStreamTrack = track
+            .dyn_into()
+            .map_err(|_| MediaError::new("failed to cast video track"))?;
+
+        let _ = self.pc.add_track_0(&track, &stream);
+
+        // Draw a test pattern so the canvas stream has initial content
+        ctx.set_fill_style_str("green");
+        ctx.fill_rect(0.0, 0.0, 640.0, 480.0);
+
+        Ok(Box::new(WasmVideoTrack {
+            _canvas: canvas,
+            _stream: stream,
+            track,
+        }))
+    }
+
+    fn set_on_track(&self, cb: Box<dyn Fn(Box<dyn GkVideoTrack>) + Send>) {
+        let cb = Arc::new(Mutex::new(cb));
+        let cb_clone = cb.clone();
+
+        let ontrack = Closure::wrap(Box::new(move |event: RtcTrackEvent| {
+            let track = event.track();
+            let remote_track = WasmRemoteVideoTrack { track };
+            let cb_guard = cb_clone
+                .lock()
+                .expect("set_on_track callback mutex poisoned");
+            cb_guard(Box::new(remote_track));
+        }) as Box<dyn FnMut(RtcTrackEvent)>);
+
+        self.pc.set_ontrack(Some(ontrack.as_ref().unchecked_ref()));
+        ontrack.forget();
+    }
+
     fn close(&mut self) -> MediaResult<()> {
         self.pc.close();
         Ok(())
@@ -160,6 +229,50 @@ impl PeerConnection for WasmPeerConnection {
         let json = js_sys::JSON::stringify(&stats)
             .map_err(|e| MediaError::new(format!("JSON.stringify: {:?}", e)))?;
         Ok(json.as_string().unwrap_or_default())
+    }
+}
+
+// ─── WasmVideoTrack (sender) ────────────────────────────────────────────
+
+#[allow(dead_code)]
+pub struct WasmVideoTrack {
+    _canvas: HtmlCanvasElement,
+    _stream: MediaStream,
+    track: MediaStreamTrack,
+}
+
+impl GkVideoTrack for WasmVideoTrack {
+    fn id(&self) -> &str {
+        "wasm-video"
+    }
+
+    fn kind(&self) -> &str {
+        "video"
+    }
+
+    fn add_sink(&self, _sink: Box<dyn VideoSink<BoxVideoFrame>>) {
+        // Sender track: sinks are not used; frames come from canvas capture
+    }
+}
+
+// ─── WasmRemoteVideoTrack (receiver) ────────────────────────────────────
+
+#[allow(dead_code)]
+pub struct WasmRemoteVideoTrack {
+    track: MediaStreamTrack,
+}
+
+impl GkVideoTrack for WasmRemoteVideoTrack {
+    fn id(&self) -> &str {
+        "wasm-remote-video"
+    }
+
+    fn kind(&self) -> &str {
+        "video"
+    }
+
+    fn add_sink(&self, _sink: Box<dyn VideoSink<BoxVideoFrame>>) {
+        // TODO: Spawn a frame reader: video → canvas → getImageData → sink.on_frame()
     }
 }
 
