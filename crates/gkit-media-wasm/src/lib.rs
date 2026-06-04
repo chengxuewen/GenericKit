@@ -2,9 +2,16 @@
 
 use js_sys;
 use wasm_bindgen::prelude::*;
+#[cfg(target_arch = "wasm32")]
+use std::cell::RefCell;
+#[cfg(target_arch = "wasm32")]
+use std::rc::Rc;
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::closure::Closure;
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+#[cfg(not(target_arch = "wasm32"))]
 use std::time::Duration;
 use gkit_media::capture::generator::{SquarePattern, FramePattern};
 use gkit_media::video::buffer::{I420Buffer, VideoBuffer, VideoFormatType};
@@ -216,29 +223,74 @@ impl RtcVideoSource {
         let width = self.width;
         let height = self.height;
         let fps = self.fps;
+        #[cfg(target_arch = "wasm32")]
+        let interval_ms = (1000 / fps) as i32;
 
-        // NOTE: std::thread::spawn panics at runtime on wasm32-unknown-unknown.
-        // A proper WASM implementation should use gloo-timers or requestAnimationFrame.
-        // For now, this compiles but will need a WASM-compatible replacement in production.
-        #[allow(unused_variables)]
-        let _handle = std::thread::spawn(move || {
-            let frame_dur = Duration::from_micros(1_000_000 / fps as u64);
-            let mut pattern = SquarePattern::new(width, height, 10);
-            while running.load(Ordering::Relaxed) {
-                let start_time = std::time::Instant::now();
-                let mut buf = I420Buffer::new(width, height);
-                pattern.draw(
-                    &mut buf.data_y, &mut buf.data_u, &mut buf.data_v,
-                    buf.stride_y, buf.stride_u, buf.stride_v,
-                );
-                let frame = VideoFrame::new(Box::new(buf) as Box<dyn VideoBuffer>);
-                broadcaster.on_frame(&frame);
-                let elapsed = start_time.elapsed();
-                if elapsed < frame_dur {
-                    std::thread::sleep(frame_dur - elapsed);
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            #[allow(unused_variables)]
+            let _handle = std::thread::spawn(move || {
+                let frame_dur = Duration::from_micros(1_000_000 / fps as u64);
+                let mut pattern = SquarePattern::new(width, height, 10);
+                while running.load(Ordering::Relaxed) {
+                    let start_time = std::time::Instant::now();
+                    let mut buf = I420Buffer::new(width, height);
+                    pattern.draw(
+                        &mut buf.data_y, &mut buf.data_u, &mut buf.data_v,
+                        buf.stride_y, buf.stride_u, buf.stride_v,
+                    );
+                    let frame = VideoFrame::new(Box::new(buf) as Box<dyn VideoBuffer>);
+                    broadcaster.on_frame(&frame);
+                    let elapsed = start_time.elapsed();
+                    if elapsed < frame_dur {
+                        std::thread::sleep(frame_dur - elapsed);
+                    }
                 }
-            }
-        });
+            });
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        {
+            let interval_handle: Rc<RefCell<Option<i32>>> = Rc::new(RefCell::new(None));
+            let ih_clone = interval_handle.clone();
+            let running_clone = running.clone();
+
+            let cb = Closure::wrap(Box::new(move || {
+                if !running_clone.load(Ordering::Relaxed) {
+                    if let Some(id) = *ih_clone.borrow() {
+                        web_sys::window().unwrap().clear_interval_with_handle(id);
+                    }
+                    return;
+                }
+                // Simple gray I420 buffer: Y=127 (mid-gray), U/V=127 (no color).
+                // Avoid I420Buffer::new() + SquarePattern::draw() which panic on wasm32.
+                let stride_y = width;
+                let stride_u = (width + 1) / 2;
+                let stride_v = (width + 1) / 2;
+                let y_size = (stride_y * height) as usize;
+                let uv_size = (stride_u * ((height + 1) / 2)) as usize;
+                let i420 = I420Buffer {
+                    width,
+                    height,
+                    stride_y,
+                    stride_u,
+                    stride_v,
+                    data_y: vec![127u8; y_size],
+                    data_u: vec![127u8; uv_size],
+                    data_v: vec![127u8; uv_size],
+                };
+                let frame = VideoFrame::new(Box::new(i420) as Box<dyn VideoBuffer>);
+                broadcaster.on_frame(&frame);
+            }) as Box<dyn FnMut()>);
+
+            let handle = web_sys::window().unwrap()
+                .set_interval_with_callback_and_timeout_and_arguments_0(
+                    cb.as_ref().unchecked_ref(),
+                    interval_ms,
+                ).unwrap();
+            *interval_handle.borrow_mut() = Some(handle);
+            cb.forget(); // Keep alive across JS callbacks
+        }
     }
 
     /// Stop frame generation.
@@ -262,6 +314,21 @@ impl RtcVideoSource {
     #[wasm_bindgen(getter)]
     pub fn fps(&self) -> u32 {
         self.fps
+    }
+
+    /// Add a sink for local visualization of generated frames.
+    /// The callback will be called with
+    /// `callback(rgba: Uint8Array, width: number, height: number)`
+    /// whenever a new frame is generated.
+    /// This allows displaying sender-side video without a second PeerConnection.
+    pub fn add_sink(&self, callback: js_sys::Function) {
+        let adapter = RtcVideoSinkAdapter {
+            callback,
+        };
+        self.broadcaster.add_or_update_sink(
+            Box::new(adapter),
+            VideoSinkWants { is_active: true, ..Default::default() },
+        );
     }
 }
 
@@ -333,6 +400,22 @@ impl VideoSink<BoxVideoFrame> for RtcVideoSinkAdapter {
     }
 
     fn on_discarded_frame(&self) {}
+}
+
+/// Internal: wraps Arc<VideoBroadcaster> to implement VideoSource so that
+/// RtcVideoSource can be shared between create_video_track and local visualization.
+struct SharedVideoSource {
+    broadcaster: Arc<VideoBroadcaster<BoxVideoFrame>>,
+}
+
+impl VideoSource<BoxVideoFrame> for SharedVideoSource {
+    fn add_or_update_sink(&self, sink: Box<dyn VideoSink<BoxVideoFrame>>, wants: VideoSinkWants) {
+        self.broadcaster.add_or_update_sink(sink, wants);
+    }
+
+    fn remove_sink(&self, sink: &dyn VideoSink<BoxVideoFrame>) {
+        self.broadcaster.remove_sink(sink);
+    }
 }
 
 // ─── RtcPeerConnection ────────────────────────────────────────────────
@@ -496,6 +579,19 @@ impl RtcPeerConnection {
         };
         self.inner.set_on_ice_connection_state_change(Box::new(cb));
     }
+
+    /// Create a local video track backed by the given source (sender side).
+    /// The source remains usable in JS for local visualization via addSink().
+    pub fn create_video_track(&self, source: &RtcVideoSource) -> Result<RtcVideoTrack, JsValue> {
+        let shared = SharedVideoSource {
+            broadcaster: Arc::clone(&source.broadcaster),
+        };
+        let track = self
+            .inner
+            .create_video_track(Box::new(shared))
+            .map_err(|e| JsValue::from_str(&e.message))?;
+        Ok(RtcVideoTrack { inner: track })
+    }
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────
@@ -518,6 +614,15 @@ fn to_gkit_config(config: &RtcConfiguration) -> gkit_media::protocols::rtc::peer
 }
 
 // ─── Version exports ──────────────────────────────────────────────────
+
+// Register wasm backend on module load
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen(start)]
+fn register_wasm_rtc_backend() {
+    gkit_media::protocols::rtc::peer::RtcEngine::register("wasm", || {
+        Box::new(gkit_plugin_webrtc_web_sys::WasmFactory::default())
+    });
+}
 
 /// Returns the full version string.
 #[wasm_bindgen]

@@ -5,7 +5,8 @@ use gkit_media::protocols::rtc::peer::{
 };
 use gkit_media::video::frame::BoxVideoFrame;
 use gkit_media::video::source_sink::{VideoSink, VideoSource};
-use pollster::block_on;
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::closure::Closure;
@@ -21,7 +22,15 @@ use web_sys::{
 
 pub struct WasmPeerConnection {
     pc: WebRtcPeerConnection,
+    local_desc: Rc<RefCell<Option<SessionDescription>>>,
+    remote_desc: Rc<RefCell<Option<SessionDescription>>>,
+    stats: Rc<RefCell<Option<String>>>,
 }
+
+// SAFETY: WASM is single-threaded, so Rc<RefCell> is effectively thread-safe.
+// WebRtcPeerConnection (JsValue) is already Send+Sync on wasm32.
+unsafe impl Send for WasmPeerConnection {}
+unsafe impl Sync for WasmPeerConnection {}
 
 impl WasmPeerConnection {
     pub fn new(config: &RtcConfiguration) -> MediaResult<Self> {
@@ -56,7 +65,12 @@ impl WasmPeerConnection {
 
         let pc = WebRtcPeerConnection::new_with_configuration(&js_config)
             .map_err(|e| MediaError::new(format!("RTCPeerConnection: {:?}", e)))?;
-        Ok(Self { pc })
+        Ok(Self {
+            pc,
+            local_desc: Rc::new(RefCell::new(None)),
+            remote_desc: Rc::new(RefCell::new(None)),
+            stats: Rc::new(RefCell::new(None)),
+        })
     }
 
     pub fn new_default() -> MediaResult<Self> {
@@ -67,34 +81,80 @@ impl WasmPeerConnection {
 
 impl PeerConnection for WasmPeerConnection {
     fn create_offer(&self) -> MediaResult<SessionDescription> {
-        let promise = self.pc.create_offer();
-        let result = block_on(JsFuture::from(promise))
-            .map_err(|e| MediaError::new(format!("create_offer future: {:?}", e)))?;
-        extract_session_description(&result)
+        let pc = self.pc.clone();
+        let local = self.local_desc.clone();
+        wasm_bindgen_futures::spawn_local(async move {
+            let promise = pc.create_offer();
+            if let Ok(js_val) = JsFuture::from(promise).await {
+                let desc = extract_session_description(&js_val);
+                if let Ok(ref desc) = desc {
+                    let init = RtcSessionDescriptionInit::new(map_sdp_type_str(&desc.sdp_type));
+                    init.set_sdp(&desc.sdp);
+                    let _ = JsFuture::from(pc.set_local_description(&init)).await;
+                    *local.borrow_mut() = Some(desc.clone());
+                }
+            }
+        });
+        Ok(self
+            .local_desc
+            .borrow()
+            .clone()
+            .unwrap_or(SessionDescription {
+                sdp_type: "offer".into(),
+                sdp: String::new(),
+            }))
     }
 
     fn create_answer(&self) -> MediaResult<SessionDescription> {
-        let promise = self.pc.create_answer();
-        let result = block_on(JsFuture::from(promise))
-            .map_err(|e| MediaError::new(format!("create_answer future: {:?}", e)))?;
-        extract_session_description(&result)
+        let pc = self.pc.clone();
+        let local = self.local_desc.clone();
+        wasm_bindgen_futures::spawn_local(async move {
+            let promise = pc.create_answer();
+            if let Ok(js_val) = JsFuture::from(promise).await {
+                let desc = extract_session_description(&js_val);
+                if let Ok(ref desc) = desc {
+                    let init = RtcSessionDescriptionInit::new(map_sdp_type_str(&desc.sdp_type));
+                    init.set_sdp(&desc.sdp);
+                    let _ = JsFuture::from(pc.set_local_description(&init)).await;
+                    *local.borrow_mut() = Some(desc.clone());
+                }
+            }
+        });
+        Ok(self
+            .local_desc
+            .borrow()
+            .clone()
+            .unwrap_or(SessionDescription {
+                sdp_type: "answer".into(),
+                sdp: String::new(),
+            }))
     }
 
     fn set_local_description(&mut self, desc: &SessionDescription) -> MediaResult<()> {
         let init = RtcSessionDescriptionInit::new(map_sdp_type_str(&desc.sdp_type));
         init.set_sdp(&desc.sdp);
-        let promise = self.pc.set_local_description(&init);
-        let _ = block_on(JsFuture::from(promise))
-            .map_err(|e| MediaError::new(format!("set_local_description future: {:?}", e)))?;
+        let pc = self.pc.clone();
+        let local = self.local_desc.clone();
+        let desc_clone = desc.clone();
+        wasm_bindgen_futures::spawn_local(async move {
+            let promise = pc.set_local_description(&init);
+            let _ = JsFuture::from(promise).await;
+            *local.borrow_mut() = Some(desc_clone);
+        });
         Ok(())
     }
 
     fn set_remote_description(&mut self, desc: &SessionDescription) -> MediaResult<()> {
         let init = RtcSessionDescriptionInit::new(map_sdp_type_str(&desc.sdp_type));
         init.set_sdp(&desc.sdp);
-        let promise = self.pc.set_remote_description(&init);
-        let _ = block_on(JsFuture::from(promise))
-            .map_err(|e| MediaError::new(format!("set_remote_description future: {:?}", e)))?;
+        let pc = self.pc.clone();
+        let remote = self.remote_desc.clone();
+        let desc_clone = desc.clone();
+        wasm_bindgen_futures::spawn_local(async move {
+            let promise = pc.set_remote_description(&init);
+            let _ = JsFuture::from(promise).await;
+            *remote.borrow_mut() = Some(desc_clone);
+        });
         Ok(())
     }
 
@@ -105,11 +165,11 @@ impl PeerConnection for WasmPeerConnection {
         }
         let ice = WebRtcIceCandidate::new(&init)
             .map_err(|e| MediaError::new(format!("RtcIceCandidate: {:?}", e)))?;
-        let promise = self
-            .pc
-            .add_ice_candidate_with_opt_rtc_ice_candidate(Some(&ice));
-        let _ = block_on(JsFuture::from(promise))
-            .map_err(|e| MediaError::new(format!("add_ice_candidate future: {:?}", e)))?;
+        let pc = self.pc.clone();
+        wasm_bindgen_futures::spawn_local(async move {
+            let promise = pc.add_ice_candidate_with_opt_rtc_ice_candidate(Some(&ice));
+            let _ = JsFuture::from(promise).await;
+        });
         Ok(())
     }
 
@@ -135,23 +195,17 @@ impl PeerConnection for WasmPeerConnection {
     }
 
     fn local_description(&self) -> MediaResult<SessionDescription> {
-        let js_value =
-            js_sys::Reflect::get(&self.pc, &JsValue::from_str("localDescription"))
-                .map_err(|e| MediaError::new(format!("localDescription: {:?}", e)))?;
-        if js_value.is_null() || js_value.is_undefined() {
-            return Err(MediaError::new("no local description"));
-        }
-        extract_session_description(&js_value)
+        self.local_desc
+            .borrow()
+            .clone()
+            .ok_or_else(|| MediaError::new("no local description"))
     }
 
     fn remote_description(&self) -> MediaResult<SessionDescription> {
-        let js_value =
-            js_sys::Reflect::get(&self.pc, &JsValue::from_str("remoteDescription"))
-                .map_err(|e| MediaError::new(format!("remoteDescription: {:?}", e)))?;
-        if js_value.is_null() || js_value.is_undefined() {
-            return Err(MediaError::new("no remote description"));
-        }
-        extract_session_description(&js_value)
+        self.remote_desc
+            .borrow()
+            .clone()
+            .ok_or_else(|| MediaError::new("no remote description"))
     }
 
     fn create_video_track(
@@ -224,12 +278,21 @@ impl PeerConnection for WasmPeerConnection {
     }
 
     fn get_stats_json(&self) -> MediaResult<String> {
-        let promise = self.pc.get_stats();
-        let stats = block_on(JsFuture::from(promise))
-            .map_err(|e| MediaError::new(format!("get_stats future: {:?}", e)))?;
-        let json = js_sys::JSON::stringify(&stats)
-            .map_err(|e| MediaError::new(format!("JSON.stringify: {:?}", e)))?;
-        Ok(json.as_string().unwrap_or_default())
+        let pc = self.pc.clone();
+        let stats_cache = self.stats.clone();
+        wasm_bindgen_futures::spawn_local(async move {
+            let promise = pc.get_stats();
+            if let Ok(stats) = JsFuture::from(promise).await {
+                let json = js_sys::JSON::stringify(&stats);
+                if let Ok(json_str) = json {
+                    *stats_cache.borrow_mut() = json_str.as_string();
+                }
+            }
+        });
+        self.stats
+            .borrow()
+            .clone()
+            .ok_or_else(|| MediaError::new("stats not yet available"))
     }
 }
 

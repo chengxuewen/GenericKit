@@ -704,6 +704,7 @@ gkit_cargo_set_folder("gkit-media-uniffi" "gkit-media-uniffi")
 if(GKIT_BUILD_CRATE_WASM)
     gkit_cargo_setup_wasm_target(gkit-core-wasm)
     gkit_cargo_setup_wasm_target(gkit-media-wasm)
+    add_subdirectory(crates/gkit-media-wasm/examples/webrtc-loopback)
 endif()
 
 # add API subdirectories (conditional on build options)

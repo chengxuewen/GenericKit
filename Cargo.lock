@@ -2139,8 +2139,10 @@ version = "0.1.2"
 dependencies = [
  "gkit-core",
  "gkit-media",
+ "gkit-plugin-webrtc-web-sys",
  "js-sys",
  "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]
@@ -2177,7 +2179,6 @@ dependencies = [
  "ctor",
  "gkit-media",
  "js-sys",
- "pollster",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
@@ -3848,12 +3849,6 @@ dependencies = [
  "rustix 1.1.4",
  "windows-sys 0.61.2",
 ]
-
-[[package]]
-name = "pollster"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22686f4785f02a4fcc856d3b3bb19bf6c8160d103f7a99cc258bddd0251dc7f2"
 
 [[package]]
 name = "poly1305"
