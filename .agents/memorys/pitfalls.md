@@ -127,3 +127,90 @@
 - Fix: deduplicate by plugin name in `discover()` using `HashSet` (keep first occurrence)
 - Also: `RelativeToExe("..")` combined with explicit `build/plugins/webrtc` path → same dylib found twice
 
+## WASM32 Gotchas (2026-06-04 session)
+
+### `SystemTime::now()` panics on `wasm32-unknown-unknown`
+- `std::time::SystemTime::now()` wraps `js_sys::Date::now()` but `duration_since(UNIX_EPOCH).unwrap()` panics on wasm32
+- Fix: use `#[cfg(target_arch = "wasm32")]` with `js_sys::Date::now() as u64` directly
+- `js_sys::Date::now()` returns milliseconds since Unix epoch — divide by 1000 for seconds
+- Requires `js-sys = "0.3"` in wasm32 dependencies
+
+### `pollster::block_on` can't drive WebRTC Promises on wasm32
+- WebRTC methods (`create_offer`, `set_local_description`, etc.) return JS Promises
+- `pollster::block_on` only processes microtask queue, not full event loop → Promise never resolves → `unreachable` trap
+- Fix: use `wasm_bindgen_futures::spawn_local` fire-and-forget + state caching
+- Sink methods store results in `Rc<RefCell<Option<T>>>`; synchronous methods return cached values
+- ICE candidates require polling `gathering_state()` until `"Complete"` before reading `local_description()`
+
+### `#[cfg(feature = "plugin")]` + wasm32 feature resolution trap
+- gkit-media has `plugin` feature ON (default)
+- gkit-core wasm32 dep uses `default-features = false` → `plugin` OFF
+- `#[cfg(feature = "plugin")]` in gkit-media evaluates to TRUE on wasm32
+- But `gkit_core::plugin` doesn't exist (gating `mod plugin` in gkit-core)
+- Fix: use `#[cfg(all(feature = "plugin", not(target_arch = "wasm32")))]` for gkit-core::plugin imports
+- Applies to `engine.rs`, `registry.rs`, and any code importing from `gkit_core::plugin`
+
+### `#[wasm_bindgen]` exports are snake_case, NOT camelCase
+- wasm-bindgen preserves Rust snake_case for method names in JS
+- JS calls must use `source.add_sink(cb)`, NOT `source.addSink(cb)`
+- Same for all methods: `create_offer()`, `set_local_description()`, `add_ice_candidate()`, etc.
+
+### CMake cargo build caching for WASM
+- `cmake --build` may not detect Rust source changes → stale WASM binary
+- Force rebuild: `rm -rf build-wasm && cargo clean && cmake -B build-wasm ...`
+- Corrosion tracks Cargo.toml changes but not all Rust source changes reliably
+
+### Duplicate `#[wasm_bindgen(start)]` registration
+- Both `gkit-plugin-webrtc-web-sys` and `gkit-media-wasm` register wasm backend
+- Registration is idempotent (`entry(key).or_insert(...)`) — duplicates are benign but the wasm module must link both
+- If `gkit-plugin-webrtc-web-sys` is not in gkit-media-wasm's deps, `#[wasm_bindgen(start)]` won't fire
+- Fix: gkit-media-wasm explicitly depends on the web-sys plugin
+
+## WASM WebRTC Frame Pipeline Gotchas (2026-06-05 session)
+
+### `captureStream()` from `display:none` canvas produces zero frames
+- Elements with `display:none` have no layout box → compositor skips them
+- `captureStream()` relies on compositor notifications → zero frames for `display:none` canvases
+- `requestFrame()` also ineffective because compositor ignores the element entirely
+- Fix: `position:fixed;left:-9999px` or `visibility:hidden` keeps the layout box
+
+### `captureStream()` without explicit frame rate defaults to 0fps for offscreen canvases
+- `canvas.captureStream()` (no args) uses browser-determined auto frame rate
+- For offscreen/hidden canvases, Chrome defaults to 0fps
+- Fix: use `captureStream(30)` → `capture_stream_with_frame_request_rate(30.0)` in web_sys
+- API: `HtmlCanvasElement::capture_stream_with_frame_request_rate(f64)` in web_sys 0.3.97
+
+### `video.play()` requires user gesture context for WebRTC remote tracks
+- `ontrack` event fires asynchronously after user gesture expires
+- `video.play()` called in ontrack handler → autoplay policy silently rejects
+- Fix: call `video.play()` in the button click handler (gesture context), set `video.srcObject` later in ontrack
+- `video.srcObject = stream` does NOT require user gesture
+
+### `<video>` element with `readyState=0, networkState=3` despite live track
+- `networkState=3` = `NETWORK_NO_SOURCE` — video thinks it has no data
+- Even with `srcObject = new MediaStream([liveTrack])`, video may not start decoding
+- More reliable: use `requestVideoFrameCallback` + Canvas for remote frame extraction in JS
+
+### Rust WASM `add_sink` video pipeline unreliable for remote tracks
+- Creating `<video>` element in Rust WASM via `spawn_local` has async timing issues
+- `MediaStream::new()` + `add_track()` may not correctly associate remote track for playback
+- `event.streams()[0]` from ontrack preserves original stream context
+- Prefer JS-side DOM manipulation for video elements over Rust WASM
+
+### `display:none` also blocks `<video>` decoding for remote tracks
+- Hidden `<video>` elements may not trigger video decoder startup
+- Pre-create video + `play()` during gesture, make temporarily visible for diagnostics
+- `position:fixed` with small dimensions better than `display:none` for debugging
+
+### Stats `getStats()` returns empty `{}` before ICE connection
+- `getStats()` Promise may resolve with empty report before connection establishes
+- `hasOutboundVideo=false` in stats even when SDP has `m=video`
+- Stats only populate after ICE reaches "Connected" state
+- First `get_stats_json()` call may fail with "stats not yet available" — retry after ICE connection
+
+### `putImageData` alone doesn't trigger `captureStream()` compositor
+- `putImageData` writes directly to bitmap, bypasses compositor
+- Even with canvas in DOM (`position:fixed`), `putImageData` may not trigger frame capture
+- Fix: draw to offscreen canvas via `putImageData`, then `drawImage(offscreenCanvas)` to streaming canvas
+- `drawImage` goes through compositor pipeline → `captureStream()` picks it up
+

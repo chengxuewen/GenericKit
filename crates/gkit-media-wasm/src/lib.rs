@@ -172,6 +172,13 @@ impl RtcVideoTrack {
         self.inner.kind().to_string()
     }
 
+    /// Returns the underlying DOM MediaStreamTrack for direct JS playback.
+    /// Usage: `const stream = new MediaStream([track.raw_track()]);`
+    #[wasm_bindgen]
+    pub fn raw_track(&self) -> JsValue {
+        self.inner.raw_track_js()
+    }
+
     /// Register a sink to receive incoming remote video frames.
     /// The sink's callback will be called with (rgba: Uint8Array, width: number, height: number)
     /// whenever a new frame arrives.

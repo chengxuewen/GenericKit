@@ -107,10 +107,12 @@ target*
 
 # Temp dirs
 # --------
+node_modules
 install
 nodejs
 stash
 
 # Don't ignore files
 # --------
-!build.rs
+!build.rstest-results/
+test-evidence/

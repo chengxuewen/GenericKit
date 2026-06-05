@@ -1,7 +1,7 @@
 # GenericKit Status
 
-**Last Updated**: 2026-06-04
-**Active Session**: Binding Architecture Restructure — completed ✅
+**Last Updated**: 2026-06-05
+**Active Session**: WASM Loopback Frame Transmission Debug — in progress ⚠️
 
 ## Binding Architecture
 
@@ -9,8 +9,55 @@
 |------|-------|------------|--------|
 | 1 | `gkit-media-ffi` | `extern "C"` + cbindgen | ✅ Implemented |
 | 1 | `gkit-core-ffi` | `extern "C"` + cbindgen | ✅ Implemented (stub) |
-| 2 | `gkit-media-wasm` | wasm-bindgen | ✅ Implemented (stub) |
-| 2 | `gkit-core-wasm` | wasm-bindgen | ✅ Implemented (stub) |
+| 2 | `gkit-media-wasm` | wasm-bindgen | ✅ Full WebRTC + video pipeline |
+| 2 | `gkit-core-wasm` | wasm-bindgen | ✅ Version API implemented |
+| 3 | `gkit-media-uniffi` | UniFFI (mozilla/uniffi-rs) | ✅ Implemented (stub) |
+| 3 | `gkit-core-uniffi` | UniFFI (mozilla/uniffi-rs) | ✅ Implemented (stub) |
+
+## WASM WebRTC Implementation (New — 2026-06-04)
+
+| Component | Status | Details |
+|-----------|--------|---------|
+| `WasmPeerConnection` | ✅ | Real `web_sys::RTCPeerConnection`, all W3C methods |
+| `WasmDataChannel` | ✅ | Wraps `web_sys::RtcDataChannel` |
+| `WasmPeerConnectionFactory` | ✅ | ICE server config → JS objects |
+| Video Track (create_video_track/set_on_track) | ✅ | Canvas capture → MediaStreamTrack |
+| JS Export (gkit-media-wasm) | ✅ | 25 methods across RtcPeerConnection/RtcDataChannel/RtcVideoSource/RtcVideoSink |
+| Async strategy | ✅ | `spawn_local` fire-and-forget (replaced `pollster::block_on`) |
+| gmpxv | ✅ | ICE gathering polling in JS |
+
+## Video Frame Generator Unification (New)
+
+| Aspect | Status |
+|--------|--------|
+| `VideoFrameGenerator` wasm32 | ✅ `#[cfg]` branches: `setInterval` + `Closure` |
+| `SquarePattern` | ✅ Shared between native and wasm32 |
+| `draw_timestamp` | ✅ `js_sys::Date::now()` on wasm32, `SystemTime::now()` on native |
+| Duplicate code removed | ✅ ~170 lines of manual I420 drawing deleted from `RtcVideoSource` |
+
+## CMake WASM Build Pipeline (New)
+
+| Target | Function |
+|--------|----------|
+| `cargo-build_{crate}` | cargo build --target wasm32-unknown-unknown |
+| `cargo-build_{crate}_bindgen` | wasm-bindgen --target web (ALL) |
+| `cargo-build_{crate}_optimize` | wasm-opt -O (ALL) |
+| Auto-install | wasm-bindgen-cli + wasm-opt (brew/apt) |
+
+## WASM Examples
+
+| Example | Location | Status |
+|---------|----------|--------|
+| WebRTC P2P Loopback | `crates/gkit-media-wasm/examples/webrtc-loopback/` | ✅ Deployed to `build/examples/web/webrtc-loopback/` |
+| Square Pattern Generator | `crates/gkit-media-wasm/examples/square-gen/` | ✅ Deployed to `build/examples/web/square-gen/` |
+
+## gkit-core Conditional Compilation
+
+| Feature | Purpose |
+|---------|---------|
+| `plugin` | Gates `pub mod plugin` (stabby + libloading). Default ON, OFF for wasm32 |
+| `gkit-core-wasm` | Uses `default-features = false` |
+| `gkit-media` wasm32 | `gkit-core = { default-features = false }` |
 | 3 | `gkit-media-uniffi` | UniFFI (mozilla/uniffi-rs) | ✅ Implemented (stub) |
 | 3 | `gkit-core-uniffi` | UniFFI (mozilla/uniffi-rs) | ✅ Implemented (stub) |
 
@@ -64,22 +111,40 @@ CMake options: `GKIT_BUILD_CRATE_FFI/WASM/UNIFFI`, `GKIT_BUILD_PACKAGE_CPP`.
 | P4 | ✅ | RtcEngine PluginRegistry integration + dynamic plugin loading |
 | P5 | ✅ | WASM web-sys plugin (rlib static linking) |
 
-## Loopback P2P — Fully Working ✅
+## Loopback P2P — WASM Frame Transmission Debug ⚠️
 
-| Component | Status |
-|-----------|--------|
-| Plugin loads (discovery, dlopen) | ✅ |
-| Backend dropdown shows libwebrtc | ✅ |
-| PeerConnection creation | ✅ |
-| SDP negotiation with video tracks | ✅ (`add_track()` in `create_video_track`) |
-| ICE candidate exchange | ✅ |
-| ICE state → Connected | ✅ |
-| `set_on_track` callback fires | ✅ |
-| Sender produces frames | ✅ (~390 frames/30s) |
-| `add_sink()` receiver task starts | ✅ |
-| **Receiver decoded frames arrive** | ✅ (~400 frames/30s — matches sender) |
-| egui dual-panel display | ✅ |
-| macOS `-ObjC` linker flag | ✅ `.cargo/config.toml` |
+| Component | Status | Details |
+|-----------|--------|---------|
+| Sender frame generation | ✅ | `RtcVideoSource::start()` generates 640×360 I420 @ 15fps |
+| Canvas drawing | ✅ | `CanvasSinkAdapter` I420→RGBA→offscreen→streaming canvas |
+| SDP negotiation | ✅ | `[SDP offer] hasVideo=true`, offer/answer exchange works |
+| **Sender WebRTC encoding** | ❌ | `hasOutboundVideo=false` — browser encoder not producing frames |
+| Receiver outbound video | ❌ | `videoWidth=0`, `readyState=0`, `networkState=3` |
+| Receiver frame count | ❌ | `recv=0` consistently |
+
+### Frame Pipeline Debugging Status
+
+| Fix Attempt | Result |
+|-------------|--------|
+| 1. `position:fixed` instead of `display:none` | Canvas in DOM, but still no outbound video |
+| 2. Dual-canvas: putImageData→offscreen, drawImage→streaming | Compositor notified, but no outbound video |
+| 3. `track.requestFrame()` after each draw | Reflect::get call works, but track may not support requestFrame |
+| 4. `capture_stream_with_frame_request_rate(30.0)` | Explicit frame rate set, but no outbound video |
+| 5. JS-side `<video>` for receiver | `networkState=3` (NETWORK_NO_SOURCE) — video never receives data |
+| 6. Pre-play video during gesture context | srcObject set later, but video still shows no data |
+
+### Key Diagnostic
+
+- `[SDP offer] hasVideo=true sdpLen=5376` — SDP includes video
+- `[SDP answer] hasVideo=true sdpLen=4521` — Answer includes video
+- `[SND stats] hasOutboundVideo=false len=2` — **Browser WebRTC encoder never sees frames**
+- `readyState=0, networkState=3` on receiver video — Decoder never receives data
+
+**Root cause**: Canvas `captureStream()` track is registered with PeerConnection (SDP has video) but the browser's WebRTC encoder produces no outbound RTP packets. Hypothesis: `requestFrame()` may not actually be available on the track, or the canvas capture is incompatible with the browser encoder.
+
+### Next Step
+
+Verify whether `requestFrame()` API is available on the track. If not, explore `MediaStreamTrackGenerator` (Insertable Streams API) as alternative to canvas capture.
 
 ## Key Bug Fixes (This Session)
 

@@ -112,6 +112,12 @@ pub trait VideoTrack: Send {
     fn id(&self) -> &str;
     fn kind(&self) -> &str;
     fn add_sink(&self, sink: Box<dyn VideoSink<BoxVideoFrame>>);
+
+    /// Returns the raw DOM MediaStreamTrack for JS-side playback (WASM only).
+    #[cfg(target_arch = "wasm32")]
+    fn raw_track_js(&self) -> wasm_bindgen::prelude::JsValue {
+        wasm_bindgen::prelude::JsValue::UNDEFINED
+    }
 }
 
 /// W3C RTCPeerConnection trait.

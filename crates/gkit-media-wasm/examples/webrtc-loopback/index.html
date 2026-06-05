@@ -154,6 +154,26 @@
             color: #a0a0b0;
         }
 
+        .stats-panel {
+            text-align: center;
+            margin-top: 8px;
+            font-size: 0.82rem;
+            color: #788;
+        }
+
+        .sdp-log {
+            text-align: center;
+            margin-top: 8px;
+            font-size: 0.78rem;
+            color: #666;
+        }
+
+        .sdp-log pre {
+            text-align: left;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
         .version {
             text-align: center;
             margin-top: 20px;
@@ -168,12 +188,12 @@
         <div class="grid">
             <div class="panel">
                 <h2>Receiver (Decoded Frames)</h2>
-                <canvas id="recv-canvas" width="640" height="480"></canvas>
+                <canvas id="recv-canvas" width="640" height="360"></canvas>
                 <div class="stats">Received: <span id="recv-count">0</span></div>
             </div>
             <div class="panel">
                 <h2>Sender (Generated Frames)</h2>
-                <canvas id="send-canvas" width="640" height="480"></canvas>
+                <canvas id="send-canvas" width="640" height="360"></canvas>
                 <div class="stats">Sent: <span id="sent-count">0</span></div>
             </div>
         </div>
@@ -188,6 +208,14 @@
             <span><span class="label">Signal1:</span> <span id="sig1">&mdash;</span></span>
             <span><span class="label">Signal2:</span> <span id="sig2">&mdash;</span></span>
         </div>
+        <div class="stats-panel">
+            <div class="label">Stats:</div>
+            <span id="stats-text">—</span>
+        </div>
+        <details class="sdp-log">
+            <summary>SDP Negotiation</summary>
+            <pre id="sdp-text"></pre>
+        </details>
         <div class="version" id="version"></div>
     </div>
 
@@ -217,14 +245,20 @@
         const sig1El = $('sig1');
         const sig2El = $('sig2');
         const versionEl = $('version');
+        const statsText = $('stats-text');
+        const sdpText = $('sdp-text');
 
         let sentFrames = 0;
         let receivedFrames = 0;
         let source = null;
+        let senderTrack = null;
         let pc1 = null;
         let pc2 = null;
         let iceTimer = null;
         let stopped = false;
+        let remoteVideo = null;
+        let statsTimer = null;
+        let statsDiffTimer = null;
 
         function setStatus(text, cls) {
             statusEl.textContent = text;
@@ -245,6 +279,11 @@
             setStatus('Ready', 'ok');
             startBtn.disabled = false;
 
+            const autoStart = window.location.search.includes('auto');
+            if (autoStart) {
+                await start();
+            }
+
             startBtn.onclick = start;
             stopBtn.onclick = stop;
         }
@@ -256,20 +295,34 @@
                 stopped = false;
                 sentFrames = 0;
                 receivedFrames = 0;
+                senderTrack = null;
                 sentCount.textContent = '0';
                 recvCount.textContent = '0';
+                const startTime = Date.now();
 
                 // Clear canvases
                 sendCtx.fillStyle = '#0a0a1a';
-                sendCtx.fillRect(0, 0, 640, 480);
+                sendCtx.fillRect(0, 0, 640, 360);
                 recvCtx.fillStyle = '#0a0a1a';
-                recvCtx.fillRect(0, 0, 640, 480);
+                recvCtx.fillRect(0, 0, 640, 360);
 
                 startBtn.disabled = true;
+
+                // Pre-create receiver video while user gesture is active (autoplay policy)
+                // Will set srcObject when remote track arrives
+                remoteVideo = remoteVideo || document.createElement('video');
+                remoteVideo.autoplay = true;
+                remoteVideo.muted = true;
+                remoteVideo.playsInline = true;
+                remoteVideo.style.cssText = 'position:fixed;bottom:10px;right:10px;width:160px;height:90px;z-index:9999;border:2px solid red;background:#000';
+                if (!remoteVideo.parentNode) document.body.appendChild(remoteVideo);
+                remoteVideo.setAttribute('title', 'Remote Video (debug visible)');
+                remoteVideo.play().catch(e => console.error('[JS] pre-play failed:', e));
+
                 setStatus('Creating video source...', 'warn');
 
-                // Create video source (640x480, 15fps)
-                source = new RtcVideoSource(640, 480, 15);
+                // Create video source (640x360, 15fps)
+                source = new RtcVideoSource(640, 360, 15);
 
                 // Sender visualization: add a sink to the source for local display
                 source.add_sink((rgba, w, h) => {
@@ -278,6 +331,9 @@
                     const clamped = new Uint8ClampedArray(rgba.buffer, rgba.byteOffset, rgba.byteLength);
                     const imgData = new ImageData(clamped, w, h);
                     sendCtx.putImageData(imgData, 0, 0);
+                    if (sentFrames <= 5 || sentFrames % 30 === 0) {
+                        console.log(`[JS TX] frame #${sentFrames} shown on sender canvas`);
+                    }
                     if (sentFrames === 1) {
                         // Also show first frame on receiver canvas for visual confirmation
                         recvCtx.putImageData(imgData, 0, 0);
@@ -286,50 +342,100 @@
                 });
                 source.start();
                 
-                // Create peer connections
+                // Create peer connections (loopback: no STUN needed)
                 const config1 = new RtcConfiguration();
-                config1.add_ice_server(new IceServer(['stun:stun.l.google.com:19302']));
                 const config2 = new RtcConfiguration();
-                config2.add_ice_server(new IceServer(['stun:stun.l.google.com:19302']));
                 pc1 = new RtcPeerConnection(config1);
                 pc2 = new RtcPeerConnection(config2);
+                window.pc1 = pc1;
+                window.pc2 = pc2;
 
-                // Receiver: set up onTrack callback
-                pc1.set_on_track((track) => {
-                    const sink = new RtcVideoSink((rgba, w, h) => {
-                        receivedFrames++;
-                        recvCount.textContent = receivedFrames;
-                        const clamped = new Uint8ClampedArray(rgba.buffer, rgba.byteOffset, rgba.byteLength);
-                        const imgData = new ImageData(clamped, w, h);
-                        recvCtx.putImageData(imgData, 0, 0);
-                    });
-                    if (track && typeof track.add_sink === 'function') {
-                        track.add_sink(sink);
-                    }
-                });
-
-                // ICE candidate exchange
+                // ICE candidate exchange — queue candidates and replay after setRemoteDescription
+                // because Chrome requires remote description to be set before addIceCandidate
+                const pc1Candidates = [];
+                const pc2Candidates = [];
                 pc1.set_on_ice_candidate((candidate) => {
                     if (candidate && candidate.candidate) {
-                        pc2.add_ice_candidate(candidate.candidate, candidate.sdp_mid || '');
+                        pc1Candidates.push(candidate);
                     }
                 });
                 pc2.set_on_ice_candidate((candidate) => {
                     if (candidate && candidate.candidate) {
-                        pc1.add_ice_candidate(candidate.candidate, candidate.sdp_mid || '');
+                        pc2Candidates.push(candidate);
                     }
                 });
 
-                // ICE state monitoring
+                // Helper to replay queued candidates to the other peer
+                const replayCandidates = (candidates, targetPc) => {
+                    for (const c of candidates) {
+                        try {
+                            targetPc.add_ice_candidate(c.candidate, c.sdp_mid || '');
+                        } catch (e) {
+                            console.warn('Failed to replay candidate:', e);
+                        }
+                    }
+                    candidates.length = 0; // clear queue
+                };
+
+                // ICE state monitoring (with timestamps) + signal state
                 pc1.set_on_ice_connection_state_change((state) => {
-                    ice1El.textContent = state;
+                    ice1El.textContent = `${state} (${((Date.now()-startTime)/1000).toFixed(1)}s)`;
+                    sig1El.textContent = `${state} (${((Date.now()-startTime)/1000).toFixed(1)}s)`;
                 });
                 pc2.set_on_ice_connection_state_change((state) => {
-                    ice2El.textContent = state;
+                    ice2El.textContent = `${state} (${((Date.now()-startTime)/1000).toFixed(1)}s)`;
+                    sig2El.textContent = `${state} (${((Date.now()-startTime)/1000).toFixed(1)}s)`;
                 });
 
-                // Create video track from source on sender (pc2)
-                pc2.create_video_track(source);
+                // Create video track from source on offerer (pc1)
+                senderTrack = pc1.create_video_track(source);
+                // Stats polling for sender diagnostics
+                let statsInterval = setInterval(() => {
+                    try {
+                        const statsJson = pc1.get_stats_json();
+                        const hasVideo = statsJson.includes('outbound-rtp') || statsJson.includes('video');
+                        console.log('[SND stats] hasOutboundVideo=' + hasVideo + ' len=' + statsJson.length);
+                    } catch(e) { console.log('[SND stats] err:', e.message); }
+                }, 3000);
+
+                // Receiver: JS-side video playback (more reliable than Rust add_sink)
+                pc2.set_on_track((track) => {
+                    console.log('[JS] remote track received');
+                    const rawTrack = track.raw_track();
+                    const stream = new MediaStream([rawTrack]);
+                    remoteVideo.srcObject = stream;
+                    console.log('[JS DIAG] video.readyState=' + remoteVideo.readyState + ' networkState=' + remoteVideo.networkState + ' paused=' + remoteVideo.paused);
+                    if (remoteVideo.error) console.error('[JS DIAG] video.error=' + remoteVideo.error.message);
+                    const vt = stream.getVideoTracks();
+                    if (vt.length > 0) console.log('[JS DIAG] track.readyState=' + vt[0].readyState + ' kind=' + vt[0].kind + ' enabled=' + vt[0].enabled);
+                    console.log('[JS] srcObject set on pre-playing video');
+                    
+                    // Frame extraction: draw video → receiver canvas
+                    function extractFrame() {
+                        if (stopped) return;
+                        if (remoteVideo.videoWidth === 0 || remoteVideo.videoHeight === 0) {
+                            if (frameAttempts === undefined) window._frameAttempts = 0;
+                            window._frameAttempts++;
+                            if (window._frameAttempts <= 3 || window._frameAttempts % 30 === 0) {
+                                console.log('[JS DIAG] extract attempt #' + window._frameAttempts + ': videoWidth=' + remoteVideo.videoWidth + ' readyState=' + remoteVideo.readyState + ' networkState=' + remoteVideo.networkState + ' paused=' + remoteVideo.paused + ' error=' + (remoteVideo.error ? remoteVideo.error.message : 'null'));
+                            }
+                            requestAnimationFrame(extractFrame);
+                            return;
+                        }
+                        if (recvCanvas.width !== remoteVideo.videoWidth) {
+                            recvCanvas.width = remoteVideo.videoWidth;
+                            recvCanvas.height = remoteVideo.videoHeight;
+                        }
+                        recvCtx.drawImage(remoteVideo, 0, 0, recvCanvas.width, recvCanvas.height);
+                        receivedFrames++;
+                        recvCount.textContent = receivedFrames;
+                        if (receivedFrames <= 5 || receivedFrames % 30 === 0) {
+                            console.log(`[JS RX] frame #${receivedFrames} ${remoteVideo.videoWidth}x${remoteVideo.videoHeight}`);
+                        }
+                        requestAnimationFrame(extractFrame);
+                    }
+                    requestAnimationFrame(extractFrame);
+                });
 
                 // --- WebRTC P2P negotiation with spawn_local async
                 
@@ -350,10 +456,13 @@
                     setStatus('Error: offer not ready', 'err');
                     return;
                 }
+                sig1El.textContent = 'offer sent';
                 
                 // Step 2: pc2 sets remote description
                 pc2.set_remote_description(offer);
                 await new Promise(r => setTimeout(r, 1000));
+                // Replay pc1's ICE candidates to pc2 now that remote description is set
+                replayCandidates(pc1Candidates, pc2);
                 
                 // Step 3: pc2 creates answer
                 pc2.create_answer();
@@ -370,11 +479,91 @@
                     setStatus('Error: answer not ready', 'err');
                     return;
                 }
+                sig2El.textContent = 'answer created';
                 
                 // Step 5: pc1 sets remote description
                 pc1.set_remote_description(answer);
-                
-                setStatus('SDP + ICE exchanged via spawn_local ✅', 'ok');
+                // Wait for spawn_local to actually set the remote description
+                let rdSet = false;
+                for (let i = 0; i < 20; i++) {
+                    try {
+                        const rd = pc1.remote_description();
+                        if (rd && rd.sdp) { rdSet = true; break; }
+                    } catch (_) {}
+                    await new Promise(r => setTimeout(r, 500));
+                }
+                if (!rdSet) {
+                    setStatus('Error: remote description not set after 10s', 'err');
+                    return;
+                }
+                // Replay pc2's ICE candidates to pc1 now that remote description is set
+                replayCandidates(pc2Candidates, pc1);
+                sig1El.textContent = 'offer sent + answer rcvd';
+
+                // Build SDP summary
+                const summarizeSdp = (sdp) => {
+                    const iceCandidates = (sdp.match(/^a=candidate:/gm) || []).length;
+                    const mVideoLine = sdp.split('\n').find(line => line.startsWith('m=video')) || '';
+                    return { iceCandidates, mVideoLine };
+                };
+                const offerSummary = summarizeSdp(offer.sdp);
+                const answerSummary = summarizeSdp(answer.sdp);
+                sdpText.textContent =
+                    `Offer: ${offerSummary.mVideoLine || 'video track'}, ${offerSummary.iceCandidates} ICE candidate${offerSummary.iceCandidates !== 1 ? 's' : ''}\n` +
+                    `Answer: ${answerSummary.mVideoLine || 'video track'}, ${answerSummary.iceCandidates} ICE candidate${answerSummary.iceCandidates !== 1 ? 's' : ''}`;
+
+                // Start stats polling
+                const statsStartTime = Date.now();
+                statsTimer = setInterval(() => {
+                    try {
+                        const jsonStr = pc2.get_stats_json();
+                        if (!jsonStr) return;
+                        const stats = JSON.parse(jsonStr);
+                        const arr = Array.isArray(stats) ? stats : [stats];
+                        const elapsed = (Date.now() - statsStartTime) / 1000;
+                        let kbps = 0, jitter = '\u2014', rtt = '\u2014', packetsLost = 0, bytesReceived = 0;
+                        for (const s of arr) {
+                            if (s.type === 'inbound-rtp' && s.kind === 'video') {
+                                if (s.jitter !== undefined) jitter = s.jitter.toFixed(3);
+                                if (s.roundTripTime !== undefined) rtt = s.roundTripTime.toFixed(3);
+                                bytesReceived = s.bytesReceived || 0;
+                                packetsLost = s.packetsLost || 0;
+                            }
+                        }
+                        kbps = elapsed > 0 ? (bytesReceived * 8 / 1000 / elapsed) : 0;
+                        const fps = elapsed > 0 ? (receivedFrames / elapsed) : 0;
+                        statsText.textContent =
+                            `fps:${fps.toFixed(0)}  kbps:${kbps.toFixed(0)}  jitter:${jitter}  rtt:${rtt}s  lost:${packetsLost}`;
+                    } catch (_) {
+                        // ignore stats errors
+                    }
+                }, 2000);
+
+                // Stats diff tracker — log sent vs received every 5s
+                statsDiffTimer = setInterval(() => {
+                    console.log(`[STATS] sent=${sentFrames} recv=${receivedFrames} diff=${sentFrames - receivedFrames}`);
+                }, 5000);
+
+                // ICE state polling — polls ice_connection_state() every 1s
+                const updateIceState = () => {
+                    const state1 = pc1.ice_connection_state();
+                    const state2 = pc2.ice_connection_state();
+                    const t1 = ((Date.now()-startTime)/1000).toFixed(1);
+                    if (state1 && state1 !== ice1El.dataset.last) {
+                        ice1El.textContent = `${state1} (${t1}s)`;
+                        sig1El.textContent = `${state1} (${t1}s)`;
+                        ice1El.dataset.last = state1;
+                    }
+                    if (state2 && state2 !== ice2El.dataset.last) {
+                        ice2El.textContent = `${state2} (${t1}s)`;
+                        sig2El.textContent = `${state2} (${t1}s)`;
+                        ice2El.dataset.last = state2;
+                    }
+                };
+                updateIceState(); // immediate first poll
+                iceTimer = setInterval(updateIceState, 1000);
+
+                setStatus('SDP + ICE exchanged \u2705', 'ok');
                 stopBtn.disabled = false;
 
             } catch (e) {
@@ -397,6 +586,14 @@
                 clearInterval(iceTimer);
                 iceTimer = null;
             }
+            if (statsTimer) {
+                clearInterval(statsTimer);
+                statsTimer = null;
+            }
+            if (statsDiffTimer) {
+                clearInterval(statsDiffTimer);
+                statsDiffTimer = null;
+            }
 
             await cleanup();
 
@@ -404,12 +601,15 @@
             ice2El.textContent = '\u2014';
             sig1El.textContent = '\u2014';
             sig2El.textContent = '\u2014';
+            statsText.textContent = '\u2014';
+            sdpText.textContent = '';
 
             setStatus('Stopped', 'ok');
             startBtn.disabled = false;
         }
 
         async function cleanup() {
+            senderTrack = null;
             if (source) {
                 try { source.stop(); } catch (_) {}
                 source = null;
@@ -422,6 +622,16 @@
                 try { pc2.close(); } catch (_) {}
                 pc2 = null;
             }
+            // Reset canvases to black
+            sendCtx.fillStyle = '#0a0a1a';
+            sendCtx.fillRect(0, 0, 640, 360);
+            recvCtx.fillStyle = '#0a0a1a';
+            recvCtx.fillRect(0, 0, 640, 360);
+            // Reset frame counters
+            sentFrames = 0;
+            receivedFrames = 0;
+            sentCount.textContent = '0';
+            recvCount.textContent = '0';
         }
 
         // ── Bootstrap ───────────────────────────────────────────────────
